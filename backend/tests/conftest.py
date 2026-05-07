@@ -2,12 +2,33 @@ from collections.abc import Iterator
 
 import psycopg
 import pytest
+from psycopg import sql
 
 from app.config import settings
+
+PERSISTENT_TABLES = {"alembic_version", "email_templates"}
+DEFAULT_EMAIL_TEMPLATE_SLUGS = {
+    "account_activation",
+    "tenant_invitation",
+    "password_reset",
+    "password_changed",
+    "membership_assigned",
+}
 
 
 def psycopg_url() -> str:
     return settings.test_database_url.replace("postgresql+psycopg://", "postgresql://")
+
+
+def admin_psycopg_url() -> str:
+    return settings.sync_database_url.replace("postgresql+psycopg://", "postgresql://")
+
+
+@pytest.fixture(autouse=True)
+def clean_database() -> Iterator[None]:
+    _cleanup_test_database()
+    yield
+    _cleanup_test_database()
 
 
 @pytest.fixture()
@@ -27,6 +48,29 @@ def api_error(response):
     body = response.json()
     assert body["status"] == "error"
     return body["error"]
+
+
+def _cleanup_test_database() -> None:
+    with psycopg.connect(admin_psycopg_url(), autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT tablename
+                FROM pg_tables
+                WHERE schemaname = 'public'
+                """
+            )
+            tables = sorted(row[0] for row in cursor.fetchall() if row[0] not in PERSISTENT_TABLES)
+            if tables:
+                cursor.execute(
+                    sql.SQL("TRUNCATE TABLE {} RESTART IDENTITY CASCADE").format(
+                        sql.SQL(", ").join(sql.Identifier(table) for table in tables)
+                    )
+                )
+            cursor.execute(
+                "DELETE FROM email_templates WHERE slug <> ALL(%s)",
+                (list(DEFAULT_EMAIL_TEMPLATE_SLUGS),),
+            )
 
 
 @pytest.fixture()
