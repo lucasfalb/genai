@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import inspect
 from uuid import UUID
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.registry_cache import ToolMetadataCache
@@ -35,8 +37,11 @@ class PromptBuilder:
         metadata = await ToolMetadataCache(self.connection).get(
             tenant_id=tenant_id, instance_id=instance_id
         )
+        prompt_config = await self._get_prompt_config(tenant_id=tenant_id, instance_id=instance_id)
         sp = PromptBuilder.assemble(
             core_prompt=core_prompt,
+            instruction_blocks=prompt_config["instruction_blocks"],
+            guardrails=prompt_config["guardrails"],
             skills=metadata.skills,
             tools=metadata.tools,
             linked_agents=linked_agents or [],
@@ -47,6 +52,8 @@ class PromptBuilder:
                 "skills": metadata.skills,
                 "tools": metadata.tools,
                 "linked_agents": linked_agents or [],
+                "instruction_blocks": prompt_config["instruction_blocks"],
+                "guardrails": prompt_config["guardrails"],
             },
         )
         await PromptCache(self.connection).set(tenant_id=tenant_id, instance_id=instance_id, prompt=validated_prompt)
@@ -56,11 +63,15 @@ class PromptBuilder:
     def assemble(
         *,
         core_prompt: str,
+        instruction_blocks: list[dict] | None = None,
+        guardrails: list[dict] | None = None,
         skills: list,
         tools: list,
         linked_agents: list[dict] | None = None,
     ) -> SystemPrompt:
         core = core_prompt.strip()
+        instruction_text = _format_instruction_blocks(instruction_blocks or [])
+        guardrail_text = _format_guardrails(guardrails or [])
         tool_parts: list[str] = []
 
         if skills:
@@ -77,11 +88,67 @@ class PromptBuilder:
             tool_parts.append("### Hand-off de Agentes\n" + "\n".join(lines))
 
         tool_instructions = "\n\n".join(tool_parts)
-        full = "\n\n".join(filter(None, [core, tool_instructions, _CONSTRAINTS])).strip()
+        full = "\n\n".join(filter(None, [core, instruction_text, tool_instructions, guardrail_text, _CONSTRAINTS])).strip()
 
         return SystemPrompt(
             core=core,
+            instruction_blocks=instruction_text,
             tool_instructions=tool_instructions,
+            guardrails=guardrail_text,
             constraints=_CONSTRAINTS,
             full=full,
         )
+
+    async def _get_prompt_config(self, *, tenant_id: UUID, instance_id: UUID) -> dict[str, list[dict]]:
+        result_or_awaitable = self.connection.execute(
+            text(
+                """
+                SELECT instruction_blocks, guardrails
+                FROM agent_instances
+                WHERE tenant_id = :tenant_id AND id = :instance_id
+                """
+            ),
+            {"tenant_id": tenant_id, "instance_id": instance_id},
+        )
+        if not inspect.isawaitable(result_or_awaitable):
+            return {"instruction_blocks": [], "guardrails": []}
+        result = await result_or_awaitable
+        row = result.one_or_none()
+        if row is None:
+            return {"instruction_blocks": [], "guardrails": []}
+        return {
+            "instruction_blocks": row.instruction_blocks or [],
+            "guardrails": row.guardrails or [],
+        }
+
+
+def _format_instruction_blocks(blocks: list[dict]) -> str:
+    enabled = [block for block in blocks if block.get("is_enabled", True)]
+    if not enabled:
+        return ""
+    ordered = sorted(enabled, key=lambda item: (item.get("priority", 100), item.get("topic", ""), item.get("id", "")))
+    lines: list[str] = ["### Instrucoes por Topico"]
+    for block in ordered:
+        lines.append(
+            f"#### {block.get('topic', 'geral')} - {block.get('title', block.get('id', 'instrucao'))}\n"
+            f"{str(block.get('content', '')).strip()}"
+        )
+    return "\n\n".join(lines).strip()
+
+
+def _format_guardrails(guardrails: list[dict]) -> str:
+    enabled = [guardrail for guardrail in guardrails if guardrail.get("is_enabled", True)]
+    if not enabled:
+        return ""
+    severity_order = {"blocking": 0, "critical": 1, "warning": 2, "info": 3}
+    ordered = sorted(
+        enabled,
+        key=lambda item: (severity_order.get(item.get("severity", "critical"), 1), item.get("category", ""), item.get("id", "")),
+    )
+    lines = ["### Guardrails Customizados"]
+    for guardrail in ordered:
+        lines.append(
+            f"- [{guardrail.get('severity', 'critical')}] "
+            f"{guardrail.get('category', 'geral')}: {str(guardrail.get('rule', '')).strip()}"
+        )
+    return "\n".join(lines).strip()

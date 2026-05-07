@@ -20,8 +20,9 @@
 | TASK-040 | [Prompt Cache Invalidation em Mutacoes de Instancia](task_040_prompt_cache_invalidation_admin_mutations.md) | COMPLETED | HIGH | TASK-036, TASK-032 |
 | TASK-061 | [AI Provider Config por Tenant e Plataforma](task_061_ai_provider_config.md) | COMPLETED | HIGH | TASK-032, TASK-036 |
 | TASK-062 | [System Settings e Tenant AI Config Consolidation](task_062_system_settings_tenant_ai_config_consolidation.md) | COMPLETED | CRITICAL | TASK-029, TASK-032, TASK-039, TASK-061 |
-| TASK-063 | [I18n Platform Messages e Locale Settings](task_063_i18n_platform_messages_locale_settings.md) | PENDING | HIGH | TASK-062 |
-| TASK-064 | [Agent Guardrails Customizados e Instrucoes por Topicos](task_064_agent_guardrails_customizados_instrucoes_por_topicos.md) | PENDING | CRITICAL | TASK-032, TASK-036, TASK-037, TASK-038 |
+| TASK-063 | [I18n Platform Messages e Locale Settings](task_063_i18n_platform_messages_locale_settings.md) | COMPLETED | HIGH | TASK-062 |
+| TASK-064 | [Agent Guardrails Customizados e Instrucoes por Topicos](task_064_agent_guardrails_customizados_instrucoes_por_topicos.md) | COMPLETED | CRITICAL | TASK-032, TASK-036, TASK-037, TASK-038, TASK-040 |
+| TASK-065 | [I18n Locale Runtime Implementation](task_065_i18n_locale_runtime_implementation.md) | PENDING | HIGH | TASK-063, TASK-062 |
 
 ## Scope
 
@@ -40,6 +41,7 @@ Estas tasks cobrem o Stage 05 definido em `docs/stages/stage_05_base_multitenant
 9. Consolidar configuracoes operacionais globais em `system_settings` e configuracao AI por tenant em `tenants`.
 10. Planejar i18n para mensagens da plataforma, templates e preferencias de locale.
 11. Evoluir o agente base para aceitar guardrails customizados e instrucoes estruturadas por topicos.
+12. Implementar runtime de i18n apos o contrato de locale estar fechado.
 
 ## Notes
 

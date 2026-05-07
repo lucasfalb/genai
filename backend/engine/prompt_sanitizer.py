@@ -25,6 +25,16 @@ _CONFLICT_PATTERNS = (
     (re.compile(r"\b(?:always|must|should)\s+(.+)", re.I), re.compile(r"\b(?:never|must not|do not|don't|cannot)\s+(.+)", re.I)),
     (re.compile(r"\b(?:sempre|deve)\s+(.+)", re.I), re.compile(r"\b(?:nunca|nao deve|não deve|nao|não)\s+(.+)", re.I)),
 )
+_SENSITIVE_PROMPT_MARKERS = (
+    "api_key",
+    "apikey",
+    "authorization",
+    "bearer ",
+    "password",
+    "secret",
+    "smtp_pass",
+    "token",
+)
 
 
 class PromptValidationError(Exception):
@@ -111,6 +121,12 @@ class PromptSanitizer:
         if conflicts:
             raise PromptValidationError(f"Conflicting prompt instructions detected: {', '.join(conflicts)}")
 
+        sensitive_items = _find_sensitive_prompt_config(metadata or {})
+        if sensitive_items:
+            raise PromptValidationError(
+                f"Prompt configuration contains sensitive fields: {', '.join(sorted(sensitive_items))}"
+            )
+
         self._emit_alert(density)
         return system_prompt.model_copy(update={"density": density})
 
@@ -170,6 +186,32 @@ def _extract_capabilities(metadata: dict[str, Any]) -> list[CapabilityName]:
         if name:
             capabilities.append(CapabilityName(kind="handoff", name=str(name)))
     return capabilities
+
+
+def _find_sensitive_prompt_config(metadata: dict[str, Any]) -> set[str]:
+    findings: set[str] = set()
+    for collection_name in ("instruction_blocks", "guardrails"):
+        for item in metadata.get(collection_name, []) or []:
+            _scan_sensitive(item, path=collection_name, findings=findings)
+    return findings
+
+
+def _scan_sensitive(value: Any, *, path: str, findings: set[str]) -> None:
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            normalized_key = str(key).lower().replace("-", "_")
+            if any(marker.strip() in normalized_key for marker in _SENSITIVE_PROMPT_MARKERS):
+                findings.add(f"{path}.{key}")
+            _scan_sensitive(nested, path=f"{path}.{key}", findings=findings)
+        return
+    if isinstance(value, list):
+        for index, nested in enumerate(value):
+            _scan_sensitive(nested, path=f"{path}[{index}]", findings=findings)
+        return
+    if isinstance(value, str):
+        normalized_value = value.lower()
+        if any(marker in normalized_value for marker in _SENSITIVE_PROMPT_MARKERS):
+            findings.add(path)
 
 
 def _extract_callable_name(item: Any, *, schema_attrs: tuple[str, ...]) -> str:

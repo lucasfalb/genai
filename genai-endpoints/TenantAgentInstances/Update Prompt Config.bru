@@ -1,0 +1,51 @@
+meta {
+  name: Update Prompt Config
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{base_url}}/api/v1/tenant/instances/{{instance_id}}/prompt-config
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Content-Type: application/json
+  X-Tenant-ID: {{tenant_id}}
+}
+
+body:json {
+  {
+    "instruction_blocks": [
+      {
+        "id": "support-tone",
+        "topic": "support",
+        "title": "Support tone",
+        "content": "Use concise, practical answers and ask for missing context before making assumptions.",
+        "priority": 10,
+        "is_enabled": true
+      }
+    ],
+    "guardrails": [
+      {
+        "id": "no-legal-advice",
+        "category": "compliance",
+        "rule": "Never provide legal advice; suggest contacting a qualified professional when legal interpretation is required.",
+        "severity": "blocking",
+        "is_enabled": true,
+        "metadata": {
+          "source": "tenant-policy"
+        }
+      }
+    ]
+  }
+}
+
+settings {
+  encodeUrl: false
+}

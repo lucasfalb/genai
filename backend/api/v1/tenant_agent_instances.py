@@ -12,6 +12,8 @@ from app.schemas import (
     AgentInstanceCreateRequest,
     AgentInstanceResponse,
     AgentInstanceUpdateRequest,
+    AgentPromptConfigRequest,
+    AgentPromptConfigResponse,
     ApiResponse,
     MessageResponse,
 )
@@ -90,6 +92,61 @@ async def get_instance(
     if instance is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Agent instance not found")
     return api_success(_instance_response(instance))
+
+
+@router.get(
+    "/{instance_id}/prompt-config",
+    response_model=ApiResponse[AgentPromptConfigResponse],
+    summary="Get agent prompt configuration",
+    description="Returns tenant-scoped instruction blocks and custom guardrails for one agent instance. Requires agent-instance management permission.",
+)
+async def get_prompt_config(
+    instance_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_AGENT_INSTANCES)),
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[AgentPromptConfigResponse]:
+    await _set_tenant(connection, context)
+    record = await AgentInstanceRepository(connection).get_prompt_config(
+        tenant_id=context.tenant_id,
+        instance_id=instance_id,
+    )
+    if record is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Agent instance not found")
+    return api_success(_prompt_config_response(record))
+
+
+@router.put(
+    "/{instance_id}/prompt-config",
+    response_model=ApiResponse[AgentPromptConfigResponse],
+    summary="Update agent prompt configuration",
+    description="Replaces tenant-scoped instruction blocks and custom guardrails for one agent instance, invalidates prompt-related caches, and records tenant audit/version entries.",
+)
+async def update_prompt_config(
+    instance_id: UUID,
+    payload: AgentPromptConfigRequest,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_AGENT_INSTANCES)),
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[AgentPromptConfigResponse]:
+    await _set_tenant(connection, context)
+    record = await AgentInstanceRepository(connection).update_prompt_config(
+        tenant_id=context.tenant_id,
+        instance_id=instance_id,
+        instruction_blocks=[item.model_dump(mode="json") for item in payload.instruction_blocks],
+        guardrails=[item.model_dump(mode="json") for item in payload.guardrails],
+    )
+    if record is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Agent instance not found")
+    await _invalidate_instance_caches(connection, tenant_id=context.tenant_id, instance_id=instance_id)
+    await record_tenant_mutation(
+        connection=connection,
+        context=context,
+        action="agent_instance.prompt_config.updated",
+        resource="agent_instances",
+        resource_id=str(instance_id),
+        snapshot=_prompt_config_response(record).model_dump(mode="json"),
+        metadata={"updated_fields": ["instruction_blocks", "guardrails"]},
+    )
+    return api_success(_prompt_config_response(record), message="Agent prompt configuration updated.")
 
 
 @router.patch(
@@ -197,4 +254,13 @@ def _instance_response(record: AgentInstanceRecord) -> AgentInstanceResponse:
         status=record.status,
         rag_scope=record.rag_scope,
         created_by=record.created_by,
+    )
+
+
+def _prompt_config_response(record) -> AgentPromptConfigResponse:
+    return AgentPromptConfigResponse(
+        tenant_id=record.tenant_id,
+        instance_id=record.instance_id,
+        instruction_blocks=record.instruction_blocks,
+        guardrails=record.guardrails,
     )

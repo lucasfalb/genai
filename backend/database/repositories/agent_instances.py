@@ -20,6 +20,14 @@ class AgentInstanceRecord:
     created_by: UUID
 
 
+@dataclass(frozen=True)
+class AgentPromptConfigRecord:
+    tenant_id: UUID
+    instance_id: UUID
+    instruction_blocks: list
+    guardrails: list
+
+
 class AgentInstanceRepository:
     def __init__(self, connection: AsyncConnection) -> None:
         self.connection = connection
@@ -148,6 +156,49 @@ class AgentInstanceRepository:
         row = result.one_or_none()
         return _from_row(row) if row else None
 
+    async def get_prompt_config(self, *, tenant_id: UUID, instance_id: UUID) -> AgentPromptConfigRecord | None:
+        result = await self.connection.execute(
+            text(
+                """
+                SELECT tenant_id, id AS instance_id, instruction_blocks, guardrails
+                FROM agent_instances
+                WHERE tenant_id = :tenant_id AND id = :instance_id
+                """
+            ),
+            {"tenant_id": tenant_id, "instance_id": instance_id},
+        )
+        row = result.one_or_none()
+        return _prompt_config_from_row(row) if row else None
+
+    async def update_prompt_config(
+        self,
+        *,
+        tenant_id: UUID,
+        instance_id: UUID,
+        instruction_blocks: list,
+        guardrails: list,
+    ) -> AgentPromptConfigRecord | None:
+        result = await self.connection.execute(
+            text(
+                """
+                UPDATE agent_instances
+                SET instruction_blocks = CAST(:instruction_blocks AS jsonb),
+                    guardrails = CAST(:guardrails AS jsonb),
+                    updated_at = now()
+                WHERE tenant_id = :tenant_id AND id = :instance_id
+                RETURNING tenant_id, id AS instance_id, instruction_blocks, guardrails
+                """
+            ),
+            {
+                "tenant_id": tenant_id,
+                "instance_id": instance_id,
+                "instruction_blocks": json.dumps(instruction_blocks),
+                "guardrails": json.dumps(guardrails),
+            },
+        )
+        row = result.one_or_none()
+        return _prompt_config_from_row(row) if row else None
+
 
 def _from_row(row) -> AgentInstanceRecord:
     return AgentInstanceRecord(
@@ -161,4 +212,13 @@ def _from_row(row) -> AgentInstanceRecord:
         status=row.status,
         rag_scope=row.rag_scope or [],
         created_by=row.created_by,
+    )
+
+
+def _prompt_config_from_row(row) -> AgentPromptConfigRecord:
+    return AgentPromptConfigRecord(
+        tenant_id=row.tenant_id,
+        instance_id=row.instance_id,
+        instruction_blocks=row.instruction_blocks or [],
+        guardrails=row.guardrails or [],
     )

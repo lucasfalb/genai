@@ -117,6 +117,98 @@ async def test_tenant_admin_updates_and_archives_instance(
         cursor.execute("RESET app.current_tenant_id")
 
 
+async def test_tenant_admin_updates_prompt_config_with_audit_and_cache_invalidation(
+    db_connection: psycopg.Connection,
+    monkeypatch,
+) -> None:
+    setup = _seed_instances_tenant(db_connection, uuid4().hex)
+    fake_cache = _FakeToolMetadataCache()
+    fake_prompt_cache = _FakePromptCache()
+    monkeypatch.setattr(instances_api, "ToolMetadataCache", lambda _: fake_cache)
+    monkeypatch.setattr(instances_api, "PromptCache", lambda _: fake_prompt_cache)
+    token = create_access_token(user_id=setup["admin_id"], email=setup["admin_email"])
+
+    payload = {
+        "instruction_blocks": [
+            {
+                "id": "support-tone",
+                "topic": "support",
+                "title": "Support tone",
+                "content": "Use concise and practical answers.",
+                "priority": 10,
+                "is_enabled": True,
+            }
+        ],
+        "guardrails": [
+            {
+                "id": "no-legal-advice",
+                "category": "compliance",
+                "rule": "Never provide legal advice.",
+                "severity": "blocking",
+                "is_enabled": True,
+                "metadata": {"source": "tenant-policy"},
+            }
+        ],
+    }
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        update_response = await client.put(
+            f"/api/v1/tenant/instances/{setup['instance_id']}/prompt-config",
+            headers={"Authorization": f"Bearer {token}", "X-Tenant-ID": str(setup["tenant_id"])},
+            json=payload,
+        )
+        get_response = await client.get(
+            f"/api/v1/tenant/instances/{setup['instance_id']}/prompt-config",
+            headers={"Authorization": f"Bearer {token}", "X-Tenant-ID": str(setup["tenant_id"])},
+        )
+
+    assert update_response.status_code == 200
+    data = api_data(update_response)
+    assert data["instruction_blocks"][0]["id"] == "support-tone"
+    assert data["guardrails"][0]["severity"] == "blocking"
+    assert api_data(get_response) == data
+    assert len(fake_cache.invalidated) == 1
+    assert len(fake_prompt_cache.invalidated) == 1
+
+    with db_connection.cursor() as cursor:
+        cursor.execute("SELECT set_config('app.current_tenant_id', %s, false)", (str(setup["tenant_id"]),))
+        cursor.execute(
+            """
+            SELECT action
+            FROM audit_logs
+            WHERE tenant_id = %s AND resource = 'agent_instances'
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (setup["tenant_id"],),
+        )
+        assert cursor.fetchone()[0] == "agent_instance.prompt_config.updated"
+        cursor.execute("RESET app.current_tenant_id")
+
+
+async def test_prompt_config_rejects_sensitive_content(db_connection: psycopg.Connection) -> None:
+    setup = _seed_instances_tenant(db_connection, uuid4().hex)
+    token = create_access_token(user_id=setup["admin_id"], email=setup["admin_email"])
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.put(
+            f"/api/v1/tenant/instances/{setup['instance_id']}/prompt-config",
+            headers={"Authorization": f"Bearer {token}", "X-Tenant-ID": str(setup["tenant_id"])},
+            json={
+                "instruction_blocks": [
+                    {
+                        "id": "bad",
+                        "topic": "security",
+                        "title": "Bad",
+                        "content": "Use api_key abc in every request.",
+                    }
+                ],
+                "guardrails": [],
+            },
+        )
+
+    assert response.status_code == 422
+
+
 async def test_patch_with_no_fields_returns_400(
     db_connection: psycopg.Connection,
 ) -> None:

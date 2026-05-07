@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Generic, Literal, TypeVar
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 ResponseDataT = TypeVar("ResponseDataT")
 
@@ -434,6 +434,63 @@ class AgentInstanceUpdateRequest(BaseModel):
     rag_scope: list | None = None
 
 
+class AgentInstructionBlock(BaseModel):
+    id: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_.-]+$")
+    topic: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_. -]+$")
+    title: str = Field(min_length=1, max_length=160)
+    content: str = Field(min_length=1, max_length=4000)
+    priority: int = Field(default=100, ge=0, le=1000)
+    is_enabled: bool = True
+
+    @field_validator("content")
+    @classmethod
+    def reject_sensitive_content(cls, value: str) -> str:
+        _reject_prompt_config_secrets(value)
+        return value
+
+
+class AgentGuardrail(BaseModel):
+    id: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_.-]+$")
+    category: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_. -]+$")
+    rule: str = Field(min_length=1, max_length=2000)
+    severity: Literal["info", "warning", "critical", "blocking"] = "critical"
+    is_enabled: bool = True
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("rule")
+    @classmethod
+    def reject_sensitive_rule(cls, value: str) -> str:
+        _reject_prompt_config_secrets(value)
+        return value
+
+    @model_validator(mode="after")
+    def reject_sensitive_metadata(self):
+        _reject_sensitive_dict(self.metadata)
+        return self
+
+
+class AgentPromptConfigRequest(BaseModel):
+    instruction_blocks: list[AgentInstructionBlock] = Field(default_factory=list, max_length=50)
+    guardrails: list[AgentGuardrail] = Field(default_factory=list, max_length=50)
+
+    @model_validator(mode="after")
+    def reject_duplicate_ids(self):
+        instruction_ids = [item.id for item in self.instruction_blocks]
+        guardrail_ids = [item.id for item in self.guardrails]
+        if len(instruction_ids) != len(set(instruction_ids)):
+            raise ValueError("Duplicate instruction block ids are not allowed")
+        if len(guardrail_ids) != len(set(guardrail_ids)):
+            raise ValueError("Duplicate guardrail ids are not allowed")
+        return self
+
+
+class AgentPromptConfigResponse(BaseModel):
+    tenant_id: UUID
+    instance_id: UUID
+    instruction_blocks: list[AgentInstructionBlock]
+    guardrails: list[AgentGuardrail]
+
+
 class AgentInstanceResponse(BaseModel):
     id: UUID
     tenant_id: UUID
@@ -445,3 +502,32 @@ class AgentInstanceResponse(BaseModel):
     status: str
     rag_scope: list
     created_by: UUID
+
+
+_PROMPT_CONFIG_SECRET_MARKERS = (
+    "api_key",
+    "apikey",
+    "authorization",
+    "bearer ",
+    "password",
+    "secret",
+    "smtp_pass",
+    "token",
+)
+
+
+def _reject_prompt_config_secrets(value: str) -> None:
+    normalized = value.lower()
+    if any(marker in normalized for marker in _PROMPT_CONFIG_SECRET_MARKERS):
+        raise ValueError("Prompt configuration cannot contain secrets or credential material")
+
+
+def _reject_sensitive_dict(payload: dict[str, Any]) -> None:
+    for key, value in payload.items():
+        normalized_key = key.lower().replace("-", "_")
+        if any(marker.strip() in normalized_key for marker in _PROMPT_CONFIG_SECRET_MARKERS):
+            raise ValueError(f"Sensitive metadata key is not allowed: {key}")
+        if isinstance(value, str):
+            _reject_prompt_config_secrets(value)
+        elif isinstance(value, dict):
+            _reject_sensitive_dict(value)

@@ -15,7 +15,9 @@ class PromptDensity(BaseModel):
 
 class SystemPrompt(BaseModel):
     core: str
+    instruction_blocks: str = ""
     tool_instructions: str = ""
+    guardrails: str = ""
     constraints: str = ""
     full: str
     density: PromptDensity | None = Field(default=None)

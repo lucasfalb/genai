@@ -137,6 +137,22 @@ class TestPromptSanitizer:
         assert validated.density is not None
         assert validated.density.capability_count == 3
 
+    def test_rejects_sensitive_guardrail_metadata(self):
+        prompt = SystemPrompt(core="Core.", full="Core.")
+        metadata = {
+            "guardrails": [
+                {
+                    "id": "bad",
+                    "category": "security",
+                    "rule": "Keep credentials safe.",
+                    "metadata": {"api_key": "plain-secret"},
+                }
+            ]
+        }
+
+        with pytest.raises(PromptValidationError, match="sensitive fields"):
+            PromptSanitizer().validate(prompt, metadata=metadata)
+
 
 class TestPromptSanitizerLogging:
     def test_warning_log_is_structured(self, caplog, monkeypatch):

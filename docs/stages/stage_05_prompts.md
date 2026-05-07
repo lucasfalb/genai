@@ -152,6 +152,19 @@ class PromptCache:
 
 Toda rota administrativa que salva configuração de instância chama `PromptCache.invalidate(...)` e `ToolMetadataCache.invalidate(...)` na mesma transação lógica da alteração. Isso mantém baixa latência no caminho quente e consistência forte o suficiente para mudanças feitas no dashboard.
 
+### Instrucoes por topico e guardrails customizados
+
+Cada instancia pode complementar o `core_prompt` com blocos de instrucoes editaveis e guardrails customizados. Esses dados vivem em `agent_instances.instruction_blocks` e `agent_instances.guardrails` como JSONB validado por contrato Pydantic e atualizado por rotas tenant-scoped:
+
+- `GET /api/v1/tenant/instances/{instance_id}/prompt-config`
+- `PUT /api/v1/tenant/instances/{instance_id}/prompt-config`
+
+`instruction_blocks` sao ordenados por `priority`, `topic` e `id`, permitindo que a UI apresente topicos como suporte, vendas, compliance, tom de voz e escopo operacional sem transformar o prompt em texto solto. `guardrails` usam severidade controlada (`info`, `warning`, `critical`, `blocking`) e entram no prompt depois das skills/tools e antes das constraints fixas da plataforma.
+
+Toda mudanca invalida `ToolMetadataCache` e `PromptCache`, registra audit/version tenant-scoped e preserva a regra de superadmin: ele pode alterar qualquer tenant sem virar membro visivel, mas a mudanca aparece nos logs do tenant com actor context.
+
+O `PromptSanitizer` valida a configuracao antes de cache/execucao e bloqueia campos ou valores com material sensivel, como tokens, senhas, API keys e headers de autorizacao.
+
 ### Prompt Sanitization e validação de output
 
 Como o prompt final é composto dinamicamente, a plataforma precisa validar a combinação de `core_prompt`, skills, tools, hand-offs e constraints antes de chamar o LLM. Essa etapa evita que uma instância com muitas capabilities gere um prompt grande demais, contraditório ou com contratos de resposta incompatíveis.

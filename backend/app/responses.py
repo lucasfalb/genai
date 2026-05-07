@@ -34,7 +34,7 @@ async def validation_exception_handler(_: Request, exc: RequestValidationError) 
             error={
                 "code": "VALIDATION_ERROR",
                 "message": "Request validation failed",
-                "details": exc.errors(),
+                "details": _validation_details(exc.errors()),
             }
         ).model_dump(mode="json", exclude_none=True),
     )
@@ -65,3 +65,16 @@ def _error_code(*, message: str, status_code: int) -> str:
         return HTTPStatus(status_code).phrase.upper().replace(" ", "_")
     except ValueError:
         return "API_ERROR"
+
+
+def _validation_details(errors: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    sanitized: list[dict[str, Any]] = []
+    for error in errors:
+        item: dict[str, Any] = {}
+        for key, value in error.items():
+            if key == "ctx" and isinstance(value, dict):
+                item[key] = {ctx_key: str(ctx_value) for ctx_key, ctx_value in value.items()}
+            else:
+                item[key] = value
+        sanitized.append(item)
+    return sanitized

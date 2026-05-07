@@ -1,0 +1,23 @@
+meta {
+  name: Get Prompt Config
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{base_url}}/api/v1/tenant/instances/{{instance_id}}/prompt-config
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  X-Tenant-ID: {{tenant_id}}
+}
+
+settings {
+  encodeUrl: false
+}

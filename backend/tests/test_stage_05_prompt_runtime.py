@@ -58,6 +58,45 @@ def test_prompt_builder_strips_whitespace():
     assert sp.full.startswith("Core.")
 
 
+def test_prompt_builder_with_instruction_blocks_and_guardrails():
+    sp = PromptBuilder.assemble(
+        core_prompt="Core.",
+        instruction_blocks=[
+            {
+                "id": "late",
+                "topic": "tone",
+                "title": "Late",
+                "content": "Use friendly tone.",
+                "priority": 20,
+                "is_enabled": True,
+            },
+            {
+                "id": "early",
+                "topic": "scope",
+                "title": "Early",
+                "content": "Answer only product questions.",
+                "priority": 10,
+                "is_enabled": True,
+            },
+        ],
+        guardrails=[
+            {
+                "id": "safe",
+                "category": "safety",
+                "rule": "Never provide legal advice.",
+                "severity": "blocking",
+                "is_enabled": True,
+            }
+        ],
+        skills=[],
+        tools=[],
+    )
+
+    assert sp.full.index("Answer only product questions.") < sp.full.index("Use friendly tone.")
+    assert "### Guardrails Customizados" in sp.full
+    assert "[blocking] safety: Never provide legal advice." in sp.full
+
+
 # ---------------------------------------------------------------------------
 # PromptSanitizer
 # ---------------------------------------------------------------------------
