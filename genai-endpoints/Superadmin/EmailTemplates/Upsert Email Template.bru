@@ -1,0 +1,39 @@
+meta {
+  name: Upsert Email Template
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{base_url}}/api/v1/superadmin/email-templates/{{email_template_slug}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "slug": "{{email_template_slug}}",
+    "name": "Account Activation",
+    "description": "Template para ativacao de conta",
+    "subject_template": "Ative sua conta",
+    "body_template": "<p>Ola {{name}}, clique aqui: {{activation_url}}</p>",
+    "body_format": "html",
+    "variables_schema": {
+      "type": "object",
+      "required": ["name", "activation_url"]
+    },
+    "is_active": true
+  }
+}
+
+settings {
+  encodeUrl: false
+}

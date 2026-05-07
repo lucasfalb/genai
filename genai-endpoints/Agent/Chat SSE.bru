@@ -1,0 +1,34 @@
+meta {
+  name: Chat SSE
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/api/v1/agent/instances/{{instance_id}}/chat
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+  X-Tenant-ID: {{tenant_id}}
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+    "message": "Ola, pode me ajudar?",
+    "channel": "api",
+    "metadata": {
+      "source": "bruno"
+    }
+  }
+}
+
+settings {
+  encodeUrl: false
+}

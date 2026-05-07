@@ -1,0 +1,23 @@
+meta {
+  name: Get Instance Metadata
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/api/v1/registry/instances/{{instance_id}}/metadata
+  body: none
+  auth: bearer
+}
+
+headers {
+  X-Tenant-ID: {{tenant_id}}
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+settings {
+  encodeUrl: false
+}

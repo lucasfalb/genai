@@ -1,0 +1,4 @@
+interface:
+  display_name: "Endpoint Contract Guardian"
+  short_description: "Validate API contracts and Swagger docs"
+  default_prompt: "Use $endpoint-contract-guardian to validate the API endpoint contract and OpenAPI documentation."

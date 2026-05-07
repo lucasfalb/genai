@@ -1,0 +1,34 @@
+[project]
+name = "genai-backend"
+version = "0.1.0"
+description = "Backend foundation for the multi-tenant agent platform."
+requires-python = ">=3.11"
+dependencies = [
+  "alembic>=1.13.3",
+  "asyncpg>=0.29.0",
+  "email-validator>=2.2.0",
+  "fastapi>=0.115.0",
+  "httpx>=0.27.2",
+  "langgraph>=0.2.74",
+  "pwdlib[argon2]>=0.2.1",
+  "pydantic>=2.8.2",
+  "pydantic-settings>=2.4.0",
+  "pyjwt>=2.9.0",
+  "psycopg[binary]>=3.2.1",
+  "redis>=5.0.8",
+  "sqlalchemy[asyncio]>=2.0.34",
+  "uvicorn[standard]>=0.30.6",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.2",
+  "pytest-asyncio>=0.24.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["api*", "app*", "database*", "dependencies*", "engine*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

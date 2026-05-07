@@ -1,0 +1,45 @@
+meta {
+  name: Upsert Tool
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{base_url}}/api/v1/superadmin/registry/tools/{{tool_slug}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "slug": "{{tool_slug}}",
+    "name": "HTTP GET",
+    "description": "Executa requisicoes HTTP GET controladas",
+    "category": "integration",
+    "prompt_block": "Use esta tool para consultar endpoints HTTP permitidos.",
+    "schema": {
+      "name": "{{tool_slug}}",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string" }
+        },
+        "required": ["url"]
+      }
+    },
+    "executor": "tools.http_get",
+    "is_builtin": true
+  }
+}
+
+settings {
+  encodeUrl: false
+}

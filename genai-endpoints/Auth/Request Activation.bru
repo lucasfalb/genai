@@ -1,0 +1,25 @@
+meta {
+  name: Request Activation
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{base_url}}/api/v1/auth/activation/request
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "{{email}}"
+  }
+}
+
+settings {
+  encodeUrl: false
+}

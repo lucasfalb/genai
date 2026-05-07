@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "genai-endpoints",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

@@ -1,0 +1,19 @@
+meta {
+  name: List Email Templates
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/api/v1/superadmin/email-templates
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+settings {
+  encodeUrl: false
+}

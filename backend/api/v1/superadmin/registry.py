@@ -1,0 +1,96 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncConnection
+
+from app.schemas import (
+    SkillDefinitionRequest,
+    SkillDefinitionResponse,
+    ToolDefinitionRequest,
+    ToolDefinitionResponse,
+)
+from database.repositories.registry import RegistryRepository, SkillDefinitionRecord, ToolDefinitionRecord
+from dependencies.auth import get_connection, require_superadmin
+
+
+router = APIRouter(
+    prefix="/superadmin/registry",
+    tags=["superadmin-registry"],
+    dependencies=[Depends(require_superadmin)],
+)
+
+
+@router.get(
+    "/skills",
+    response_model=list[SkillDefinitionResponse],
+    summary="List global skill definitions",
+    description="Lists every global skill definition available to the platform catalog. Only superadmin users can inspect this catalog.",
+)
+async def list_skill_definitions(
+    connection: AsyncConnection = Depends(get_connection),
+) -> list[SkillDefinitionResponse]:
+    repository = RegistryRepository(connection)
+    return [_skill_response(item) for item in await repository.list_skills()]
+
+
+@router.put(
+    "/skills/{slug}",
+    response_model=SkillDefinitionResponse,
+    summary="Upsert global skill definition",
+    description="Creates or updates one global skill definition by slug, including prompt block, executor, schemas, and credential requirements.",
+)
+async def upsert_skill_definition(
+    slug: str,
+    payload: SkillDefinitionRequest,
+    connection: AsyncConnection = Depends(get_connection),
+) -> SkillDefinitionResponse:
+    if payload.slug != slug:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Skill slug mismatch")
+    repository = RegistryRepository(connection)
+    return _skill_response(await repository.upsert_skill(**payload.model_dump()))
+
+
+@router.get(
+    "/tools",
+    response_model=list[ToolDefinitionResponse],
+    summary="List global tool definitions",
+    description="Lists every global utility tool definition available to the platform catalog. Only superadmin users can inspect this catalog.",
+)
+async def list_tool_definitions(
+    connection: AsyncConnection = Depends(get_connection),
+) -> list[ToolDefinitionResponse]:
+    repository = RegistryRepository(connection)
+    return [_tool_response(item) for item in await repository.list_tools()]
+
+
+@router.put(
+    "/tools/{slug}",
+    response_model=ToolDefinitionResponse,
+    summary="Upsert global tool definition",
+    description="Creates or updates one global utility tool definition by slug, including prompt block, executor, schema, and builtin marker.",
+)
+async def upsert_tool_definition(
+    slug: str,
+    payload: ToolDefinitionRequest,
+    connection: AsyncConnection = Depends(get_connection),
+) -> ToolDefinitionResponse:
+    if payload.slug != slug:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Tool slug mismatch")
+    repository = RegistryRepository(connection)
+    return _tool_response(await repository.upsert_tool(**payload.model_dump(by_alias=True)))
+
+
+def _skill_response(record: SkillDefinitionRecord) -> SkillDefinitionResponse:
+    return SkillDefinitionResponse(**record.__dict__)
+
+
+def _tool_response(record: ToolDefinitionRecord) -> ToolDefinitionResponse:
+    return ToolDefinitionResponse(
+        id=record.id,
+        slug=record.slug,
+        name=record.name,
+        description=record.description,
+        category=record.category,
+        prompt_block=record.prompt_block,
+        schema=record.schema,
+        executor=record.executor,
+        is_builtin=record.is_builtin,
+    )

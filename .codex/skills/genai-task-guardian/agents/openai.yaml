@@ -1,0 +1,4 @@
+interface:
+  display_name: "GenAI Task Guardian"
+  short_description: "Generate and validate GenAI stage tasks"
+  default_prompt: "Use $genai-task-guardian to create and validate the next stage tasks."

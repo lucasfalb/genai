@@ -1,0 +1,35 @@
+meta {
+  name: Chat SSE With Session
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/api/v1/agent/instances/{{instance_id}}/chat
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+  X-Tenant-ID: {{tenant_id}}
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+    "message": "Continue a conversa anterior",
+    "session_id": "{{session_id}}",
+    "channel": "api",
+    "metadata": {
+      "source": "bruno"
+    }
+  }
+}
+
+settings {
+  encodeUrl: false
+}

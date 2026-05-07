@@ -1,0 +1,54 @@
+meta {
+  name: Upsert Skill
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{base_url}}/api/v1/superadmin/registry/skills/{{skill_slug}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "slug": "{{skill_slug}}",
+    "name": "Web Search",
+    "description": "Busca informacoes externas",
+    "category": "research",
+    "prompt_block": "Use esta skill para buscar informacoes externas quando necessario.",
+    "tool_schema": {
+      "name": "{{skill_slug}}",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string" }
+        },
+        "required": ["query"]
+      }
+    },
+    "executor": "skills.web_search",
+    "input_schema": {},
+    "output_schema": {},
+    "requires_credential": true,
+    "credential_schema": {
+      "type": "object",
+      "properties": {
+        "provider": { "type": "string" }
+      }
+    },
+    "is_active": true
+  }
+}
+
+settings {
+  encodeUrl: false
+}

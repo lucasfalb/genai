@@ -1,0 +1,25 @@
+meta {
+  name: Confirm Activation
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{base_url}}/api/v1/auth/activation/confirm
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "token": "{{activation_token}}"
+  }
+}
+
+settings {
+  encodeUrl: false
+}

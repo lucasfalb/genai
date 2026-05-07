@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GenAI Project Manager</title>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        [x-cloak] {
+            display: none !important;
+        }
+
+        .sub-issue-checked {
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+
+        .toc-link {
+            color: #4b5563;
+            text-decoration: none;
+            display: block;
+            padding: 4px 0;
+        }
+
+        .toc-link:hover {
+            color: #1d4ed8;
+        }
+
+        .toc-sticky {
+            position: sticky;
+            top: 24px;
+            max-height: calc(100vh - 48px);
+            overflow-y: auto;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 text-gray-900" x-data="projectManager()" x-init="init()">
+    <div x-show="loading" class="fixed inset-0 bg-white z-50 flex items-center justify-center">
+        <div class="text-center">
+            <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto">
+            </div>
+            <p class="mt-4 text-gray-600">Loading project data...</p>
+        </div>
+    </div>
+
+    <div class="flex h-screen overflow-hidden">
+        <aside class="w-64 bg-slate-900 text-white flex-shrink-0 flex flex-col">
+            <div class="p-6 flex items-center space-x-3">
+                <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-xl">G</div>
+                <span class="text-xl font-bold tracking-tight">GenAI PM</span>
+            </div>
+            <nav class="flex-1 px-4 space-y-1 mt-4">
+                <a href="#dashboard" @click="view = 'dashboard'"
+                    :class="view === 'dashboard' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'"
+                    class="flex items-center space-x-3 px-4 py-2 rounded-lg transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z">
+                        </path>
+                    </svg>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#board" @click="view = 'board'"
+                    :class="view === 'board' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'"
+                    class="flex items-center space-x-3 px-4 py-2 rounded-lg transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2">
+                        </path>
+                    </svg>
+                    <span>Board</span>
+                </a>
+                <a href="#list" @click="view = 'list'"
+                    :class="view === 'list' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'"
+                    class="flex items-center space-x-3 px-4 py-2 rounded-lg transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+                    </svg>
+                    <span>Backlog</span>
+                </a>
+                <a href="#stages" @click="view = 'stages'"
+                    :class="view === 'stages' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'"
+                    class="flex items-center space-x-3 px-4 py-2 rounded-lg transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+                        </path>
+                    </svg>
+                    <span>Stages</span>
+                </a>
+                <a href="#docs" @click="view = 'docs'"
+                    :class="view === 'docs' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'"
+                    class="flex items-center space-x-3 px-4 py-2 rounded-lg transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                        </path>
+                    </svg>
+                    <span>Docs</span>
+                </a>
+            </nav>
+        </aside>
+
+        <main class="flex-1 flex flex-col min-w-0 bg-white">
+            <header class="h-16 border-b flex items-center justify-between px-8 flex-shrink-0">
+                <h2 class="text-lg font-semibold text-gray-800" x-text="viewTitle"></h2>
+                <div class="flex items-center space-x-4" x-show="view !== 'docs'">
+                    <select x-model="filterStage"
+                        class="px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 rounded-lg text-sm">
+                        <option value="">All Stages</option>
+                        <template x-for="stage in stages" :key="stage.id">
+                            <option :value="stage.id" x-text="stage.title"></option>
+                        </template>
+                    </select>
+                    <input type="text" x-model="search" placeholder="Search tasks..."
+                        class="px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 rounded-lg text-sm w-64">
+                </div>
+                <div class="flex items-center space-x-4" x-show="view === 'docs'">
+                    <button @click="selectedDoc = null; currentDocContent = ''; docToc = []"
+                        class="text-sm text-blue-600 hover:text-blue-800" x-show="selectedDoc">&larr; Back to docs
+                        list</button>
+                </div>
+            </header>
+
+            <div x-show="view === 'dashboard'" class="flex-1 overflow-auto p-8 bg-gray-50" x-cloak>
+                <div class="max-w-7xl mx-auto">
+                    <div class="grid grid-cols-4 gap-4 mb-8">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                            <p class="text-sm text-gray-500">Total Tasks</p>
+                            <p class="text-2xl font-bold text-gray-900" x-text="tasks.length"></p>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                            <p class="text-sm text-gray-500">Completed</p>
+                            <p class="text-2xl font-bold text-emerald-600"
+                                x-text="tasks.filter(t => t.status === 'COMPLETED').length"></p>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                            <p class="text-sm text-gray-500">In Progress</p>
+                            <p class="text-2xl font-bold text-sky-600"
+                                x-text="tasks.filter(t => t.status === 'IN_PROGRESS').length"></p>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                            <p class="text-sm text-gray-500">Blocked</p>
+                            <p class="text-2xl font-bold text-red-600"
+                                x-text="tasks.filter(t => t.status === 'BLOCKED').length"></p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-8">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900">Overall Progress</h3>
+                            <span class="text-sm font-medium text-gray-500"
+                                x-text="calculateOverallProgress() + '%'"></span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                                :style="'width: ' + calculateOverallProgress() + '%'"></div>
+                        </div>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Progress by Stage</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <template x-for="stage in stages" :key="stage.id">
+                            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:border-blue-500 cursor-pointer transition-colors"
+                                @click="filterStage = stage.id; view = 'board'">
+                                <div class="flex justify-between items-start mb-2">
+                                    <h4 class="text-sm font-semibold text-gray-900" x-text="stage.title"></h4>
+                                    <span
+                                        :class="stage.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'"
+                                        class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                                        x-text="stage.status"></span>
+                                </div>
+                                <p class="text-xs text-gray-500 mb-3"
+                                    x-text="tasks.filter(t => t.stageId === stage.id).length + ' tasks'"></p>
+                                <div class="w-full bg-gray-200 rounded-full h-1.5">
+                                    <div class="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                                        :style="'width: ' + calculateStageProgress(stage.id) + '%'"></div>
+                                </div>
+                                <p class="text-[10px] text-gray-400 mt-1"
+                                    x-text="calculateStageProgress(stage.id) + '% complete'"></p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="view === 'board'" class="flex-1 overflow-x-auto p-8 bg-gray-50" x-cloak>
+                <div class="flex space-x-6 h-full">
+                    <template x-for="status in statuses" :key="status">
+                        <div class="flex-shrink-0 w-80 flex flex-col">
+                            <h3
+                                class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 px-2 flex items-center justify-between">
+                                <span x-text="status"></span>
+                                <span class="text-gray-400" x-text="filteredTasksByStatus(status).length"></span>
+                            </h3>
+                            <div class="flex-1 space-y-4 overflow-y-auto pb-4">
+                                <template x-for="task in filteredTasksByStatus(status)" :key="task.id">
+                                    <div @click="openTask(task)"
+                                        class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:border-blue-500 cursor-pointer transition-all">
+                                        <div class="flex justify-between items-start mb-2 text-[10px] font-bold">
+                                            <span :class="groupColor(task.group)" class="px-2 py-0.5 rounded uppercase"
+                                                x-text="task.group"></span>
+                                            <span :class="priorityColor(task.priority)" x-text="task.priority"></span>
+                                        </div>
+                                        <h4 class="text-sm font-semibold text-gray-800 mb-1" x-text="task.title"></h4>
+                                        <div class="flex items-center justify-between mt-2">
+                                            <span class="text-[10px] text-gray-400" x-text="task.id"></span>
+                                            <span class="text-[10px] text-gray-500"
+                                                x-text="getStageTitle(task.stageId)"></span>
+                                        </div>
+                                        <div class="mt-2 flex -space-x-1">
+                                            <template x-for="sub in task.subIssues">
+                                                <div :class="sub.completed ? 'bg-green-400' : 'bg-gray-200'"
+                                                    class="w-3 h-3 rounded-full border border-white"></div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="view === 'list'" class="flex-1 overflow-auto p-8" x-cloak>
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 font-bold text-[10px] text-gray-500 uppercase">
+                            <tr>
+                                <th class="px-6 py-3 text-left">ID</th>
+                                <th class="px-6 py-3 text-left">Title</th>
+                                <th class="px-6 py-3 text-left">Stage</th>
+                                <th class="px-6 py-3 text-left">Status</th>
+                                <th class="px-6 py-3 text-left">Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 text-sm">
+                            <template x-for="task in filteredTasks()" :key="task.id">
+                                <tr @click="openTask(task)" class="hover:bg-gray-50 cursor-pointer">
+                                    <td class="px-6 py-4 font-medium text-blue-600" x-text="task.id"></td>
+                                    <td class="px-6 py-4 font-semibold" x-text="task.title"></td>
+                                    <td class="px-6 py-4 text-gray-500 text-xs"
+                                        x-text="getStageTitle(task.stageId) || 'N/A'"></td>
+                                    <td class="px-6 py-4">
+                                        <span :class="statusBadgeColor(task.status)"
+                                            class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                                            x-text="task.status"></span>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <div class="w-24 bg-gray-200 rounded-full h-1.5">
+                                            <div class="bg-blue-600 h-1.5 rounded-full"
+                                                :style="'width: ' + calculateProgress(task) + '%'"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div x-show="view === 'stages'" class="flex-1 overflow-auto p-8" x-cloak>
+                <div class="max-w-7xl mx-auto">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <template x-for="stage in stages" :key="stage.id">
+                            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:border-blue-500 cursor-pointer transition-all"
+                                @click="filterStage = stage.id; view = 'board'">
+                                <div class="flex justify-between items-start mb-3">
+                                    <h3 class="text-lg font-semibold text-gray-900" x-text="stage.title"></h3>
+                                    <span
+                                        :class="stage.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'"
+                                        class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                                        x-text="stage.status"></span>
+                                </div>
+                                <p class="text-sm text-gray-600 mb-4"
+                                    x-text="stage.description ? stage.description.substring(0, 120) + '...' : ''"></p>
+                                <div>
+                                    <div class="flex justify-between text-xs text-gray-500 mb-1">
+                                        <span>Progress</span>
+                                        <span x-text="calculateStageProgress(stage.id) + '%'"></span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-1.5">
+                                        <div class="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                                            :style="'width: ' + calculateStageProgress(stage.id) + '%'"></div>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-3"
+                                    x-text="tasks.filter(t => t.stageId === stage.id).length + ' tasks'"></p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="view === 'docs'" class="flex-1 overflow-hidden" x-cloak>
+                <div class="flex h-full">
+                    <div class="w-64 bg-gray-50 border-r border-gray-200 p-6 overflow-y-auto flex-shrink-0">
+                        <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Documentation</h3>
+                        <ul class="space-y-1">
+                            <template x-for="doc in docs" :key="doc.path">
+                                <li>
+                                    <button @click="loadDocContent(doc.path); selectedDoc = doc"
+                                        :class="selectedDoc?.path === doc.path ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'"
+                                        class="w-full text-left px-3 py-2 rounded text-sm font-medium transition-colors">
+                                        <span x-text="doc.name"></span>
+                                    </button>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                    <div class="flex-1 overflow-y-auto">
+                        <div x-show="!selectedDoc" class="p-8">
+                            <div class="max-w-4xl mx-auto">
+                                <h1 class="text-3xl font-bold text-gray-900 mb-6">GenAI Platform Documentation</h1>
+                                <p class="text-gray-600 mb-8">Select a document from the sidebar or from the list below
+                                    to start reading.</p>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <template x-for="doc in docs" :key="doc.path">
+                                        <div @click="loadDocContent(doc.path); selectedDoc = doc"
+                                            class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:border-blue-500 cursor-pointer transition-all">
+                                            <h3 class="text-lg font-semibold text-gray-900" x-text="doc.name"></h3>
+                                            <p class="text-sm text-gray-500 mt-1" x-text="doc.path"></p>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                        <div x-show="selectedDoc" class="flex">
+                            <div class="flex-1 p-8">
+                                <div x-show="loadingDoc" class="text-center py-8">
+                                    <div
+                                        class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto">
+                                    </div>
+                                </div>
+                                <article id="doc-content" x-html="currentDocContent" class="prose max-w-none"></article>
+                            </div>
+                            <div class="w-64 min-w-64 flex-shrink-0 p-6 border-l border-gray-200 toc-sticky"
+                                x-show="docToc.length > 0">
+                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Contents</h4>
+                                <ul class="space-y-1">
+                                    <template x-for="item in docToc" :key="item.id">
+                                        <li :style="'margin-left: ' + (item.level - 1) * 12 + 'px'">
+                                            <a href="#" @click.prevent="scrollToHeading(item.id)"
+                                                class="toc-link text-xs py-1 block" x-text="item.text"></a>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <div x-show="selectedTask" class="fixed inset-0 z-50 overflow-hidden" x-cloak>
+            <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" @click="selectedTask = null"></div>
+            <div class="absolute inset-y-0 right-0 max-w-2xl w-full bg-white shadow-2xl flex flex-col">
+                <div class="p-6 border-b flex items-center justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-gray-400 uppercase" x-text="selectedTask?.id"></span>
+                        <h3 class="text-xl font-bold text-gray-900 mt-1" x-text="selectedTask?.title"></h3>
+                    </div>
+                    <button @click="selectedTask = null" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-8 space-y-8">
+                    <section>
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Stage</h4>
+                        <div class="flex items-center space-x-2">
+                            <span class="px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-700"
+                                x-text="selectedTask?.stageId"></span>
+                            <span class="text-sm font-medium text-gray-900"
+                                x-text="getStageTitle(selectedTask?.stageId)"></span>
+                        </div>
+                    </section>
+                    <section>
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Context</h4>
+                        <p class="text-sm text-gray-600 leading-relaxed" x-text="selectedTask?.context"></p>
+                    </section>
+                    <section>
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Sub Issues
+                            (Objectives)</h4>
+                        <div class="space-y-3">
+                            <template x-for="sub in selectedTask?.subIssues" :key="sub.text">
+                                <div
+                                    class="flex items-center space-x-3 p-3 rounded-lg border border-gray-100 bg-gray-50">
+                                    <div :class="sub.completed ? 'bg-green-500 border-green-500' : 'border-gray-300'"
+                                        class="w-5 h-5 rounded border flex items-center justify-center flex-shrink-0">
+                                        <template x-if="sub.completed">
+                                            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3"
+                                                    d="M5 13l4 4L19 7"></path>
+                                            </svg>
+                                        </template>
+                                    </div>
+                                    <span :class="sub.completed ? 'sub-issue-checked' : ''"
+                                        class="text-sm font-medium text-gray-700" x-text="sub.text"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </section>
+                    <section>
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Comments (Execution
+                            Log)</h4>
+                        <div class="space-y-4">
+                            <template x-for="comment in selectedTask?.comments" :key="comment.text">
+                                <div class="flex space-x-3">
+                                    <div
+                                        class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                                        <span class="text-[10px] font-bold text-slate-500">AI</span>
+                                    </div>
+                                    <div class="flex-1 bg-gray-50 rounded-lg p-3">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="text-xs font-bold text-gray-900">System</span>
+                                            <span class="text-[10px] text-gray-400" x-text="comment.date"></span>
+                                        </div>
+                                        <p class="text-sm text-gray-600" x-text="comment.text"></p>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </section>
+                </div>
+                <div class="p-6 bg-gray-50 border-t grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Status</label>
+                        <span :class="statusBadgeColor(selectedTask?.status)"
+                            class="px-3 py-1 rounded-full text-xs font-bold" x-text="selectedTask?.status"></span>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Priority</label>
+                        <span :class="priorityColor(selectedTask?.priority)" class="text-xs font-bold uppercase"
+                            x-text="selectedTask?.priority"></span>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Group</label>
+                        <span :class="groupColor(selectedTask?.group)"
+                            class="px-2 py-0.5 rounded text-xs font-bold uppercase" x-text="selectedTask?.group"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function slugify(text) {
+            return text.toString().toLowerCase()
+                .replace(/\s+/g, '-')
+                .replace(/[^\w\-]+/g, '')
+                .replace(/\-\-+/g, '-')
+                .replace(/^-+/, '')
+                .replace(/-+$/, '');
+        }
+
+        function projectManager() {
+            return {
+                view: 'dashboard',
+                search: '',
+                filterStage: '',
+                selectedTask: null,
+                selectedStage: null,
+                selectedDoc: null,
+                loading: true,
+                loadingDoc: false,
+                currentDocContent: '',
+                currentDocPath: '',
+                docToc: [],
+                statuses: ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'BLOCKED'],
+                tasks: [],
+                stages: [],
+                docs: [
+                    { name: 'Platform Technical Spec', path: 'docs/platform_technical_spec.md' },
+                    { name: 'Architecture Overview', path: 'docs/architecture_overview.md' },
+                    { name: 'Project Map', path: 'docs/map.md' },
+                    { name: 'Task Template', path: 'docs/tasks/task_template.md' }
+                ],
+
+                get viewTitle() {
+                    return {
+                        dashboard: 'Dashboard',
+                        board: 'Kanban Board',
+                        list: 'Task Backlog',
+                        stages: 'Project Stages',
+                        docs: 'Documentation'
+                    }[this.view] || '';
+                },
+
+                getStageTitle(stageId) {
+                    const stage = this.stages.find(s => s.id === stageId);
+                    return stage ? stage.title : '';
+                },
+
+                init() {
+                    const hash = window.location.hash.slice(1);
+                    if (hash) {
+                        const parts = hash.split(':');
+                        const view = parts[0];
+                        if (['dashboard', 'board', 'list', 'stages', 'docs'].includes(view)) {
+                            this.view = view;
+                        }
+                        if (view === 'docs' && parts[1]) {
+                            const docPath = decodeURIComponent(parts[1]);
+                            const doc = this.docs.find(d => d.path === docPath);
+                            if (doc) {
+                                this.selectedDoc = doc;
+                            } else {
+                                this.selectedDoc = { name: docPath.split('/').pop(), path: docPath };
+                            }
+                            this.$nextTick(() => {
+                                this.loadDocContent(docPath);
+                            });
+                        }
+                        if (view === 'board' && parts[1]) {
+                            this.filterStage = parts[1];
+                        }
+                        if (view === 'task' && parts[1]) {
+                            this.$nextTick(() => {
+                                const task = this.tasks.find(t => t.id === parts[1]);
+                                if (task) this.selectedTask = task;
+                            });
+                        }
+                    }
+
+                    this.$watch('view', (value) => {
+                        let hash = '#' + value;
+                        if (value === 'docs' && this.selectedDoc) {
+                            hash += ':' + encodeURIComponent(this.selectedDoc.path);
+                        }
+                        if (value === 'board' && this.filterStage) {
+                            hash += ':' + this.filterStage;
+                        }
+                        if (value === 'task' && this.selectedTask) {
+                            hash += ':' + this.selectedTask.id;
+                        }
+                        window.location.hash = hash;
+                    });
+
+                    this.$watch('selectedDoc', (value) => {
+                        if (this.view === 'docs' && value) {
+                            window.location.hash = '#docs:' + encodeURIComponent(value.path);
+                        }
+                    });
+
+                    this.$watch('filterStage', (value) => {
+                        if (this.view === 'board' && value) {
+                            window.location.hash = '#board:' + value;
+                        }
+                    });
+
+                    this.$watch('selectedTask', (value) => {
+                        if (value) {
+                            window.location.hash = '#task:' + value.id;
+                        }
+                    });
+
+                    this.loadStages().then(() => {
+                        return this.loadAllTasks();
+                    }).then(() => {
+                        this.loading = false;
+                    });
+                },
+
+                async loadStages() {
+                    try {
+                        const response = await fetch('docs/map.md');
+                        const text = await response.text();
+                        const regex = /stages\/(stage_\d+.*?\.md)/g;
+                        const stageFiles = [];
+                        let match;
+                        while ((match = regex.exec(text)) !== null) {
+                            if (!stageFiles.includes(match[1])) {
+                                stageFiles.push(match[1]);
+                            }
+                        }
+
+                        const stagePromises = stageFiles.map(file =>
+                            fetch('docs/stages/' + file)
+                                .then(res => res.ok ? res.text() : null)
+                                .then(text => text ? this.parseStageFile(text, file) : null)
+                        );
+
+                        const stageResults = await Promise.all(stagePromises);
+                        this.stages = stageResults.filter(stage => stage !== null);
+                    } catch (e) {
+                        console.error('Error loading stages:', e);
+                    }
+                },
+                parseStageFile(text, filename) {
+                    const stage = { id: '', title: '', status: 'PENDING', description: '' };
+
+                    const idMatch = filename.match(/stage_(\d+)_/);
+                    if (idMatch) stage.id = idMatch[1];
+
+                    const titleMatch = text.match(/# Stage \d+\s*[—–-]\s*(.*)/);
+                    if (titleMatch) stage.title = titleMatch[1].trim();
+
+                    const statusMatch = text.match(/\| \*\*Status\*\* \|\s*(.*?)\s*\|/);
+                    if (statusMatch) stage.status = statusMatch[1].replace(/`/g, '').trim();
+
+                    const descMatch = text.match(/## Description\n\n([\s\S]*?)(?=\n##|$)/);
+                    if (descMatch) stage.description = descMatch[1].trim();
+
+                    return stage;
+                },
+
+                async loadAllTasks() {
+                    const taskLinkPromises = this.stages.map(stage => {
+                        return fetch('docs/tasks/stage_' + stage.id + '_tasks.md')
+                            .then(res => res.ok ? res.text() : '')
+                            .then(text => this.parseStageTasks(text, stage.id))
+                    });
+
+                    const taskLinkArrays = await Promise.all(taskLinkPromises);
+                    const allTaskLinks = taskLinkArrays.flat();
+
+                    const taskPromises = allTaskLinks.map(({ link, stageId }) =>
+                        fetch('docs/tasks/' + link)
+                            .then(res => res.ok ? res.text() : null)
+                            .then(text => text ? this.parseTaskFile(text, stageId) : null)
+                    );
+
+                    const taskResults = await Promise.all(taskPromises);
+                    this.tasks = taskResults.filter(task => task !== null);
+                },
+
+                parseStageTasks(text, stageId) {
+                    const links = [];
+                    const regex = /\| (TASK-\d+) \| \[(.*?)\]\((.*?\.md)\) \|/g;
+                    let match;
+                    while ((match = regex.exec(text)) !== null) {
+                        links.push({ link: match[3], stageId: stageId });
+                    }
+                    return links;
+                },
+
+                parseTaskFile(text, stageId) {
+                    const task = {
+                        id: '',
+                        title: '',
+                        group: '',
+                        status: '',
+                        priority: '',
+                        context: '',
+                        subIssues: [],
+                        comments: [],
+                        stageId: stageId || ''
+                    };
+
+                    const titleMatch = text.match(/# Task: (TASK-\d+) - (.*)/);
+                    if (titleMatch) {
+                        task.id = titleMatch[1];
+                        task.title = titleMatch[2].trim();
+                    }
+
+                    const attrRegex = /\| \*\*(.*?)\*\* \| (.*?) \|/g;
+                    let attrMatch;
+                    while ((attrMatch = attrRegex.exec(text)) !== null) {
+                        const key = attrMatch[1].toLowerCase();
+                        const val = attrMatch[2].replace(/`/g, '').trim();
+                        if (key === 'group') task.group = val;
+                        if (key === 'status') task.status = val;
+                        if (key === 'priority') task.priority = val;
+                        if (key === 'id' && !task.id) task.id = val;
+                    }
+
+                    const contextMatch = text.match(/## Context\n\n([\s\S]*?)(?=\n##|$)/);
+                    if (contextMatch) {
+                        task.context = contextMatch[1].trim();
+                    }
+
+                    const objectivesMatch = text.match(/## Objectives\n\n([\s\S]*?)(?=\n##|$)/);
+                    if (objectivesMatch) {
+                        const subRegex = /- \[(x| )\] (.*)/g;
+                        let subMatch;
+                        while ((subMatch = subRegex.exec(objectivesMatch[1])) !== null) {
+                            task.subIssues.push({
+                                text: subMatch[2].trim(),
+                                completed: subMatch[1].toLowerCase() === 'x'
+                            });
+                        }
+                    }
+
+                    const logMatch = text.match(/## Execution Log\n\n([\s\S]*?)(?=\n##|$)/);
+                    if (logMatch) {
+                        const logRegex = /- `\[(.*?)\]`: (.*)/g;
+                        let logMatchIter;
+                        while ((logMatchIter = logRegex.exec(logMatch[1])) !== null) {
+                            task.comments.push({
+                                date: logMatchIter[1],
+                                text: logMatchIter[2].trim()
+                            });
+                        }
+                    }
+
+                    return task;
+                },
+
+                async loadDocContent(path) {
+                    this.loadingDoc = true;
+                    this.currentDocContent = '';
+                    this.docToc = [];
+                    this.currentDocPath = path;
+                    try {
+                        const res = await fetch(path);
+                        if (res.ok) {
+                            const text = await res.text();
+                            const html = marked.parse(text);
+                            this.currentDocContent = html;
+                            this.$nextTick(() => {
+                                this.processDocContent();
+                            });
+                        }
+                    } catch (e) {
+                        this.currentDocContent = '<p class="text-red-500">Error loading document</p>';
+                    }
+                    this.loadingDoc = false;
+                },
+
+                processDocContent() {
+                    const container = document.getElementById('doc-content');
+                    if (!container) return;
+
+                    const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                    const toc = [];
+                    headings.forEach((heading, index) => {
+                        if (!heading.id) {
+                            heading.id = 'heading-' + slugify(heading.textContent) + '-' + index;
+                        }
+                        toc.push({
+                            id: heading.id,
+                            text: heading.textContent,
+                            level: parseInt(heading.tagName[1])
+                        });
+                    });
+                    this.docToc = toc;
+
+                    const links = container.querySelectorAll('a');
+                    links.forEach(link => {
+                        const href = link.getAttribute('href');
+                        if (!href) return;
+
+                        if (href.endsWith('.md')) {
+                            link.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                let newPath;
+                                if (href.startsWith('http')) return;
+                                if (href.startsWith('/')) {
+                                    newPath = href.slice(1);
+                                } else {
+                                    const baseDir = this.currentDocPath.substring(0, this.currentDocPath.lastIndexOf('/') + 1);
+                                    newPath = baseDir + href;
+                                }
+                                const doc = this.docs.find(d => d.path === newPath);
+                                if (doc) {
+                                    this.selectedDoc = doc;
+                                } else {
+                                    this.selectedDoc = { name: newPath.split('/').pop(), path: newPath };
+                                }
+                                this.loadDocContent(newPath);
+                            });
+                        } else if (href.startsWith('#')) {
+                            link.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                const target = container.querySelector(href);
+                                if (target) {
+                                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }
+                            });
+                        }
+                    });
+                },
+
+                scrollToHeading(id) {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                },
+
+                filteredTasks() {
+                    return this.tasks.filter(t =>
+                        (t.title.toLowerCase().includes(this.search.toLowerCase()) ||
+                            t.id.toLowerCase().includes(this.search.toLowerCase())) &&
+                        (this.filterStage === '' || t.stageId === this.filterStage)
+                    );
+                },
+
+                filteredTasksByStatus(status) {
+                    return this.filteredTasks().filter(t => t.status === status);
+                },
+
+                calculateProgress(task) {
+                    if (!task.subIssues || !task.subIssues.length) return 0;
+                    const completed = task.subIssues.filter(s => s.completed).length;
+                    return Math.round((completed / task.subIssues.length) * 100);
+                },
+
+                calculateOverallProgress() {
+                    if (!this.tasks.length) return 0;
+                    const completed = this.tasks.filter(t => t.status === 'COMPLETED').length;
+                    return Math.round((completed / this.tasks.length) * 100);
+                },
+
+                calculateStageProgress(stageId) {
+                    const stageTasks = this.tasks.filter(t => t.stageId === stageId);
+                    if (!stageTasks.length) return 0;
+                    const completed = stageTasks.filter(t => t.status === 'COMPLETED').length;
+                    return Math.round((completed / stageTasks.length) * 100);
+                },
+
+                openTask(task) {
+                    this.selectedTask = task;
+                },
+
+                priorityColor(priority) {
+                    return {
+                        'CRITICAL': 'text-red-600',
+                        'HIGH': 'text-orange-500',
+                        'MEDIUM': 'text-yellow-600',
+                        'LOW': 'text-blue-500'
+                    }[priority] || 'text-gray-500';
+                },
+
+                groupColor(group) {
+                    return {
+                        'CORE': 'bg-blue-100 text-blue-700',
+                        'SECURITY': 'bg-red-100 text-red-700',
+                        'AUTH': 'bg-purple-100 text-purple-700',
+                        'REGISTRY': 'bg-amber-100 text-amber-700',
+                        'RAG': 'bg-teal-100 text-teal-700',
+                        'ENGINE': 'bg-indigo-100 text-indigo-700'
+                    }[group] || 'bg-gray-100 text-gray-700';
+                },
+
+                statusBadgeColor(status) {
+                    return {
+                        'COMPLETED': 'bg-emerald-100 text-emerald-800',
+                        'IN_PROGRESS': 'bg-sky-100 text-sky-800',
+                        'BLOCKED': 'bg-red-100 text-red-800'
+                    }[status] || 'bg-slate-100 text-slate-800';
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

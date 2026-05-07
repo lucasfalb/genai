@@ -1,0 +1,4 @@
+interface:
+  display_name: "Commit Guardian"
+  short_description: "Padroniza commits e mensagens de commit."
+  default_prompt: "Use commit-guardian para revisar ou criar mensagens de commit seguindo o padrao do projeto."
