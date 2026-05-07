@@ -12,6 +12,7 @@
 | TASK-032 | [Tenant Agent Instance CRUD](task_032_tenant_agent_instance_crud.md) | PENDING | CRITICAL | TASK-015, TASK-030 |
 | TASK-033 | [Workflow Audit Versions e Cache Invalidation](task_033_workflow_audit_versions_cache_invalidation.md) | PENDING | HIGH | TASK-029, TASK-030, TASK-031, TASK-032 |
 | TASK-034 | [Stage 05 API Bruno e Workflow Verification](task_034_stage_05_api_bruno_workflow_verification.md) | PENDING | HIGH | TASK-026, TASK-027, TASK-028, TASK-029, TASK-030, TASK-031, TASK-032, TASK-033 |
+| TASK-035 | [API Response Envelope Standard](task_035_api_response_envelope_standard.md) | COMPLETED | HIGH | TASK-026 |
 
 ## Scope
 
@@ -34,3 +35,4 @@ Estas tasks cobrem o Stage 05 definido em `docs/stages/stage_05_base_multitenant
 - Listagem de membros deve consultar `memberships` e excluir `users.is_superadmin = true`.
 - Toda rota tenant-scoped exige Bearer token, `X-Tenant-ID` e RBAC.
 - Toda rota criada neste stage deve ganhar request correspondente em `genai-endpoints/`.
+- Toda rota JSON deve retornar envelope padrao `ApiResponse` em sucesso e envelope `ApiErrorResponse` em erro.

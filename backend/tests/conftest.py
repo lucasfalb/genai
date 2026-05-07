@@ -17,6 +17,18 @@ def db_connection() -> Iterator[psycopg.Connection]:
         connection.rollback()
 
 
+def api_data(response):
+    body = response.json()
+    assert body["status"] == "success"
+    return body["data"]
+
+
+def api_error(response):
+    body = response.json()
+    assert body["status"] == "error"
+    return body["error"]
+
+
 @pytest.fixture()
 def seeded_core(db_connection: psycopg.Connection) -> dict[str, str]:
     with db_connection.cursor() as cursor:

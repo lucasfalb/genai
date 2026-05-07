@@ -7,6 +7,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 from app.security import hash_token
+from conftest import api_data
 
 
 async def test_register_queues_activation_and_confirm_activates_account(db_connection: psycopg.Connection) -> None:
@@ -24,7 +25,7 @@ async def test_register_queues_activation_and_confirm_activates_account(db_conne
         )
 
     assert register_response.status_code == 201
-    assert register_response.json()["status"] == "pending"
+    assert api_data(register_response)["status"] == "pending"
     assert inactive_login.status_code == 403
 
     token = _latest_activation_token(db_connection, email)
@@ -38,11 +39,11 @@ async def test_register_queues_activation_and_confirm_activates_account(db_conne
         )
 
     assert confirm_response.status_code == 200
-    assert confirm_response.json()["status"] == "active"
+    assert api_data(confirm_response)["status"] == "active"
     assert reused_response.status_code == 400
     assert login_response.status_code == 200
-    assert login_response.json()["awaiting_assignment"] is True
-    assert login_response.json()["access_token"] is None
+    assert api_data(login_response)["awaiting_assignment"] is True
+    assert api_data(login_response)["access_token"] is None
 
 
 async def test_activation_request_is_neutral_and_reissues_token(db_connection: psycopg.Connection) -> None:
@@ -62,7 +63,7 @@ async def test_activation_request_is_neutral_and_reissues_token(db_connection: p
 
     assert missing_response.status_code == 200
     assert request_response.status_code == 200
-    assert request_response.json()["message"].startswith("If the account")
+    assert api_data(request_response)["message"].startswith("If the account")
 
     with db_connection.cursor() as cursor:
         cursor.execute(

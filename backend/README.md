@@ -47,6 +47,18 @@ Useful endpoints:
 - `PUT /api/v1/registry/credentials/{skill_slug}`
 - `POST /api/v1/agent/instances/{instance_id}/chat`
 
+JSON endpoints return a standard envelope:
+
+```json
+{"status":"success","message":null,"data":{},"meta":{}}
+```
+
+Errors use:
+
+```json
+{"status":"error","error":{"code":"MACHINE_CODE","message":"Human message","details":null}}
+```
+
 ## Tests
 
 Run from `backend/`:

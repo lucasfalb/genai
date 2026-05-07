@@ -63,6 +63,9 @@ Tokens de reset devem ser hashados no banco, expirar, ser single-use e nunca apa
 
 - Cada endpoint novo deve ter OpenAPI valido.
 - Cada endpoint novo deve ter request em `genai-endpoints/`.
+- Cada endpoint JSON deve usar envelope padrao de sucesso/erro para facilitar consumo no frontend:
+  - sucesso: `{"status":"success","message":...,"data":...,"meta":{...}}`
+  - erro: `{"status":"error","error":{"code":...,"message":...,"details":...}}`
 - Workflows principais devem ter testes de integracao.
 
 ## Regras de Superadmin
@@ -93,4 +96,5 @@ python scripts\validate_tasks.py
 
 - TASK-025 revisada e endurecida com `tenant_id` opcional em tokens transacionais, constraints de tipo/status, consumo filtravel por tipo e rejeicao de payload sensivel em email events.
 - TASK-026 implementa ativacao de conta: registro enfileira email de ativacao, `/auth/activation/request` reemite token com resposta neutra e `/auth/activation/confirm` ativa o usuario com token single-use.
+- TASK-035 padroniza respostas JSON com `ApiResponse[T]` em sucesso, `ApiErrorResponse` em erro e validacao OpenAPI para impedir regressao de contrato.
 - Login e refresh agora bloqueiam usuarios com `status != 'active'`.

@@ -8,6 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 from app.rbac import Permission
 from app.security import create_access_token, hash_password
+from conftest import api_data
 from database.connection import engine
 from database.repositories.users import UserRepository
 from dependencies.auth import require_permission
@@ -34,7 +35,7 @@ async def test_superadmin_login_issues_tokens_without_membership(db_connection: 
             json={"email": email, "password": password},
         )
 
-    body = response.json()
+    body = api_data(response)
     assert response.status_code == 200
     assert body["access_token"]
     assert body["refresh_token"]
@@ -142,11 +143,11 @@ async def test_superadmin_can_manage_email_templates(db_connection: psycopg.Conn
             },
         )
 
-    slugs = {item["slug"] for item in list_response.json()}
+    slugs = {item["slug"] for item in api_data(list_response)}
     assert list_response.status_code == 200
     assert {"account_activation", "tenant_invitation", "password_reset"}.issubset(slugs)
     assert upsert_response.status_code == 200
-    assert upsert_response.json()["slug"] == slug
+    assert api_data(upsert_response)["slug"] == slug
 
 @asynccontextmanager
 async def _repository_connection():

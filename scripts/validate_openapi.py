@@ -58,6 +58,12 @@ def validate_openapi(schema: dict[str, Any]) -> list[str]:
             responses = operation.get("responses") or {}
             if "200" not in responses and "201" not in responses and "204" not in responses:
                 errors.append(f"{location}: missing success response")
+            for status_code in ("200", "201"):
+                response = responses.get(status_code) or {}
+                json_schema = (response.get("content") or {}).get("application/json", {}).get("schema") or {}
+                ref = json_schema.get("$ref", "")
+                if ref and "/ApiResponse_" not in ref:
+                    errors.append(f"{location}: JSON success response must use ApiResponse envelope")
 
             if (method.upper(), path) not in PUBLIC_ENDPOINTS and not operation.get("security"):
                 errors.append(f"{location}: protected endpoint must declare OpenAPI security")

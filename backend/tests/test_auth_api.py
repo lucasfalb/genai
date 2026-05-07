@@ -4,6 +4,7 @@ import psycopg
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
+from conftest import api_data, api_error
 
 
 async def test_register_and_login_without_membership_returns_awaiting_assignment() -> None:
@@ -23,8 +24,9 @@ async def test_register_and_login_without_membership_returns_awaiting_assignment
         )
 
     assert register_response.status_code == 201
-    assert register_response.json()["status"] == "pending"
+    assert api_data(register_response)["status"] == "pending"
     assert login_response.status_code == 403
+    assert api_error(login_response)["code"] == "ACCOUNT_IS_NOT_ACTIVE"
 
 
 async def test_login_with_active_membership_issues_tokens(db_connection: psycopg.Connection) -> None:
@@ -61,7 +63,7 @@ async def test_login_with_active_membership_issues_tokens(db_connection: psycopg
             "/api/v1/auth/login",
             json={"email": email, "password": password},
         )
-        body = login_response.json()
+        body = api_data(login_response)
         refresh_response = await client.post(
             "/api/v1/auth/refresh",
             json={"refresh_token": body["refresh_token"]},
@@ -73,4 +75,4 @@ async def test_login_with_active_membership_issues_tokens(db_connection: psycopg
     assert body["awaiting_assignment"] is False
     assert body["memberships"] == [{"tenant_id": str(tenant_id), "role": "tenant_admin"}]
     assert refresh_response.status_code == 200
-    assert refresh_response.json()["access_token"]
+    assert api_data(refresh_response)["access_token"]

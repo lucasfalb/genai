@@ -4,8 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.rbac import Permission
 from app.registry_cache import ToolMetadataCache
+from app.responses import api_success
 from app.schemas import (
     ActivationRequest,
+    ApiResponse,
     CredentialRequest,
     CredentialResponse,
     SkillActivationResponse,
@@ -28,21 +30,22 @@ SENSITIVE_METADATA_KEYS = {"token", "api_key", "apikey", "password", "secret", "
 
 @router.get(
     "/instances/{instance_id}/metadata",
-    response_model=ToolMetadataResponse,
+    response_model=ApiResponse[ToolMetadataResponse],
     summary="Get instance registry metadata",
     description="Returns active skills and tools for one agent instance in the selected tenant. The response excludes credentials and secret references.",
 )
 async def get_instance_metadata(
     instance_id: UUID,
     context: TenantContext = Depends(require_permission(Permission.MANAGE_SKILLS_TOOLS)),
-) -> ToolMetadataResponse:
+) -> ApiResponse[ToolMetadataResponse]:
     async with tenant_connection(context) as connection:
-        return await ToolMetadataCache(connection).get(tenant_id=context.tenant_id, instance_id=instance_id)
+        metadata = await ToolMetadataCache(connection).get(tenant_id=context.tenant_id, instance_id=instance_id)
+        return api_success(metadata)
 
 
 @router.put(
     "/instances/{instance_id}/skills/{skill_slug}",
-    response_model=SkillActivationResponse,
+    response_model=ApiResponse[SkillActivationResponse],
     summary="Configure instance skill",
     description="Enables or disables one active global skill for an agent instance in the selected tenant and invalidates registry metadata cache.",
 )
@@ -51,7 +54,7 @@ async def configure_instance_skill(
     skill_slug: str,
     payload: ActivationRequest,
     context: TenantContext = Depends(require_permission(Permission.MANAGE_SKILLS_TOOLS)),
-) -> SkillActivationResponse:
+) -> ApiResponse[SkillActivationResponse]:
     async with tenant_connection(context) as connection:
         repository = RegistryRepository(connection)
         activation = await repository.activate_skill(
@@ -64,12 +67,12 @@ async def configure_instance_skill(
         if activation is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Instance or skill not found")
         await ToolMetadataCache(connection).invalidate(tenant_id=context.tenant_id, instance_id=instance_id)
-        return _skill_activation_response(activation)
+        return api_success(_skill_activation_response(activation), message="Skill configuration updated.")
 
 
 @router.put(
     "/instances/{instance_id}/tools/{tool_slug}",
-    response_model=ToolActivationResponse,
+    response_model=ApiResponse[ToolActivationResponse],
     summary="Configure instance tool",
     description="Enables or disables one global utility tool for an agent instance in the selected tenant and invalidates registry metadata cache.",
 )
@@ -78,7 +81,7 @@ async def configure_instance_tool(
     tool_slug: str,
     payload: ActivationRequest,
     context: TenantContext = Depends(require_permission(Permission.MANAGE_SKILLS_TOOLS)),
-) -> ToolActivationResponse:
+) -> ApiResponse[ToolActivationResponse]:
     async with tenant_connection(context) as connection:
         repository = RegistryRepository(connection)
         activation = await repository.activate_tool(
@@ -91,26 +94,28 @@ async def configure_instance_tool(
         if activation is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Instance or tool not found")
         await ToolMetadataCache(connection).invalidate(tenant_id=context.tenant_id, instance_id=instance_id)
-        return _tool_activation_response(activation)
+        return api_success(_tool_activation_response(activation), message="Tool configuration updated.")
 
 
 @router.get(
     "/credentials",
-    response_model=list[CredentialResponse],
+    response_model=ApiResponse[list[CredentialResponse]],
     summary="List tenant credential references",
     description="Lists credential references configured for the selected tenant. Secret values are never returned by this endpoint.",
 )
 async def list_credential_refs(
     context: TenantContext = Depends(require_permission(Permission.MANAGE_SKILLS_TOOLS)),
-) -> list[CredentialResponse]:
+) -> ApiResponse[list[CredentialResponse]]:
     async with tenant_connection(context) as connection:
         repository = RegistryRepository(connection)
-        return [_credential_response(item) for item in await repository.list_credentials(tenant_id=context.tenant_id)]
+        return api_success(
+            [_credential_response(item) for item in await repository.list_credentials(tenant_id=context.tenant_id)]
+        )
 
 
 @router.put(
     "/credentials/{skill_slug}",
-    response_model=CredentialResponse,
+    response_model=ApiResponse[CredentialResponse],
     summary="Configure tenant credential reference",
     description="Stores or updates a non-secret vault reference for a credential required by a skill in the selected tenant.",
 )
@@ -118,7 +123,7 @@ async def configure_credential_ref(
     skill_slug: str,
     payload: CredentialRequest,
     context: TenantContext = Depends(require_permission(Permission.MANAGE_SKILLS_TOOLS)),
-) -> CredentialResponse:
+) -> ApiResponse[CredentialResponse]:
     _reject_sensitive_metadata(payload.metadata)
     async with tenant_connection(context) as connection:
         repository = RegistryRepository(connection)
@@ -130,7 +135,7 @@ async def configure_credential_ref(
         )
         if credential is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Credential-enabled skill not found")
-        return _credential_response(credential)
+        return api_success(_credential_response(credential), message="Credential reference updated.")
 
 
 def _reject_sensitive_metadata(metadata: dict) -> None:

@@ -8,6 +8,7 @@ import app.registry_cache as registry_cache_module
 from app.main import app
 from app.registry_cache import ToolMetadataCache
 from app.security import create_access_token
+from conftest import api_data
 from database.connection import TenantContext, tenant_connection
 from database.repositories.registry import RegistryRepository
 
@@ -70,10 +71,10 @@ async def test_superadmin_manages_global_skill_and_tool_catalog(db_connection: p
         )
 
     assert skill_response.status_code == 200
-    assert skill_response.json()["slug"] == skill_slug
+    assert api_data(skill_response)["slug"] == skill_slug
     assert tool_response.status_code == 200
-    assert tool_response.json()["schema"] == {"type": "object"}
-    assert skill_slug in {item["slug"] for item in list_response.json()}
+    assert api_data(tool_response)["schema"] == {"type": "object"}
+    assert skill_slug in {item["slug"] for item in api_data(list_response)}
 
 
 async def test_tenant_admin_configures_registry_and_metadata_without_secrets(
@@ -107,8 +108,8 @@ async def test_tenant_admin_configures_registry_and_metadata_without_secrets(
     assert skill_response.status_code == 200
     assert tool_response.status_code == 200
     assert credential_response.status_code == 200
-    assert credential_response.json()["secret_ref"] == "vault://tenant/crm"
-    metadata = metadata_response.json()
+    assert api_data(credential_response)["secret_ref"] == "vault://tenant/crm"
+    metadata = api_data(metadata_response)
     assert metadata["skills"][0]["slug"] == setup["skill_slug"]
     assert metadata["tools"][0]["slug"] == setup["tool_slug"]
     assert "secret_ref" not in str(metadata)

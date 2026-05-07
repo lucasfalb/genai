@@ -19,6 +19,9 @@ description: Validate FastAPI endpoint contracts, Swagger/OpenAPI documentation,
 ## Endpoint Rules
 
 - Public endpoints are limited to healthcheck and auth register/login/refresh unless explicitly documented otherwise.
+- JSON success responses must use the shared `ApiResponse[T]` envelope: `{"status":"success","message":null|string,"data":...,"meta":{...}}`.
+- JSON error responses must use the shared error envelope from global exception handlers: `{"status":"error","error":{"code":"MACHINE_CODE","message":"Human message","details":...}}`.
+- Route implementations should return `api_success(...)` for JSON responses and raise `HTTPException` for business errors so handlers preserve the envelope.
 - Superadmin endpoints must use `require_superadmin`.
 - Tenant endpoints must use `require_permission(...)` or an equivalent dependency that resolves `TenantContext`.
 - Do not return secrets, token hashes, credential payloads, or password hashes.

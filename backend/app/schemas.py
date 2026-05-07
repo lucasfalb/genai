@@ -1,6 +1,27 @@
+from typing import Generic, Literal, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+ResponseDataT = TypeVar("ResponseDataT")
+
+
+class ApiResponse(BaseModel, Generic[ResponseDataT]):
+    status: Literal["success"] = "success"
+    message: str | None = None
+    data: ResponseDataT | None = None
+    meta: dict = Field(default_factory=dict)
+
+
+class ApiError(BaseModel):
+    code: str
+    message: str
+    details: object | None = None
+
+
+class ApiErrorResponse(BaseModel):
+    status: Literal["error"] = "error"
+    error: ApiError
 
 
 class RegisterRequest(BaseModel):
