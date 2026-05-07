@@ -1,0 +1,35 @@
+meta {
+  name: Create Instance
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/api/v1/tenant/instances
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Content-Type: application/json
+  X-Tenant-ID: {{tenant_id}}
+}
+
+body:json {
+  {
+    "name": "My Agent",
+    "description": "A helpful assistant for tenant workflows.",
+    "core_prompt": "You are a helpful assistant.",
+    "model": "gpt-4.1-mini",
+    "temperature": 0.2,
+    "rag_scope": []
+  }
+}
+
+settings {
+  encodeUrl: false
+}

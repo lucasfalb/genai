@@ -2,17 +2,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from redis.exceptions import RedisError
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.cache import redis_client
 from app.rbac import Permission, Role
 from app.responses import api_success
 from app.schemas import ApiResponse, MessageResponse, TenantMemberResponse, TenantMemberUpdateRequest
+from app.workflow_audit import record_tenant_mutation
 from database.connection import TenantContext
-from database.repositories.audit import AuditLogRepository
 from database.repositories.memberships import MembershipAdminRepository, TenantMemberRecord
-from database.repositories.versions import ResourceVersionRepository
 from dependencies.auth import get_connection, require_permission
 
 
@@ -105,27 +103,9 @@ async def _after_membership_mutation(
     metadata: dict,
 ) -> None:
     await _invalidate_membership_cache(user_id=member.user_id, tenant_id=context.tenant_id)
-    await connection.execute(
-        text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
-        {"tenant_id": str(context.tenant_id)},
-    )
-    actor_type = "superadmin" if context.role == Role.SUPERADMIN.value else "user"
-    actor_role = Role.SUPERADMIN.value if context.role == Role.SUPERADMIN.value else context.role
-    await AuditLogRepository(connection).record(
-        tenant_id=context.tenant_id,
-        user_id=context.user_id,
-        actor_type=actor_type,
-        actor_role=actor_role,
-        action=action,
-        resource="memberships",
-        resource_id=str(member.user_id),
-        metadata=metadata,
-    )
-    await ResourceVersionRepository(connection).record(
-        tenant_id=context.tenant_id,
-        changed_by=context.user_id,
-        actor_type=actor_type,
-        actor_role=actor_role,
+    await record_tenant_mutation(
+        connection=connection,
+        context=context,
         action=action,
         resource="memberships",
         resource_id=str(member.user_id),

@@ -4,13 +4,14 @@
 | :--- | :--- |
 | **ID** | TASK-033 |
 | **Group** | SECURITY |
-| **Status** | PENDING |
+| **Status** | COMPLETED |
 | **Stage Ref** | `docs/stages/stage_05_base_multitenant_workflows.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | HIGH |
 | **Owner** | Unassigned |
 | **Created At** | 2026-05-07 |
 | **Updated At** | 2026-05-07 |
+| **Completed At** | 2026-05-07 |
 
 ## Context
 
@@ -18,10 +19,10 @@ Os workflows base alteram usuarios, tenants, memberships, convites e instancias.
 
 ## Objectives
 
-- [ ] Padronizar helper de auditoria para workflows administrativos.
-- [ ] Registrar resource versions para mutacoes versionaveis.
-- [ ] Invalidar caches de membership e metadata apos mutacoes.
-- [ ] Garantir actor context correto para superadmin.
+- [x] Padronizar helper de auditoria para workflows administrativos.
+- [x] Registrar resource versions para mutacoes versionaveis.
+- [x] Invalidar caches de membership e metadata apos mutacoes.
+- [x] Garantir actor context correto para superadmin.
 
 ## Non-Goals
 
@@ -54,18 +55,18 @@ Esta task atua como camada transversal dos workflows do Stage 05.
 
 ## Implementation Checklist
 
-- [ ] Criar helper ou service de workflow audit.
-- [ ] Integrar helper nos endpoints do Stage 05.
-- [ ] Testar actor_type/actor_role de superadmin.
-- [ ] Testar redaction de metadata sensivel.
-- [ ] Testar invalidacao de cache.
+- [x] Criar helper ou service de workflow audit.
+- [x] Integrar helper nos endpoints do Stage 05.
+- [x] Testar actor_type/actor_role de superadmin.
+- [x] Testar redaction de metadata sensivel.
+- [x] Testar invalidacao de cache.
 
 ## Acceptance Criteria
 
-- [ ] Mutacoes administrativas geram audit log.
-- [ ] Recursos versionaveis geram `resource_versions`.
-- [ ] Superadmin aparece como ator em logs do tenant.
-- [ ] Caches afetados sao invalidados.
+- [x] Mutacoes administrativas geram audit log.
+- [x] Recursos versionaveis geram `resource_versions`.
+- [x] Superadmin aparece como ator em logs do tenant.
+- [x] Caches afetados sao invalidados.
 
 ## Verification
 
@@ -82,3 +83,4 @@ pytest tests/test_stage_05_workflow_audit.py
 ## Execution Log
 
 - `[2026-05-07 15:40]`: Task criada para amarrar auditoria, versions e cache dos workflows base.
+- `[2026-05-07]`: Helper `app/workflow_audit.py` criado com `derive_actor` e `record_tenant_mutation`. Endpoints `tenant_members`, `tenant_invitations`, `tenant_agent_instances` refatorados para usar o helper. Tests em `test_stage_05_workflow_audit.py`: actor context, redaction, cache invalidation.

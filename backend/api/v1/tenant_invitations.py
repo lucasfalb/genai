@@ -3,7 +3,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from redis.exceptions import RedisError
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.cache import redis_client
@@ -21,14 +20,13 @@ from app.schemas import (
     TenantInvitationValidateRequest,
 )
 from app.security import create_action_token, hash_password, hash_token
+from app.workflow_audit import record_tenant_mutation
 from database.connection import TenantContext
-from database.repositories.audit import AuditLogRepository
 from database.repositories.auth_tokens import EmailEventRepository
 from database.repositories.email_templates import EmailTemplateRepository
 from database.repositories.invitations import InvitationRecord, InvitationRepository
 from database.repositories.memberships import MembershipAdminRepository, TenantMemberRecord
 from database.repositories.users import UserRecord, UserRepository
-from database.repositories.versions import ResourceVersionRepository
 from dependencies.auth import get_connection, require_permission
 
 
@@ -321,32 +319,13 @@ async def _record_invitation_change(
     action: str,
     metadata: dict,
 ) -> None:
-    await connection.execute(
-        text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
-        {"tenant_id": str(context.tenant_id)},
-    )
-    actor_type = "superadmin" if context.role == Role.SUPERADMIN.value else "user"
-    actor_role = Role.SUPERADMIN.value if context.role == Role.SUPERADMIN.value else context.role
-    snapshot = _invitation_response(record).model_dump(mode="json")
-    await AuditLogRepository(connection).record(
-        tenant_id=context.tenant_id,
-        user_id=context.user_id,
-        actor_type=actor_type,
-        actor_role=actor_role,
+    await record_tenant_mutation(
+        connection=connection,
+        context=context,
         action=action,
         resource="invitations",
         resource_id=str(record.id),
-        metadata=metadata,
-    )
-    await ResourceVersionRepository(connection).record(
-        tenant_id=context.tenant_id,
-        changed_by=context.user_id,
-        actor_type=actor_type,
-        actor_role=actor_role,
-        action=action,
-        resource="invitations",
-        resource_id=str(record.id),
-        snapshot=snapshot,
+        snapshot=_invitation_response(record).model_dump(mode="json"),
         metadata=metadata,
     )
 
@@ -366,21 +345,9 @@ async def _record_membership_version(
         "status": member.status,
     }
     metadata = {"invitation_id": str(invitation.id), "email": invitation.email, "role": invitation.role}
-    await AuditLogRepository(connection).record(
-        tenant_id=context.tenant_id,
-        user_id=context.user_id,
-        actor_type="user",
-        actor_role=context.role,
-        action="membership.invitation_accepted",
-        resource="memberships",
-        resource_id=str(member.user_id),
-        metadata=metadata,
-    )
-    await ResourceVersionRepository(connection).record(
-        tenant_id=context.tenant_id,
-        changed_by=context.user_id,
-        actor_type="user",
-        actor_role=context.role,
+    await record_tenant_mutation(
+        connection=connection,
+        context=context,
         action="membership.invitation_accepted",
         resource="memberships",
         resource_id=str(member.user_id),

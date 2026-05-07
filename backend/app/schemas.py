@@ -349,3 +349,35 @@ class ChatEvent(BaseModel):
     sequence_no: int | None = None
     content: str | None = None
     metadata: dict = Field(default_factory=dict)
+
+
+class AgentInstanceCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    description: str | None = None
+    core_prompt: str = Field(min_length=1)
+    model: str = Field(default="gpt-4.1-mini", max_length=120)
+    temperature: float = Field(default=0.2, ge=0.0, le=2.0)
+    rag_scope: list = Field(default_factory=list)
+
+
+class AgentInstanceUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    description: str | None = None
+    core_prompt: str | None = Field(default=None, min_length=1)
+    model: str | None = Field(default=None, max_length=120)
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    status: str | None = Field(default=None, pattern=r"^(active|inactive)$")
+    rag_scope: list | None = None
+
+
+class AgentInstanceResponse(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    name: str
+    description: str | None
+    core_prompt: str
+    model: str
+    temperature: float
+    status: str
+    rag_scope: list
+    created_by: UUID

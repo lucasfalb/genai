@@ -1,0 +1,31 @@
+meta {
+  name: Update Instance
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{base_url}}/api/v1/tenant/instances/{{instance_id}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Content-Type: application/json
+  X-Tenant-ID: {{tenant_id}}
+}
+
+body:json {
+  {
+    "name": "Updated Name",
+    "status": "active"
+  }
+}
+
+settings {
+  encodeUrl: false
+}

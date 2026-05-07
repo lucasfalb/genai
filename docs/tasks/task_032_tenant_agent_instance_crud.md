@@ -4,13 +4,14 @@
 | :--- | :--- |
 | **ID** | TASK-032 |
 | **Group** | REGISTRY |
-| **Status** | PENDING |
+| **Status** | COMPLETED |
 | **Stage Ref** | `docs/stages/stage_05_base_multitenant_workflows.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | CRITICAL |
 | **Owner** | Unassigned |
 | **Created At** | 2026-05-07 |
 | **Updated At** | 2026-05-07 |
+| **Completed At** | 2026-05-07 |
 
 ## Context
 
@@ -18,10 +19,10 @@ Skills/tools podem ser ativadas em instancias existentes, mas ainda nao ha API b
 
 ## Objectives
 
-- [ ] Criar CRUD tenant-scoped de `agent_instances`.
-- [ ] Expor listagem e detalhes por tenant.
-- [ ] Permitir arquivar/desarquivar instancia sem apagar dados historicos.
-- [ ] Invalidar caches de metadata quando instancia mudar.
+- [x] Criar CRUD tenant-scoped de `agent_instances`.
+- [x] Expor listagem e detalhes por tenant.
+- [x] Permitir arquivar/desarquivar instancia sem apagar dados historicos.
+- [x] Invalidar caches de metadata quando instancia mudar.
 
 ## Non-Goals
 
@@ -52,18 +53,18 @@ Esta task cobre administracao operacional de instancias, prerequisito para workf
 
 ## Implementation Checklist
 
-- [ ] Criar repository de agent instances.
-- [ ] Criar endpoints tenant-scoped de CRUD.
-- [ ] Testar isolamento cross-tenant.
-- [ ] Integrar audit/version e cache invalidation.
-- [ ] Atualizar Bruno e OpenAPI.
+- [x] Criar repository de agent instances.
+- [x] Criar endpoints tenant-scoped de CRUD.
+- [x] Testar isolamento cross-tenant.
+- [x] Integrar audit/version e cache invalidation.
+- [x] Atualizar Bruno e OpenAPI.
 
 ## Acceptance Criteria
 
-- [ ] Tenant admin cria, lista, atualiza e arquiva instancias do proprio tenant.
-- [ ] Viewer nao consegue mutar instancias.
-- [ ] Cross-tenant access retorna 404 ou 403 conforme contrato.
-- [ ] Mudancas aparecem em audit/version quando aplicavel.
+- [x] Tenant admin cria, lista, atualiza e arquiva instancias do proprio tenant.
+- [x] Viewer nao consegue mutar instancias.
+- [x] Cross-tenant access retorna 404 ou 403 conforme contrato.
+- [x] Mudancas aparecem em audit/version quando aplicavel.
 
 ## Verification
 
@@ -80,3 +81,4 @@ pytest tests/test_stage_05_agent_instances.py
 ## Execution Log
 
 - `[2026-05-07 15:40]`: Task criada para cobrir CRUD de instancias antes de prompts/RAG/canais.
+- `[2026-05-07]`: Implementacao concluida. Repository, 5 endpoints REST, testes de isolamento cross-tenant/RBAC/superadmin, Bruno collection e schemas Pydantic adicionados.
