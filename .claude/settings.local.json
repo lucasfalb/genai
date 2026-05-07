@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/test_stage_05_agent_instances.py -v)"
+    ]
+  }
+}

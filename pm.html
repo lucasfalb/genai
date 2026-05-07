@@ -471,6 +471,7 @@
                 search: '',
                 filterStage: '',
                 selectedTask: null,
+                pendingTaskId: null,
                 selectedStage: null,
                 selectedDoc: null,
                 loading: true,
@@ -524,13 +525,14 @@
                             });
                         }
                         if (view === 'board' && parts[1]) {
-                            this.filterStage = parts[1];
+                            if (parts[1] === 'task' && parts[2]) {
+                                this.pendingTaskId = parts[2];
+                            } else {
+                                this.filterStage = parts[1];
+                            }
                         }
                         if (view === 'task' && parts[1]) {
-                            this.$nextTick(() => {
-                                const task = this.tasks.find(t => t.id === parts[1]);
-                                if (task) this.selectedTask = task;
-                            });
+                            this.pendingTaskId = parts[1];
                         }
                     }
 
@@ -539,7 +541,9 @@
                         if (value === 'docs' && this.selectedDoc) {
                             hash += ':' + encodeURIComponent(this.selectedDoc.path);
                         }
-                        if (value === 'board' && this.filterStage) {
+                        if (value === 'board' && this.selectedTask) {
+                            hash += ':task:' + this.selectedTask.id;
+                        } else if (value === 'board' && this.filterStage) {
                             hash += ':' + this.filterStage;
                         }
                         if (value === 'task' && this.selectedTask) {
@@ -562,13 +566,26 @@
 
                     this.$watch('selectedTask', (value) => {
                         if (value) {
-                            window.location.hash = '#task:' + value.id;
+                            if (this.view === 'board') {
+                                window.location.hash = '#board:task:' + value.id;
+                            } else {
+                                window.location.hash = '#task:' + value.id;
+                            }
+                        } else if (this.view === 'board') {
+                            let hash = '#board';
+                            if (this.filterStage) hash += ':' + this.filterStage;
+                            window.location.hash = hash;
                         }
                     });
 
                     this.loadStages().then(() => {
                         return this.loadAllTasks();
                     }).then(() => {
+                        if (this.pendingTaskId) {
+                            const task = this.tasks.find(t => t.id === this.pendingTaskId);
+                            if (task) this.selectedTask = task;
+                            this.pendingTaskId = null;
+                        }
                         this.loading = false;
                     });
                 },
