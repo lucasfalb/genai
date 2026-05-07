@@ -4,6 +4,7 @@ from fastapi.exceptions import RequestValidationError
 from api.v1.agent import router as agent_router
 from api.v1.auth import router as auth_router
 from api.v1.registry import router as registry_router
+from api.v1.superadmin.admin import router as superadmin_admin_router
 from api.v1.superadmin.email_templates import router as email_templates_router
 from api.v1.superadmin.registry import router as superadmin_registry_router
 from app.responses import api_success, http_exception_handler, validation_exception_handler
@@ -15,6 +16,7 @@ app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.include_router(agent_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(superadmin_admin_router, prefix="/api/v1")
 app.include_router(email_templates_router, prefix="/api/v1")
 app.include_router(superadmin_registry_router, prefix="/api/v1")
 app.include_router(registry_router, prefix="/api/v1")

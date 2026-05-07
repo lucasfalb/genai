@@ -4,11 +4,11 @@
 | :--- | :--- |
 | **ID** | TASK-029 |
 | **Group** | CORE |
-| **Status** | PENDING |
+| **Status** | COMPLETED |
 | **Stage Ref** | `docs/stages/stage_05_base_multitenant_workflows.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | CRITICAL |
-| **Owner** | Unassigned |
+| **Owner** | Codex |
 | **Created At** | 2026-05-07 |
 | **Updated At** | 2026-05-07 |
 
@@ -18,10 +18,10 @@ O roadmap base exige CRUD de tenants e users por superadmin. Hoje o superadmin e
 
 ## Objectives
 
-- [ ] Criar CRUD superadmin de tenants.
-- [ ] Criar listagem e atualizacao segura de usuarios globais.
-- [ ] Permitir ativar, suspender e marcar superadmin com regras explicitas.
-- [ ] Registrar auditoria global e tenant-scoped quando aplicavel.
+- [x] Criar CRUD superadmin de tenants.
+- [x] Criar listagem e atualizacao segura de usuarios globais.
+- [x] Permitir ativar, suspender e marcar superadmin com regras explicitas.
+- [x] Registrar auditoria global e tenant-scoped quando aplicavel.
 
 ## Non-Goals
 
@@ -51,18 +51,18 @@ Esta task cobre administracao global necessaria para operar tenants e usuarios.
 
 ## Implementation Checklist
 
-- [ ] Criar repositorios de tenants e users administrativos.
-- [ ] Criar endpoints superadmin de tenants.
-- [ ] Criar endpoints superadmin de users.
-- [ ] Testar permissoes e payloads seguros.
-- [ ] Atualizar Bruno e OpenAPI.
+- [x] Criar repositorios de tenants e users administrativos.
+- [x] Criar endpoints superadmin de tenants.
+- [x] Criar endpoints superadmin de users.
+- [x] Testar permissoes e payloads seguros.
+- [x] Atualizar Bruno e OpenAPI.
 
 ## Acceptance Criteria
 
-- [ ] Superadmin cria, lista, atualiza e suspende tenants.
-- [ ] Superadmin lista usuarios sem campos sensiveis.
-- [ ] Usuario comum nao acessa endpoints.
-- [ ] Mutacoes geram audit logs.
+- [x] Superadmin cria, lista, atualiza e suspende tenants.
+- [x] Superadmin lista usuarios sem campos sensiveis.
+- [x] Usuario comum nao acessa endpoints.
+- [x] Mutacoes geram audit logs.
 
 ## Verification
 
@@ -81,3 +81,5 @@ backend\.venv\Scripts\python scripts\validate_openapi.py
 ## Execution Log
 
 - `[2026-05-07 15:40]`: Task criada para cobrir CRUD base de tenants e users do roadmap.
+- `[2026-05-07 19:05]`: Implementacao iniciada para endpoints `/superadmin/tenants` e `/superadmin/users`.
+- `[2026-05-07 19:25]`: Endpoints, repositorio administrativo, Bruno, audit/version e testes de integracao implementados.

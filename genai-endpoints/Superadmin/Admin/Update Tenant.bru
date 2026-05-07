@@ -1,0 +1,32 @@
+meta {
+  name: Update Tenant
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{base_url}}/api/v1/superadmin/tenants/{{tenant_id}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "status": "suspended",
+    "settings": {
+      "support_email": "support@example.com"
+    }
+  }
+}
+
+settings {
+  encodeUrl: false
+}

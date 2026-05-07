@@ -107,6 +107,44 @@ class TenantAccessResponse(BaseModel):
     status: str
 
 
+class SuperadminTenantCreateRequest(BaseModel):
+    slug: str = Field(pattern=r"^[a-z0-9-]+$", max_length=120)
+    name: str = Field(min_length=1, max_length=160)
+    plan: str = Field(default="starter", pattern=r"^[a-z0-9_-]+$", max_length=80)
+    status: str = Field(default="active", pattern=r"^(active|suspended|archived)$")
+    settings: dict = Field(default_factory=dict)
+
+
+class SuperadminTenantUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    plan: str | None = Field(default=None, pattern=r"^[a-z0-9_-]+$", max_length=80)
+    status: str | None = Field(default=None, pattern=r"^(active|suspended|archived)$")
+    settings: dict | None = None
+
+
+class SuperadminTenantResponse(BaseModel):
+    id: UUID
+    slug: str
+    name: str
+    plan: str
+    status: str
+    settings: dict
+
+
+class SuperadminUserUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, max_length=120)
+    status: str | None = Field(default=None, pattern=r"^(pending|active|suspended)$")
+    is_superadmin: bool | None = None
+
+
+class SuperadminUserResponse(BaseModel):
+    id: UUID
+    email: EmailStr
+    name: str | None
+    status: str
+    is_superadmin: bool
+
+
 class EmailTemplateRequest(BaseModel):
     slug: str = Field(pattern=r"^[a-z0-9_]+$", max_length=80)
     name: str = Field(min_length=1, max_length=160)

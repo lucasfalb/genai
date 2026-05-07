@@ -1,0 +1,30 @@
+meta {
+  name: Update User
+  type: http
+  seq: 7
+}
+
+patch {
+  url: {{base_url}}/api/v1/superadmin/users/{{user_id}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "status": "active",
+    "is_superadmin": false
+  }
+}
+
+settings {
+  encodeUrl: false
+}

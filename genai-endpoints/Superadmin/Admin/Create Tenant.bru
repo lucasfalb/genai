@@ -1,0 +1,35 @@
+meta {
+  name: Create Tenant
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/api/v1/superadmin/tenants
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "slug": "{{tenant_slug}}",
+    "name": "Local Tenant",
+    "plan": "starter",
+    "status": "active",
+    "settings": {
+      "support_email": "support@example.com"
+    }
+  }
+}
+
+settings {
+  encodeUrl: false
+}

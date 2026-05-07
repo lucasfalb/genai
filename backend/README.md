@@ -42,6 +42,13 @@ Useful endpoints:
 - `GET /api/v1/superadmin/email-templates`
 - `GET /api/v1/superadmin/email-templates/{slug}`
 - `PUT /api/v1/superadmin/email-templates/{slug}`
+- `GET /api/v1/superadmin/tenants`
+- `POST /api/v1/superadmin/tenants`
+- `GET /api/v1/superadmin/tenants/{tenant_id}`
+- `PATCH /api/v1/superadmin/tenants/{tenant_id}`
+- `GET /api/v1/superadmin/users`
+- `GET /api/v1/superadmin/users/{user_id}`
+- `PATCH /api/v1/superadmin/users/{user_id}`
 - `GET /api/v1/superadmin/registry/skills`
 - `PUT /api/v1/superadmin/registry/skills/{slug}`
 - `GET /api/v1/superadmin/registry/tools`
