@@ -1,0 +1,31 @@
+meta {
+  name: Update Member
+  type: http
+  seq: 2
+}
+
+patch {
+  url: {{base_url}}/api/v1/tenant/members/{{user_id}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Content-Type: application/json
+  X-Tenant-ID: {{tenant_id}}
+}
+
+body:json {
+  {
+    "role": "member",
+    "status": "active"
+  }
+}
+
+settings {
+  encodeUrl: false
+}

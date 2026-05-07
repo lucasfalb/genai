@@ -145,6 +145,19 @@ class SuperadminUserResponse(BaseModel):
     is_superadmin: bool
 
 
+class TenantMemberUpdateRequest(BaseModel):
+    role: str | None = Field(default=None, pattern=r"^(tenant_admin|member|viewer)$")
+    status: str | None = Field(default=None, pattern=r"^(active|pending|suspended)$")
+
+
+class TenantMemberResponse(BaseModel):
+    user_id: UUID
+    email: EmailStr
+    name: str | None
+    role: str
+    status: str
+
+
 class EmailTemplateRequest(BaseModel):
     slug: str = Field(pattern=r"^[a-z0-9_]+$", max_length=80)
     name: str = Field(min_length=1, max_length=160)

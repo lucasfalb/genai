@@ -4,11 +4,11 @@
 | :--- | :--- |
 | **ID** | TASK-030 |
 | **Group** | AUTH |
-| **Status** | PENDING |
+| **Status** | COMPLETED |
 | **Stage Ref** | `docs/stages/stage_05_base_multitenant_workflows.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | CRITICAL |
-| **Owner** | Unassigned |
+| **Owner** | Codex |
 | **Created At** | 2026-05-07 |
 | **Updated At** | 2026-05-07 |
 
@@ -18,10 +18,10 @@ RBAC existe no middleware, mas tenant admins ainda nao conseguem listar, alterar
 
 ## Objectives
 
-- [ ] Criar `GET /tenant/members`.
-- [ ] Criar endpoints para alterar role/status de membership.
-- [ ] Criar endpoint para remover ou suspender membro.
-- [ ] Garantir que superadmin nao aparece como membro visivel.
+- [x] Criar `GET /tenant/members`.
+- [x] Criar endpoints para alterar role/status de membership.
+- [x] Criar endpoint para remover ou suspender membro.
+- [x] Garantir que superadmin nao aparece como membro visivel.
 
 ## Non-Goals
 
@@ -52,18 +52,18 @@ Esta task cobre administracao de memberships ja existentes, respeitando RBAC ten
 
 ## Implementation Checklist
 
-- [ ] Criar repositorio de memberships administrativas.
-- [ ] Criar endpoints tenant-scoped de members.
-- [ ] Testar RBAC por role.
-- [ ] Testar exclusao visual de superadmin.
-- [ ] Atualizar Bruno e OpenAPI.
+- [x] Criar repositorio de memberships administrativas.
+- [x] Criar endpoints tenant-scoped de members.
+- [x] Testar RBAC por role.
+- [x] Testar exclusao visual de superadmin.
+- [x] Atualizar Bruno e OpenAPI.
 
 ## Acceptance Criteria
 
-- [ ] `GET /tenant/members` nao retorna superadmin.
-- [ ] Tenant admin altera role/status validos.
-- [ ] Cache Redis de membership e invalidado em mutacoes.
-- [ ] Superadmin age com auditoria, sem membership visivel.
+- [x] `GET /tenant/members` nao retorna superadmin.
+- [x] Tenant admin altera role/status validos.
+- [x] Cache Redis de membership e invalidado em mutacoes.
+- [x] Superadmin age com auditoria, sem membership visivel.
 
 ## Verification
 
@@ -80,3 +80,5 @@ pytest tests/test_stage_05_tenant_members.py
 ## Execution Log
 
 - `[2026-05-07 15:40]`: Task criada para cobrir administracao RBAC por tenant.
+- `[2026-05-07 19:45]`: Implementacao iniciada para listagem e mutacao de memberships tenant-scoped.
+- `[2026-05-07 20:05]`: Endpoints de members, repositorio, Bruno, invalidacao de cache, audit/version e testes implementados.

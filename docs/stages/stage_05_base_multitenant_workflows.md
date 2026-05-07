@@ -99,5 +99,6 @@ python scripts\validate_tasks.py
 - TASK-027 implementa password lifecycle: `/auth/password/forgot` emite resposta neutra e token single-use, `/auth/password/reset` troca senha e revoga refresh tokens, e `/auth/password/change` exige Bearer token e senha atual.
 - TASK-028 implementa introspeccao de auth: `/auth/me` retorna identidade global segura, `/auth/me/tenants` retorna memberships reais sem membership sintetica para superadmin, e `/auth/logout` revoga refresh tokens.
 - TASK-029 implementa administracao superadmin de tenants e usuarios: CRUD operacional de tenants, list/get/update de usuarios globais, bloqueio de auto-demote/auto-suspensao e auditoria/versionamento em mutacoes.
+- TASK-030 implementa administracao tenant-scoped de membros: listagem sem superadmin visivel, update de role/status, remocao, invalidacao de cache de membership e audit/version com contexto de ator.
 - TASK-035 padroniza respostas JSON com `ApiResponse[T]` em sucesso, `ApiErrorResponse` em erro e validacao OpenAPI para impedir regressao de contrato.
 - Login e refresh agora bloqueiam usuarios com `status != 'active'`.

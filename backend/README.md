@@ -58,6 +58,9 @@ Useful endpoints:
 - `PUT /api/v1/registry/instances/{instance_id}/tools/{tool_slug}`
 - `GET /api/v1/registry/credentials`
 - `PUT /api/v1/registry/credentials/{skill_slug}`
+- `GET /api/v1/tenant/members`
+- `PATCH /api/v1/tenant/members/{user_id}`
+- `DELETE /api/v1/tenant/members/{user_id}`
 - `POST /api/v1/agent/instances/{instance_id}/chat`
 
 JSON endpoints return a standard envelope:
