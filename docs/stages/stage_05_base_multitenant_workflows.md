@@ -97,5 +97,6 @@ python scripts\validate_tasks.py
 - TASK-025 revisada e endurecida com `tenant_id` opcional em tokens transacionais, constraints de tipo/status, consumo filtravel por tipo e rejeicao de payload sensivel em email events.
 - TASK-026 implementa ativacao de conta: registro enfileira email de ativacao, `/auth/activation/request` reemite token com resposta neutra e `/auth/activation/confirm` ativa o usuario com token single-use.
 - TASK-027 implementa password lifecycle: `/auth/password/forgot` emite resposta neutra e token single-use, `/auth/password/reset` troca senha e revoga refresh tokens, e `/auth/password/change` exige Bearer token e senha atual.
+- TASK-028 implementa introspeccao de auth: `/auth/me` retorna identidade global segura, `/auth/me/tenants` retorna memberships reais sem membership sintetica para superadmin, e `/auth/logout` revoga refresh tokens.
 - TASK-035 padroniza respostas JSON com `ApiResponse[T]` em sucesso, `ApiErrorResponse` em erro e validacao OpenAPI para impedir regressao de contrato.
 - Login e refresh agora bloqueiam usuarios com `status != 'active'`.

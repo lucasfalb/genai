@@ -1,0 +1,19 @@
+meta {
+  name: Me Tenants
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{base_url}}/api/v1/auth/me/tenants
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+settings {
+  encodeUrl: false
+}

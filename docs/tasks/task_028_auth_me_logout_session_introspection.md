@@ -4,11 +4,11 @@
 | :--- | :--- |
 | **ID** | TASK-028 |
 | **Group** | AUTH |
-| **Status** | PENDING |
+| **Status** | COMPLETED |
 | **Stage Ref** | `docs/stages/stage_05_base_multitenant_workflows.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | HIGH |
-| **Owner** | Unassigned |
+| **Owner** | Codex |
 | **Created At** | 2026-05-07 |
 | **Updated At** | 2026-05-07 |
 
@@ -18,10 +18,10 @@ Clientes precisam descobrir o usuario autenticado, tenants acessiveis e encerrar
 
 ## Objectives
 
-- [ ] Criar endpoint `GET /auth/me`.
-- [ ] Criar endpoint `GET /auth/me/tenants`.
-- [ ] Criar endpoint `POST /auth/logout`.
-- [ ] Garantir resposta correta para superadmin sem memberships.
+- [x] Criar endpoint `GET /auth/me`.
+- [x] Criar endpoint `GET /auth/me/tenants`.
+- [x] Criar endpoint `POST /auth/logout`.
+- [x] Garantir resposta correta para superadmin sem memberships.
 
 ## Non-Goals
 
@@ -51,17 +51,17 @@ Esta task complementa os endpoints de auth existentes sem alterar RBAC tenant-sc
 
 ## Implementation Checklist
 
-- [ ] Criar schemas de me/tenant access/logout.
-- [ ] Criar endpoints em auth.
-- [ ] Testar usuario pending, membro ativo e superadmin.
-- [ ] Atualizar Bruno e OpenAPI.
+- [x] Criar schemas de me/tenant access/logout.
+- [x] Criar endpoints em auth.
+- [x] Testar usuario pending, membro ativo e superadmin.
+- [x] Atualizar Bruno e OpenAPI.
 
 ## Acceptance Criteria
 
-- [ ] `GET /auth/me` retorna identidade global segura.
-- [ ] `GET /auth/me/tenants` retorna memberships reais.
-- [ ] Superadmin retorna `is_superadmin=true` e memberships vazias.
-- [ ] Logout revoga refresh token informado.
+- [x] `GET /auth/me` retorna identidade global segura.
+- [x] `GET /auth/me/tenants` retorna memberships reais.
+- [x] Superadmin retorna `is_superadmin=true` e memberships vazias.
+- [x] Logout revoga refresh token informado.
 
 ## Verification
 
@@ -78,3 +78,5 @@ pytest tests/test_stage_05_auth_introspection.py
 ## Execution Log
 
 - `[2026-05-07 15:40]`: Task criada para cobrir perfil autenticado e logout.
+- `[2026-05-07 18:25]`: Implementacao iniciada para `me`, `me/tenants` e `logout`.
+- `[2026-05-07 18:40]`: Endpoints de introspeccao e logout implementados com Bruno, OpenAPI e testes de integracao.

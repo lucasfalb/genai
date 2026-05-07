@@ -11,7 +11,9 @@ from app.schemas import (
     AccountActivationRequest,
     ApiResponse,
     AuthResponse,
+    AuthMeResponse,
     LoginRequest,
+    LogoutRequest,
     MembershipResponse,
     MessageResponse,
     PasswordChangeRequest,
@@ -19,6 +21,7 @@ from app.schemas import (
     PasswordResetRequest,
     RefreshRequest,
     RegisterRequest,
+    TenantAccessResponse,
     UserResponse,
 )
 from app.security import create_access_token, create_action_token, create_refresh_token, hash_password, hash_token, verify_password
@@ -29,6 +32,82 @@ from dependencies.auth import CurrentUser, get_connection, get_current_user
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.get(
+    "/me",
+    response_model=ApiResponse[AuthMeResponse],
+    summary="Get authenticated user profile",
+    description="Returns the global identity associated with the Bearer token without password hashes, credentials, or tenant-expanded data.",
+)
+async def get_me(
+    current_user: CurrentUser = Depends(get_current_user),
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[AuthMeResponse]:
+    user = await UserRepository(connection).get_by_id(current_user.id)
+    if user is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+    return api_success(
+        AuthMeResponse(
+            id=user.id,
+            email=user.email,
+            name=user.name,
+            status=user.status,
+            is_superadmin=user.is_superadmin,
+        )
+    )
+
+
+@router.get(
+    "/me/tenants",
+    response_model=ApiResponse[list[TenantAccessResponse]],
+    summary="List authenticated user tenant access",
+    description="Returns real active tenant memberships for the Bearer token. Superadmin users are not represented as synthetic tenant members.",
+)
+async def get_my_tenants(
+    current_user: CurrentUser = Depends(get_current_user),
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[list[TenantAccessResponse]]:
+    repository = UserRepository(connection)
+    user = await repository.get_by_id(current_user.id)
+    if user is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+    memberships = await repository.list_tenant_access(user.id)
+    return api_success(
+        [
+            TenantAccessResponse(
+                tenant_id=item.tenant_id,
+                tenant_slug=item.tenant_slug,
+                tenant_name=item.tenant_name,
+                role=item.role,
+                status=item.status,
+            )
+            for item in memberships
+        ]
+    )
+
+
+@router.post(
+    "/logout",
+    response_model=ApiResponse[MessageResponse],
+    summary="Logout authenticated user",
+    description="Revokes the provided refresh token for the Bearer token user, or all active refresh tokens for that user when no refresh token is provided.",
+)
+async def logout(
+    payload: LogoutRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[MessageResponse]:
+    repository = UserRepository(connection)
+    user = await repository.get_by_id(current_user.id)
+    if user is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+    if payload.refresh_token:
+        await repository.revoke_refresh_token(user_id=user.id, token_hash=hash_token(payload.refresh_token))
+    else:
+        await repository.revoke_refresh_tokens(user_id=user.id)
+    message = "Logged out successfully."
+    return api_success(MessageResponse(message=message), message=message)
 
 
 @router.post(

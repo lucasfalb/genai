@@ -24,6 +24,15 @@ class MembershipRecord:
     status: str
 
 
+@dataclass(frozen=True)
+class TenantAccessRecord:
+    tenant_id: UUID
+    tenant_slug: str
+    tenant_name: str
+    role: str
+    status: str
+
+
 class UserRepository:
     def __init__(self, connection: AsyncConnection) -> None:
         self.connection = connection
@@ -120,6 +129,22 @@ class UserRepository:
         )
         return [_membership_from_row(row) for row in result.fetchall()]
 
+    async def list_tenant_access(self, user_id: UUID) -> list[TenantAccessRecord]:
+        result = await self.connection.execute(
+            text(
+                """
+                SELECT t.id AS tenant_id, t.slug AS tenant_slug, t.name AS tenant_name, m.role, m.status
+                FROM memberships m
+                JOIN tenants t ON t.id = m.tenant_id
+                WHERE m.user_id = :user_id
+                  AND m.status = 'active'
+                ORDER BY t.name, t.slug
+                """
+            ),
+            {"user_id": user_id},
+        )
+        return [_tenant_access_from_row(row) for row in result.fetchall()]
+
     async def get_active_membership(self, user_id: UUID, tenant_id: UUID) -> MembershipRecord | None:
         result = await self.connection.execute(
             text(
@@ -204,6 +229,21 @@ class UserRepository:
         )
         return result.rowcount
 
+    async def revoke_refresh_token(self, *, user_id: UUID, token_hash: str) -> int:
+        result = await self.connection.execute(
+            text(
+                """
+                UPDATE refresh_tokens
+                SET revoked_at = now()
+                WHERE user_id = :user_id
+                  AND token_hash = :token_hash
+                  AND revoked_at IS NULL
+                """
+            ),
+            {"user_id": user_id, "token_hash": token_hash},
+        )
+        return result.rowcount
+
 
 def _user_from_row(row) -> UserRecord:
     return UserRecord(
@@ -218,3 +258,13 @@ def _user_from_row(row) -> UserRecord:
 
 def _membership_from_row(row) -> MembershipRecord:
     return MembershipRecord(user_id=row.user_id, tenant_id=row.tenant_id, role=row.role, status=row.status)
+
+
+def _tenant_access_from_row(row) -> TenantAccessRecord:
+    return TenantAccessRecord(
+        tenant_id=row.tenant_id,
+        tenant_slug=row.tenant_slug,
+        tenant_name=row.tenant_name,
+        role=row.role,
+        status=row.status,
+    )

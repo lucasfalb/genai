@@ -39,6 +39,10 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class LogoutRequest(BaseModel):
+    refresh_token: str | None = None
+
+
 class PasswordForgotRequest(BaseModel):
     email: EmailStr
 
@@ -84,6 +88,22 @@ class UserResponse(BaseModel):
     id: UUID
     email: EmailStr
     name: str | None
+    status: str
+
+
+class AuthMeResponse(BaseModel):
+    id: UUID
+    email: EmailStr
+    name: str | None
+    status: str
+    is_superadmin: bool
+
+
+class TenantAccessResponse(BaseModel):
+    tenant_id: UUID
+    tenant_slug: str
+    tenant_name: str
+    role: str
     status: str
 
 
