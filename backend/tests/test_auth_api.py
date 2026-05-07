@@ -26,7 +26,9 @@ async def test_register_and_login_without_membership_returns_awaiting_assignment
     assert register_response.status_code == 201
     assert api_data(register_response)["status"] == "pending"
     assert login_response.status_code == 403
-    assert api_error(login_response)["code"] == "ACCOUNT_IS_NOT_ACTIVE"
+    error = api_error(login_response)
+    assert error["code"] == "ACCOUNT_IS_NOT_ACTIVE"
+    assert "details" not in error
 
 
 async def test_login_with_active_membership_issues_tokens(db_connection: psycopg.Connection) -> None:

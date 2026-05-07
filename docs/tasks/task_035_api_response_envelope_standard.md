@@ -40,7 +40,7 @@ Esta task altera contratos de API compartilhados usados pelos workflows base do 
 ## Inputs & Contracts
 
 - **Inputs**: responses FastAPI, `HTTPException`, erros de validacao Pydantic.
-- **Outputs**: sucesso JSON em `{"status":"success","message":...,"data":...,"meta":{...}}` e erro JSON em `{"status":"error","error":{"code":...,"message":...,"details":...}}`.
+- **Outputs**: sucesso JSON em `{"status":"success","message":...,"data":...,"meta":{...}}` e erro JSON em `{"status":"error","error":{"code":...,"message":...}}`, com `details` somente quando houver dados estruturados de diagnostico.
 - **Schemas**: `ApiResponse[T]`, `ApiError`, `ApiErrorResponse`.
 
 ## Constraints & Rules
@@ -66,6 +66,7 @@ Esta task altera contratos de API compartilhados usados pelos workflows base do 
 - [x] Login bloqueado por conta inativa retorna `status=error` e `error.code`.
 - [x] OpenAPI documenta o envelope de sucesso.
 - [x] Suite automatizada passa sem regressao conhecida.
+- [x] Erros de negocio sem detalhes estruturados omitem o campo `details`.
 
 ## Verification
 
@@ -86,3 +87,4 @@ python scripts\validate_tasks.py
 
 - `[2026-05-07 17:10]`: Envelope padrao criado e aplicado aos endpoints JSON existentes.
 - `[2026-05-07 17:20]`: Skill de endpoint e validador OpenAPI atualizados para exigir `ApiResponse`.
+- `[2026-05-07 17:45]`: `details` passou a ser omitido quando nulo; erros de validacao continuam retornando detalhes estruturados.

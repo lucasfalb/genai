@@ -20,10 +20,11 @@ JSON errors return:
   "status": "error",
   "error": {
     "code": "MACHINE_CODE",
-    "message": "Human message",
-    "details": null
+    "message": "Human message"
   }
 }
 ```
+
+`details` appears only when the API has structured diagnostic data, for example validation errors.
 
 SSE chat endpoints keep the `text/event-stream` response format.

@@ -65,7 +65,7 @@ Tokens de reset devem ser hashados no banco, expirar, ser single-use e nunca apa
 - Cada endpoint novo deve ter request em `genai-endpoints/`.
 - Cada endpoint JSON deve usar envelope padrao de sucesso/erro para facilitar consumo no frontend:
   - sucesso: `{"status":"success","message":...,"data":...,"meta":{...}}`
-  - erro: `{"status":"error","error":{"code":...,"message":...,"details":...}}`
+  - erro: `{"status":"error","error":{"code":...,"message":...}}`, com `details` somente quando houver dados estruturados de diagnostico.
 - Workflows principais devem ter testes de integracao.
 
 ## Regras de Superadmin

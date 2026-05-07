@@ -22,7 +22,7 @@ async def http_exception_handler(_: Request, exc: HTTPException) -> JSONResponse
                 "message": message,
                 "details": _error_details(exc.detail),
             }
-        ).model_dump(mode="json"),
+        ).model_dump(mode="json", exclude_none=True),
         headers=exc.headers,
     )
 
@@ -36,7 +36,7 @@ async def validation_exception_handler(_: Request, exc: RequestValidationError) 
                 "message": "Request validation failed",
                 "details": exc.errors(),
             }
-        ).model_dump(mode="json"),
+        ).model_dump(mode="json", exclude_none=True),
     )
 
 

@@ -56,8 +56,10 @@ JSON endpoints return a standard envelope:
 Errors use:
 
 ```json
-{"status":"error","error":{"code":"MACHINE_CODE","message":"Human message","details":null}}
+{"status":"error","error":{"code":"MACHINE_CODE","message":"Human message"}}
 ```
+
+`details` is included only when there is structured diagnostic data, such as request validation errors.
 
 ## Tests
 
