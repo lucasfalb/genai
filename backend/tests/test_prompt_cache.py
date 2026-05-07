@@ -41,18 +41,20 @@ def test_system_prompt_equality():
 
 def test_prompt_density_round_trip():
     pd = PromptDensity(
-        score=0.72,
-        level="medium",
+        score=22.72,
+        level="warning",
         capability_count=3,
         imperative_count=5,
         token_count=850,
+        max_tokens=6000,
+        budget_ratio=0.1417,
     )
     recovered = PromptDensity.model_validate_json(pd.model_dump_json())
     assert recovered == pd
 
 
 def test_prompt_density_levels():
-    for level in ("low", "medium", "high", "critical"):
+    for level in ("ok", "warning", "critical", "blocked"):
         pd = PromptDensity(score=0.5, level=level, capability_count=0, imperative_count=0, token_count=100)
         assert pd.level == level
 

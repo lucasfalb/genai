@@ -1,0 +1,19 @@
+meta {
+  name: Get System Settings
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/api/v1/superadmin/system-settings
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+settings {
+  encodeUrl: false
+}

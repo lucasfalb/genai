@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     smtp_user: str | None = None
     smtp_pass: str | None = None
     smtp_from: str | None = None
-    openai_api_key: str | None = None  # dev fallback only; production uses platform_ai_configs
+    openai_api_key: str | None = None  # dev fallback only; production uses system_settings
     ai_config_encryption_key: str = ""  # Fernet key (base64 32-byte) — required in production
 
     model_config = SettingsConfigDict(

@@ -7,8 +7,10 @@ from app.rbac import Permission
 from app.schemas import ChatRequest
 from database.connection import TenantContext, tenant_connection
 from dependencies.auth import require_permission
+from engine.ai_provider import AIProviderNotConfigured
 from engine.bootstrap import AgentInstanceNotFound
 from engine.executor import AgentExecutor
+from engine.llm_client import LLMProviderError
 from engine.session_lock import SessionLockConflict, SessionLockUnavailable
 
 
@@ -23,6 +25,7 @@ router = APIRouter(prefix="/agent", tags=["agent-chat"])
         200: {"description": "Server-Sent Events stream with persisted message and completion events."},
         404: {"description": "Agent instance not found in selected tenant."},
         409: {"description": "Session already has an active run."},
+        502: {"description": "Configured AI provider is unavailable, unsupported, or not configured."},
     },
 )
 async def chat(
@@ -53,6 +56,9 @@ async def chat(
     except SessionLockUnavailable as exc:
         await connection_context.__aexit__(type(exc), exc, exc.__traceback__)
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Session lock unavailable") from exc
+    except (AIProviderNotConfigured, LLMProviderError) as exc:
+        await connection_context.__aexit__(type(exc), exc, exc.__traceback__)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "AI provider unavailable") from exc
     except Exception as exc:
         await connection_context.__aexit__(type(exc), exc, exc.__traceback__)
         raise

@@ -4,7 +4,7 @@
 | :--- | :--- |
 | **ID** | TASK-037 |
 | **Group** | ENGINE |
-| **Status** | DONE |
+| **Status** | COMPLETED |
 | **Stage Ref** | `docs/stages/stage_05_prompts.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | CRITICAL |

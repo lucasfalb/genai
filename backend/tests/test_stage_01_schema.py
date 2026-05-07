@@ -7,7 +7,7 @@ EXPECTED_TABLES = {
     "users",
     "memberships",
     "invitations",
-    "llm_providers",
+    "system_settings",
     "skill_definitions",
     "tool_definitions",
     "audit_logs",

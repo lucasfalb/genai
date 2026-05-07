@@ -1,4 +1,16 @@
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+
+class PromptDensity(BaseModel):
+    score: float
+    level: Literal["ok", "warning", "critical", "blocked"]
+    capability_count: int
+    imperative_count: int
+    token_count: int
+    max_tokens: int = 6000
+    budget_ratio: float = 0
 
 
 class SystemPrompt(BaseModel):
@@ -6,11 +18,4 @@ class SystemPrompt(BaseModel):
     tool_instructions: str = ""
     constraints: str = ""
     full: str
-
-
-class PromptDensity(BaseModel):
-    score: float
-    level: str  # "low" | "medium" | "high" | "critical"
-    capability_count: int
-    imperative_count: int
-    token_count: int
+    density: PromptDensity | None = Field(default=None)

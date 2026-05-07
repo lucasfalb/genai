@@ -1,7 +1,8 @@
 import pytest
 
 from engine.prompt_builder import PromptBuilder
-from engine.prompt_sanitizer import MAX_SYSTEM_TOKENS, PromptDensity, PromptSanitizer
+from engine.prompt_sanitizer import MAX_SYSTEM_TOKENS, PromptSanitizer, PromptValidationError
+from engine.prompt_schema import PromptDensity
 
 
 # ---------------------------------------------------------------------------
@@ -63,34 +64,24 @@ def test_prompt_builder_strips_whitespace():
 
 def test_prompt_sanitizer_valid_prompt():
     prompt = "You are a helpful assistant."
-    density = PromptSanitizer().validate(prompt)
-    assert isinstance(density, PromptDensity)
-    assert density.is_valid
-    assert density.total_tokens > 0
-    assert density.utilization < 1.0
+    validated = PromptSanitizer().validate(prompt)
+    assert validated.density is not None
+    assert isinstance(validated.density, PromptDensity)
+    assert validated.density.level in ("ok", "warning", "critical")
+    assert validated.density.token_count > 0
+    assert validated.density.score > 0
 
 
 def test_prompt_sanitizer_measure_returns_density():
     density = PromptSanitizer().measure("Hello world")
     assert isinstance(density, PromptDensity)
-    assert density.total_tokens > 0
+    assert density.token_count > 0
 
 
 def test_prompt_sanitizer_rejects_oversized_prompt():
     oversized = "word " * (MAX_SYSTEM_TOKENS * 5)
-    with pytest.raises(ValueError, match="exceeds"):
+    with pytest.raises(PromptValidationError, match="exceeds"):
         PromptSanitizer().validate(oversized)
-
-
-def test_prompt_density_utilization_range():
-    density = PromptDensity(total_tokens=3000)
-    assert density.is_valid
-    assert 0.0 < density.utilization < 1.0
-
-
-def test_prompt_density_invalid_at_limit():
-    density = PromptDensity(total_tokens=MAX_SYSTEM_TOKENS + 1)
-    assert not density.is_valid
 
 
 # ---------------------------------------------------------------------------

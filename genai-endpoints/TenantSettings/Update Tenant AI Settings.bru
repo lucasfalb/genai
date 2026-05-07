@@ -1,0 +1,33 @@
+meta {
+  name: Update Tenant AI Settings
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{base_url}}/api/v1/tenant/settings/ai
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Content-Type: application/json
+  X-Tenant-ID: {{tenant_id}}
+}
+
+body:json {
+  {
+    "provider": "{{ai_provider}}",
+    "api_key": "{{ai_api_key}}",
+    "default_model": "{{ai_default_model}}",
+    "enabled": true
+  }
+}
+
+settings {
+  encodeUrl: false
+}

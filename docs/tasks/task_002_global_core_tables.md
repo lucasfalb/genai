@@ -22,7 +22,7 @@ Esta task implementa as entidades globais que sustentam tenants, usuarios, assoc
 - [x] Criar tabela `users`.
 - [x] Criar tabela `memberships`.
 - [x] Criar tabela `invitations`, caso esteja definida na especificacao completa ou seja necessaria para o contrato de Stage 02.
-- [x] Criar tabelas `llm_providers`, `skill_definitions` e `tool_definitions`, quando presentes no contrato canonico.
+- [x] Criar tabelas `system_settings`, `skill_definitions` e `tool_definitions`, quando presentes no contrato canonico atualizado.
 - [x] Criar tabela `audit_logs`.
 - [x] Aplicar constraints de unicidade, chaves estrangeiras e defaults definidos no Stage 01.
 
@@ -44,7 +44,7 @@ A task cria apenas estrutura e constraints relacionais. Regras de autorizacao e 
 
 - **Inputs**: schema SQL do Stage 01 e especificacao tecnica canonica.
 - **Outputs**: migration com tabelas globais criadas.
-- **Schemas**: `tenants`, `users`, `memberships`, `invitations`, `llm_providers`, `skill_definitions`, `tool_definitions`, `audit_logs`.
+- **Schemas**: `tenants`, `users`, `memberships`, `invitations`, `system_settings`, `skill_definitions`, `tool_definitions`, `audit_logs`.
 
 ## Constraints & Rules
 
@@ -88,3 +88,4 @@ A task cria apenas estrutura e constraints relacionais. Regras de autorizacao e 
 - `[2026-05-07 00:00]`: Task criada a partir do Stage 01.
 - `[2026-05-07 12:20]`: Tabelas globais criadas na migration `20260507_0001`.
 - `[2026-05-07 13:45]`: Checklists sincronizados com status COMPLETED.
+- `[2026-05-07 21:40]`: Contrato canonico atualizado pela TASK-062: `llm_providers` removida do head e substituida por `system_settings`.

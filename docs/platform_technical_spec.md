@@ -89,7 +89,7 @@ PostgreSQL (schema: public)
 │   ├── users
 │   ├── memberships
 │   ├── invitations
-│   ├── llm_providers
+│   ├── system_settings
 │   ├── skill_definitions        ← catálogo global de skills
 │   ├── tool_definitions         ← catálogo global de tools
 │   └── audit_logs

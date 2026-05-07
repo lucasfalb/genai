@@ -41,9 +41,16 @@ class PromptBuilder:
             tools=metadata.tools,
             linked_agents=linked_agents or [],
         )
-        PromptSanitizer().validate(sp.full)
-        await PromptCache(self.connection).set(tenant_id=tenant_id, instance_id=instance_id, prompt=sp)
-        return sp
+        validated_prompt = PromptSanitizer().validate(
+            sp,
+            metadata={
+                "skills": metadata.skills,
+                "tools": metadata.tools,
+                "linked_agents": linked_agents or [],
+            },
+        )
+        await PromptCache(self.connection).set(tenant_id=tenant_id, instance_id=instance_id, prompt=validated_prompt)
+        return validated_prompt
 
     @staticmethod
     def assemble(

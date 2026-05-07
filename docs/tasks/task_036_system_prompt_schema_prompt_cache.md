@@ -4,7 +4,7 @@
 | :--- | :--- |
 | **ID** | TASK-036 |
 | **Group** | ENGINE |
-| **Status** | DONE |
+| **Status** | COMPLETED |
 | **Stage Ref** | `docs/stages/stage_05_prompts.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | CRITICAL |
@@ -42,7 +42,7 @@ Apenas schema e cache. Nenhuma query ao banco ou chamada ao LLM nesta task.
 
 - **Inputs**: `tenant_id`, `instance_id` para chave de cache.
 - **Outputs**: `SystemPrompt` serializado em JSON no Redis.
-- **Schemas**: `SystemPrompt(core, tool_instructions, constraints, full)`, `PromptDensity(score, level, capability_count, imperative_count, token_count)`.
+- **Schemas**: `SystemPrompt(core, tool_instructions, constraints, full, density)`, `PromptDensity(score, level, capability_count, imperative_count, token_count, max_tokens, budget_ratio)`.
 
 ## Constraints & Rules
 

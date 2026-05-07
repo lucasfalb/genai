@@ -3,7 +3,6 @@ import os
 
 import psycopg
 import pytest
-from cryptography.fernet import Fernet
 
 import app.config as config_module
 from engine.ai_provider import (
@@ -14,10 +13,6 @@ from engine.ai_provider import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 TEST_FERNET_KEY = base64.urlsafe_b64encode(os.urandom(32)).decode()
 
 
@@ -26,10 +21,6 @@ def patch_encryption_key(monkeypatch):
     monkeypatch.setattr(config_module.settings, "ai_config_encryption_key", TEST_FERNET_KEY)
     monkeypatch.setattr(config_module.settings, "openai_api_key", None)
 
-
-# ---------------------------------------------------------------------------
-# Encryption round-trip
-# ---------------------------------------------------------------------------
 
 def test_encrypt_decrypt_round_trip():
     original = "sk-test-1234567890"
@@ -42,7 +33,7 @@ def test_encrypt_produces_different_ciphertext_each_call():
     key = "sk-same-key"
     c1 = encrypt_api_key(key)
     c2 = encrypt_api_key(key)
-    assert c1 != c2  # Fernet uses random IV
+    assert c1 != c2
 
 
 def test_encrypt_raises_without_config(monkeypatch):
@@ -51,16 +42,10 @@ def test_encrypt_raises_without_config(monkeypatch):
         encrypt_api_key("sk-test")
 
 
-# ---------------------------------------------------------------------------
-# Resolver — dev fallback
-# ---------------------------------------------------------------------------
-
 async def test_resolver_falls_back_to_openai_api_key(monkeypatch, db_connection: psycopg.Connection):
-    monkeypatch.setattr(config_module.settings, "openai_api_key", "sk-dev-fallback")
-
     from database.connection import TenantContext, tenant_connection
-    from uuid import uuid4
 
+    monkeypatch.setattr(config_module.settings, "openai_api_key", "sk-dev-fallback")
     tenant_id = _seed_tenant(db_connection)
 
     async with tenant_connection(TenantContext(tenant_id=tenant_id)) as connection:
@@ -72,7 +57,6 @@ async def test_resolver_falls_back_to_openai_api_key(monkeypatch, db_connection:
 
 async def test_resolver_raises_when_nothing_configured(db_connection: psycopg.Connection):
     from database.connection import TenantContext, tenant_connection
-    from uuid import uuid4
 
     tenant_id = _seed_tenant(db_connection)
 
@@ -81,16 +65,11 @@ async def test_resolver_raises_when_nothing_configured(db_connection: psycopg.Co
             await AIProviderResolver(connection).resolve(tenant_id=tenant_id)
 
 
-# ---------------------------------------------------------------------------
-# Resolver — platform config
-# ---------------------------------------------------------------------------
-
-async def test_resolver_uses_platform_config(db_connection: psycopg.Connection):
+async def test_resolver_uses_system_settings_config(db_connection: psycopg.Connection):
     from database.connection import TenantContext, tenant_connection
 
     tenant_id = _seed_tenant(db_connection)
-    encrypted = encrypt_api_key("sk-platform-key")
-    _seed_platform_config(db_connection, api_key_encrypted=encrypted)
+    _seed_system_settings_config(db_connection, api_key_encrypted=encrypt_api_key("sk-platform-key"))
 
     async with tenant_connection(TenantContext(tenant_id=tenant_id)) as connection:
         resolved = await AIProviderResolver(connection).resolve(tenant_id=tenant_id)
@@ -99,15 +78,11 @@ async def test_resolver_uses_platform_config(db_connection: psycopg.Connection):
     assert resolved.provider == "openai"
 
 
-# ---------------------------------------------------------------------------
-# Resolver — tenant config overrides platform
-# ---------------------------------------------------------------------------
-
-async def test_resolver_tenant_overrides_platform(db_connection: psycopg.Connection):
+async def test_resolver_tenant_overrides_system_settings(db_connection: psycopg.Connection):
     from database.connection import TenantContext, tenant_connection
 
     tenant_id = _seed_tenant(db_connection)
-    _seed_platform_config(db_connection, api_key_encrypted=encrypt_api_key("sk-platform"))
+    _seed_system_settings_config(db_connection, api_key_encrypted=encrypt_api_key("sk-platform"))
     _seed_tenant_config(db_connection, tenant_id=tenant_id, api_key_encrypted=encrypt_api_key("sk-tenant"))
 
     async with tenant_connection(TenantContext(tenant_id=tenant_id)) as connection:
@@ -116,12 +91,9 @@ async def test_resolver_tenant_overrides_platform(db_connection: psycopg.Connect
     assert resolved.api_key == "sk-tenant"
 
 
-# ---------------------------------------------------------------------------
-# Seed helpers
-# ---------------------------------------------------------------------------
-
 def _seed_tenant(db_connection: psycopg.Connection):
     from uuid import uuid4
+
     with db_connection.cursor() as cursor:
         slug = f"ai-tenant-{uuid4().hex[:8]}"
         cursor.execute("INSERT INTO tenants (slug, name) VALUES (%s, 'AI Tenant') RETURNING id", (slug,))
@@ -130,12 +102,13 @@ def _seed_tenant(db_connection: psycopg.Connection):
     return tenant_id
 
 
-def _seed_platform_config(db_connection: psycopg.Connection, *, api_key_encrypted: str):
+def _seed_system_settings_config(db_connection: psycopg.Connection, *, api_key_encrypted: str):
     with db_connection.cursor() as cursor:
         cursor.execute(
             """
-            INSERT INTO platform_ai_configs (provider, api_key_encrypted, default_model)
-            VALUES ('openai', %s, 'gpt-4.1-mini')
+            INSERT INTO system_settings (id, ai_provider, ai_api_key_encrypted, ai_default_model)
+            VALUES (1, 'openai', %s, 'gpt-4.1-mini')
+            ON CONFLICT (id) DO UPDATE SET ai_api_key_encrypted = EXCLUDED.ai_api_key_encrypted
             """,
             (api_key_encrypted,),
         )
@@ -146,9 +119,13 @@ def _seed_tenant_config(db_connection: psycopg.Connection, *, tenant_id, api_key
     with db_connection.cursor() as cursor:
         cursor.execute(
             """
-            INSERT INTO tenant_ai_configs (tenant_id, provider, api_key_encrypted)
-            VALUES (%s, 'openai', %s)
+            UPDATE tenants
+            SET ai_provider = 'openai',
+                ai_api_key_encrypted = %s,
+                ai_enabled = true,
+                ai_configured_at = now()
+            WHERE id = %s
             """,
-            (tenant_id, api_key_encrypted),
+            (api_key_encrypted, tenant_id),
         )
         db_connection.commit()

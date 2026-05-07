@@ -10,8 +10,8 @@ class AgentState(TypedDict, total=False):
     channel: str
     model: str
     temperature: float
+    ai_provider: str
     ai_api_key: str
-    ai_base_url: str | None
     system_prompt: str
     available_tools: list[str]
     available_skills: list[str]

@@ -15,7 +15,6 @@ class AIProviderNotConfigured(RuntimeError):
 class ResolvedAIConfig:
     provider: str
     api_key: str
-    base_url: str | None
     default_model: str
 
 
@@ -42,31 +41,34 @@ class AIProviderResolver:
         if tenant_cfg is not None:
             return tenant_cfg
 
-        platform_cfg = await self._get_platform_config()
-        if platform_cfg is not None:
-            return platform_cfg
+        system_cfg = await self._get_system_settings()
+        if system_cfg is not None:
+            return system_cfg
 
         # Dev fallback: OPENAI_API_KEY in settings (not for production)
         if settings.openai_api_key:
             return ResolvedAIConfig(
                 provider="openai",
                 api_key=settings.openai_api_key,
-                base_url=None,
                 default_model="gpt-4.1-mini",
             )
 
         raise AIProviderNotConfigured(
             "No AI provider configured for this tenant. "
-            "Configure via superadmin platform settings or tenant AI config."
+            "Configure via superadmin system settings or tenant AI settings."
         )
 
     async def _get_tenant_config(self, tenant_id: UUID) -> ResolvedAIConfig | None:
         result = await self.connection.execute(
             text(
                 """
-                SELECT provider, base_url, api_key_encrypted, default_model
-                FROM tenant_ai_configs
-                WHERE tenant_id = :tenant_id AND is_active = true
+                SELECT ai_provider AS provider,
+                       ai_api_key_encrypted AS api_key_encrypted,
+                       ai_default_model AS default_model
+                FROM tenants
+                WHERE id = :tenant_id
+                  AND ai_enabled = true
+                  AND ai_api_key_encrypted IS NOT NULL
                 LIMIT 1
                 """
             ),
@@ -78,18 +80,19 @@ class AIProviderResolver:
         return ResolvedAIConfig(
             provider=row.provider,
             api_key=decrypt_api_key(row.api_key_encrypted),
-            base_url=row.base_url,
             default_model=row.default_model or "gpt-4.1-mini",
         )
 
-    async def _get_platform_config(self) -> ResolvedAIConfig | None:
+    async def _get_system_settings(self) -> ResolvedAIConfig | None:
         result = await self.connection.execute(
             text(
                 """
-                SELECT provider, base_url, api_key_encrypted, default_model
-                FROM platform_ai_configs
-                WHERE is_active = true
-                ORDER BY created_at DESC
+                SELECT ai_provider AS provider,
+                       ai_api_key_encrypted AS api_key_encrypted,
+                       ai_default_model AS default_model
+                FROM system_settings
+                WHERE id = 1
+                  AND ai_api_key_encrypted IS NOT NULL
                 LIMIT 1
                 """
             ),
@@ -100,6 +103,5 @@ class AIProviderResolver:
         return ResolvedAIConfig(
             provider=row.provider,
             api_key=decrypt_api_key(row.api_key_encrypted),
-            base_url=row.base_url,
             default_model=row.default_model,
         )

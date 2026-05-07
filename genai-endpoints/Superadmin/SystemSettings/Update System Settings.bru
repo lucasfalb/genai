@@ -1,0 +1,48 @@
+meta {
+  name: Update System Settings
+  type: http
+  seq: 2
+}
+
+patch {
+  url: {{base_url}}/api/v1/superadmin/system-settings
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "platform_name": "{{platform_name}}",
+    "platform_public_url": "{{platform_public_url}}",
+    "platform_logo_url": "{{platform_logo_url}}",
+    "maintenance_mode": false,
+    "registration_enabled": true,
+    "smtp_host": "{{smtp_host}}",
+    "smtp_port": 587,
+    "smtp_secure": false,
+    "smtp_user": "{{smtp_user}}",
+    "smtp_pass": "{{smtp_pass}}",
+    "smtp_from": "{{smtp_from}}",
+    "ai_provider": "{{ai_provider}}",
+    "ai_api_key": "{{ai_api_key}}",
+    "ai_default_model": "{{ai_default_model}}",
+    "custom_settings": {
+      "billing.plan_label": "Growth"
+    },
+    "public_settings": {
+      "support_url": "https://support.example.com"
+    }
+  }
+}
+
+settings {
+  encodeUrl: false
+}

@@ -4,7 +4,7 @@
 | :--- | :--- |
 | **ID** | TASK-061 |
 | **Group** | ENGINE |
-| **Status** | DONE |
+| **Status** | COMPLETED |
 | **Stage Ref** | `docs/stages/stage_05_prompts.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | HIGH |
@@ -14,7 +14,7 @@
 
 ## Context
 
-Cada tenant deve poder configurar seu proprio provedor de AI (API key, modelo, base_url). A plataforma define um config global como fallback. API keys sao criptografadas em repouso com Fernet; nunca aparecem em logs ou respostas de listagem.
+Cada tenant deve poder configurar seu proprio provedor de AI (API key e modelo). A plataforma define um config global como fallback. API keys sao criptografadas em repouso com Fernet; nunca aparecem em logs ou respostas de listagem.
 
 ## Objectives
 
@@ -25,13 +25,13 @@ Cada tenant deve poder configurar seu proprio provedor de AI (API key, modelo, b
 - [x] Criar `api/v1/superadmin/ai_config.py` (GET/PUT/DELETE para config de plataforma).
 - [x] Criar `api/v1/tenant_ai_config.py` (GET/PUT/DELETE para config por tenant).
 - [x] Wire `AIProviderResolver` no `RunBootstrap.prepare()`.
-- [x] Usar `ai_api_key` e `ai_base_url` do `AgentState` no `llm_node`.
+- [x] Usar `ai_api_key` do `AgentState` no `llm_node`.
 - [x] Remover dependencia de `OPENAI_API_KEY` do `.env` para producao.
 
 ## Non-Goals
 
 - UI de configuracao de provider (frontend futuro).
-- Suporte a provedores alem de OpenAI na API de chat (compativel com `base_url`).
+- Suporte a provedores alem de OpenAI na API de chat.
 
 ## Stage Boundaries
 
@@ -43,8 +43,8 @@ Extensao do Stage 05 Prompt Runtime. Sem impacto em stages anteriores.
 
 ## Inputs & Contracts
 
-- **Inputs**: `provider`, `api_key` (plaintext, criptografado antes de persistir), `default_model`, `base_url`.
-- **Outputs**: `ResolvedAIConfig(provider, api_key, base_url, default_model)` no estado do agente.
+- **Inputs**: `provider`, `api_key` (plaintext, criptografado antes de persistir), `default_model`.
+- **Outputs**: `ResolvedAIConfig(provider, api_key, default_model)` no estado do agente.
 - **Schemas**: `PlatformAIConfigRequest/Response`, `TenantAIConfigRequest/Response`.
 
 ## Constraints & Rules
@@ -53,7 +53,7 @@ Extensao do Stage 05 Prompt Runtime. Sem impacto em stages anteriores.
 2. Criptografia via Fernet com `AI_CONFIG_ENCRYPTION_KEY` (env de infraestrutura, nao o API key em si).
 3. Hierarquia de resolucao: tenant_ai_config → platform_ai_config → `OPENAI_API_KEY` (somente dev).
 4. Em producao, `OPENAI_API_KEY` nao deve existir; a ausencia de config lanca `AIProviderNotConfigured`.
-5. `base_url` permite uso de providers compativeis com OpenAI (Azure, etc.).
+5. Provider customizado por `base_url` foi removido do contrato inicial pela TASK-062 para reduzir superficie de configuracao.
 
 ## Implementation Checklist
 
@@ -63,9 +63,9 @@ Extensao do Stage 05 Prompt Runtime. Sem impacto em stages anteriores.
 - [x] `api/v1/superadmin/ai_config.py`: endpoints superadmin.
 - [x] `api/v1/tenant_ai_config.py`: endpoints tenant.
 - [x] `app/schemas.py`: `PlatformAIConfigRequest/Response`, `TenantAIConfigRequest/Response`.
-- [x] `engine/state.py`: campos `ai_api_key`, `ai_base_url`.
+- [x] `engine/state.py`: campo `ai_api_key`.
 - [x] `engine/bootstrap.py`: chama `AIProviderResolver.resolve()`.
-- [x] `engine/base_graph.py`: usa `state["ai_api_key"]` e `state["ai_base_url"]`.
+- [x] `engine/base_graph.py`: usa `state["ai_api_key"]`.
 - [x] `app/main.py`: registra novos routers.
 - [x] `tests/test_stage_05_ai_provider.py`: encrypt/decrypt round-trip, resolver fallback, platform, tenant override.
 
@@ -95,5 +95,8 @@ pytest
 - **Rollback**: Manter `OPENAI_API_KEY` no `.env` como fallback ate todos os tenants terem config propria.
 
 ## Execution Log
+
+- `[2026-05-07 21:40]`: Modelo desta task foi substituido pela TASK-062: configs de plataforma agora vivem em `system_settings` e config AI por tenant vive em colunas de `tenants`.
+- `[2026-05-07 22:10]`: `base_url` removido do contrato inicial; provider/model/key permanecem como configuracao AI base.
 
 - `[2026-05-07 00:00]`: Task criada e implementada — 92 testes passando.

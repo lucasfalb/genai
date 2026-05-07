@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Generic, Literal, TypeVar
+from typing import Any, Generic, Literal, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
@@ -351,37 +351,68 @@ class ChatEvent(BaseModel):
     metadata: dict = Field(default_factory=dict)
 
 
-class PlatformAIConfigRequest(BaseModel):
-    provider: str = Field(default="openai", pattern=r"^[a-z0-9_-]+$", max_length=80)
-    api_key: str = Field(min_length=1, max_length=512)
-    default_model: str = Field(default="gpt-4.1-mini", max_length=120)
-    base_url: str | None = Field(default=None, max_length=512)
+class SystemSettingsUpdateRequest(BaseModel):
+    platform_name: str | None = Field(default=None, min_length=1, max_length=160)
+    platform_public_url: str | None = Field(default=None, max_length=512)
+    platform_logo_url: str | None = Field(default=None, max_length=512)
+    maintenance_mode: bool | None = None
+    registration_enabled: bool | None = None
+    smtp_host: str | None = Field(default=None, max_length=255)
+    smtp_port: int | None = Field(default=None, ge=1, le=65535)
+    smtp_secure: bool | None = None
+    smtp_user: str | None = Field(default=None, max_length=255)
+    smtp_pass: str | None = Field(default=None, min_length=1, max_length=512)
+    smtp_from: str | None = Field(default=None, max_length=255)
+    ai_provider: str | None = Field(default=None, pattern=r"^[a-z0-9_-]+$", max_length=80)
+    ai_api_key: str | None = Field(default=None, min_length=1, max_length=512)
+    ai_default_model: str | None = Field(default=None, max_length=120)
+    custom_settings: dict[str, Any] | None = None
+    public_settings: dict[str, Any] | None = None
 
 
-class PlatformAIConfigResponse(BaseModel):
-    id: UUID
-    provider: str
-    default_model: str
-    base_url: str | None
-    is_active: bool
-    api_key_hint: str = "****"
+class SystemSettingsResponse(BaseModel):
+    platform_name: str
+    platform_public_url: str | None
+    platform_logo_url: str | None
+    maintenance_mode: bool
+    registration_enabled: bool
+    smtp_host: str | None
+    smtp_port: int
+    smtp_secure: bool
+    smtp_user: str | None
+    smtp_from: str | None
+    has_smtp_pass: bool
+    ai_provider: str
+    ai_default_model: str
+    has_ai_api_key: bool
+    custom_settings: dict[str, Any]
+    public_settings: dict[str, Any]
+    updated_by: UUID | None
+
+
+class PublicSystemSettingsResponse(BaseModel):
+    platform_name: str
+    platform_public_url: str | None
+    platform_logo_url: str | None
+    maintenance_mode: bool
+    registration_enabled: bool
+    public_settings: dict[str, Any]
 
 
 class TenantAIConfigRequest(BaseModel):
     provider: str = Field(default="openai", pattern=r"^[a-z0-9_-]+$", max_length=80)
     api_key: str = Field(min_length=1, max_length=512)
     default_model: str | None = Field(default=None, max_length=120)
-    base_url: str | None = Field(default=None, max_length=512)
+    enabled: bool = True
 
 
 class TenantAIConfigResponse(BaseModel):
-    id: UUID
     tenant_id: UUID
-    provider: str
+    provider: str | None
     default_model: str | None
-    base_url: str | None
-    is_active: bool
-    api_key_hint: str = "****"
+    enabled: bool
+    has_api_key: bool
+    configured_by: UUID | None
 
 
 class AgentInstanceCreateRequest(BaseModel):

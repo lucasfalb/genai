@@ -11,6 +11,7 @@ from app.security import create_access_token
 from database.connection import TenantContext, tenant_connection
 from engine.bootstrap import AgentInstanceNotFound, RunBootstrap
 from engine.executor import AgentExecutor
+from engine.llm_client import LLMProviderError
 from engine.session_lock import SessionLock, SessionLockConflict
 
 
@@ -190,6 +191,20 @@ async def test_chat_endpoint_streams_sse_and_conflict(db_connection: psycopg.Con
         )
 
     assert conflict_response.status_code == 409
+
+    class ProviderErrorExecutor(FakeExecutor):
+        async def start_stream(self, **_kwargs):
+            raise LLMProviderError("provider failed")
+
+    monkeypatch.setattr(agent_api, "AgentExecutor", ProviderErrorExecutor)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        provider_response = await client.post(
+            f"/api/v1/agent/instances/{setup['instance_id']}/chat",
+            headers={"Authorization": f"Bearer {token}", "X-Tenant-ID": str(setup["tenant_id"])},
+            json={"message": "hello"},
+        )
+
+    assert provider_response.status_code == 502
 
 
 async def test_chat_endpoint_cancels_stream_on_disconnect(db_connection: psycopg.Connection, monkeypatch) -> None:
