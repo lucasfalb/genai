@@ -17,7 +17,7 @@
 | TASK-037 | [PromptBuilder — Montagem Sanduiche](task_037_prompt_builder_sandwich_assembly.md) | COMPLETED | CRITICAL | TASK-015, TASK-036 |
 | TASK-038 | [PromptSanitizer - Validacao e Densidade](task_038_prompt_sanitizer_validation_density.md) | COMPLETED | HIGH | TASK-037 |
 | TASK-039 | [LLM Node e Provider Integration](task_039_llm_node_provider_integration.md) | COMPLETED | CRITICAL | TASK-037, TASK-023, TASK-061, TASK-062 |
-| TASK-040 | [Prompt Cache Invalidation em Mutacoes de Instancia](task_040_prompt_cache_invalidation_admin_mutations.md) | PENDING | HIGH | TASK-036, TASK-032 |
+| TASK-040 | [Prompt Cache Invalidation em Mutacoes de Instancia](task_040_prompt_cache_invalidation_admin_mutations.md) | COMPLETED | HIGH | TASK-036, TASK-032 |
 | TASK-061 | [AI Provider Config por Tenant e Plataforma](task_061_ai_provider_config.md) | COMPLETED | HIGH | TASK-032, TASK-036 |
 | TASK-062 | [System Settings e Tenant AI Config Consolidation](task_062_system_settings_tenant_ai_config_consolidation.md) | COMPLETED | CRITICAL | TASK-029, TASK-032, TASK-039, TASK-061 |
 | TASK-063 | [I18n Platform Messages e Locale Settings](task_063_i18n_platform_messages_locale_settings.md) | PENDING | HIGH | TASK-062 |

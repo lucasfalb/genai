@@ -68,7 +68,9 @@ async def test_tenant_admin_updates_and_archives_instance(
 ) -> None:
     setup = _seed_instances_tenant(db_connection, uuid4().hex)
     fake_cache = _FakeToolMetadataCache()
+    fake_prompt_cache = _FakePromptCache()
     monkeypatch.setattr(instances_api, "ToolMetadataCache", lambda _: fake_cache)
+    monkeypatch.setattr(instances_api, "PromptCache", lambda _: fake_prompt_cache)
     token = create_access_token(user_id=setup["admin_id"], email=setup["admin_email"])
     instance_id = setup["instance_id"]
 
@@ -98,6 +100,7 @@ async def test_tenant_admin_updates_and_archives_instance(
     assert api_data(get_response)["status"] == "archived"
 
     assert len(fake_cache.invalidated) == 2
+    assert len(fake_prompt_cache.invalidated) == 2
 
     with db_connection.cursor() as cursor:
         cursor.execute("SELECT set_config('app.current_tenant_id', %s, false)", (str(setup["tenant_id"]),))
@@ -184,7 +187,9 @@ async def test_superadmin_manages_instances_with_actor_context(
 ) -> None:
     setup = _seed_instances_tenant(db_connection, uuid4().hex)
     fake_cache = _FakeToolMetadataCache()
+    fake_prompt_cache = _FakePromptCache()
     monkeypatch.setattr(instances_api, "ToolMetadataCache", lambda _: fake_cache)
+    monkeypatch.setattr(instances_api, "PromptCache", lambda _: fake_prompt_cache)
     token = create_access_token(
         user_id=setup["superadmin_id"],
         email=setup["superadmin_email"],
@@ -204,6 +209,9 @@ async def test_superadmin_manages_instances_with_actor_context(
 
     assert list_response.status_code == 200
     assert update_response.status_code == 200
+    assert [(tenant_id, str(instance_id)) for tenant_id, instance_id in fake_prompt_cache.invalidated] == [
+        (setup["tenant_id"], setup["instance_id"])
+    ]
 
     with db_connection.cursor() as cursor:
         cursor.execute("SELECT set_config('app.current_tenant_id', %s, false)", (str(setup["tenant_id"]),))
@@ -284,6 +292,14 @@ def _seed_instances_tenant(db_connection: psycopg.Connection, suffix: str) -> di
 
 
 class _FakeToolMetadataCache:
+    def __init__(self) -> None:
+        self.invalidated: list[tuple] = []
+
+    async def invalidate(self, *, tenant_id, instance_id) -> None:
+        self.invalidated.append((tenant_id, instance_id))
+
+
+class _FakePromptCache:
     def __init__(self) -> None:
         self.invalidated: list[tuple] = []
 

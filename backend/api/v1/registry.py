@@ -22,6 +22,7 @@ from database.repositories.registry import (
     ToolActivationRecord,
 )
 from dependencies.auth import require_permission
+from engine.prompt_cache import PromptCache
 
 
 router = APIRouter(prefix="/registry", tags=["tenant-registry"])
@@ -47,7 +48,7 @@ async def get_instance_metadata(
     "/instances/{instance_id}/skills/{skill_slug}",
     response_model=ApiResponse[SkillActivationResponse],
     summary="Configure instance skill",
-    description="Enables or disables one active global skill for an agent instance in the selected tenant and invalidates registry metadata cache.",
+    description="Enables or disables one active global skill for an agent instance in the selected tenant and invalidates registry metadata and prompt caches.",
 )
 async def configure_instance_skill(
     instance_id: UUID,
@@ -66,7 +67,7 @@ async def configure_instance_skill(
         )
         if activation is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Instance or skill not found")
-        await ToolMetadataCache(connection).invalidate(tenant_id=context.tenant_id, instance_id=instance_id)
+        await _invalidate_instance_caches(connection, tenant_id=context.tenant_id, instance_id=instance_id)
         return api_success(_skill_activation_response(activation), message="Skill configuration updated.")
 
 
@@ -74,7 +75,7 @@ async def configure_instance_skill(
     "/instances/{instance_id}/tools/{tool_slug}",
     response_model=ApiResponse[ToolActivationResponse],
     summary="Configure instance tool",
-    description="Enables or disables one global utility tool for an agent instance in the selected tenant and invalidates registry metadata cache.",
+    description="Enables or disables one global utility tool for an agent instance in the selected tenant and invalidates registry metadata and prompt caches.",
 )
 async def configure_instance_tool(
     instance_id: UUID,
@@ -93,7 +94,7 @@ async def configure_instance_tool(
         )
         if activation is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Instance or tool not found")
-        await ToolMetadataCache(connection).invalidate(tenant_id=context.tenant_id, instance_id=instance_id)
+        await _invalidate_instance_caches(connection, tenant_id=context.tenant_id, instance_id=instance_id)
         return api_success(_tool_activation_response(activation), message="Tool configuration updated.")
 
 
@@ -145,6 +146,11 @@ def _reject_sensitive_metadata(metadata: dict) -> None:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Sensitive credential metadata is not allowed: {key}")
         if isinstance(value, dict):
             _reject_sensitive_metadata(value)
+
+
+async def _invalidate_instance_caches(connection, *, tenant_id: UUID, instance_id: UUID) -> None:
+    await ToolMetadataCache(connection).invalidate(tenant_id=tenant_id, instance_id=instance_id)
+    await PromptCache(connection).invalidate(tenant_id=tenant_id, instance_id=instance_id)
 
 
 def _skill_activation_response(record: SkillActivationRecord) -> SkillActivationResponse:

@@ -96,7 +96,7 @@ async def get_instance(
     "/{instance_id}",
     response_model=ApiResponse[AgentInstanceResponse],
     summary="Update agent instance",
-    description="Partially updates an agent instance, invalidates tool metadata cache, and records audit/version entries.",
+    description="Partially updates an agent instance, invalidates tool metadata and prompt caches, and records audit/version entries.",
 )
 async def update_instance(
     instance_id: UUID,
@@ -114,8 +114,7 @@ async def update_instance(
     )
     if instance is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Agent instance not found")
-    await ToolMetadataCache(connection).invalidate(tenant_id=context.tenant_id, instance_id=instance_id)
-    await PromptCache(connection).invalidate(tenant_id=context.tenant_id, instance_id=instance_id)
+    await _invalidate_instance_caches(connection, tenant_id=context.tenant_id, instance_id=instance_id)
     await _after_instance_mutation(
         connection=connection,
         context=context,
@@ -130,7 +129,7 @@ async def update_instance(
     "/{instance_id}",
     response_model=ApiResponse[MessageResponse],
     summary="Archive agent instance",
-    description="Archives an agent instance (soft delete) without removing historical sessions or messages, and records audit/version entries.",
+    description="Archives an agent instance (soft delete) without removing historical sessions or messages, invalidates prompt-related caches, and records audit/version entries.",
 )
 async def archive_instance(
     instance_id: UUID,
@@ -143,8 +142,7 @@ async def archive_instance(
     )
     if instance is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Agent instance not found")
-    await ToolMetadataCache(connection).invalidate(tenant_id=context.tenant_id, instance_id=instance_id)
-    await PromptCache(connection).invalidate(tenant_id=context.tenant_id, instance_id=instance_id)
+    await _invalidate_instance_caches(connection, tenant_id=context.tenant_id, instance_id=instance_id)
     await _after_instance_mutation(
         connection=connection,
         context=context,
@@ -180,6 +178,11 @@ async def _after_instance_mutation(
         snapshot=_instance_response(instance).model_dump(mode="json"),
         metadata=metadata,
     )
+
+
+async def _invalidate_instance_caches(connection: AsyncConnection, *, tenant_id: UUID, instance_id: UUID) -> None:
+    await ToolMetadataCache(connection).invalidate(tenant_id=tenant_id, instance_id=instance_id)
+    await PromptCache(connection).invalidate(tenant_id=tenant_id, instance_id=instance_id)
 
 
 def _instance_response(record: AgentInstanceRecord) -> AgentInstanceResponse:

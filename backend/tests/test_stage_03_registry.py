@@ -5,6 +5,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 
 import app.registry_cache as registry_cache_module
+import api.v1.registry as registry_api
 from app.main import app
 from app.registry_cache import ToolMetadataCache
 from app.security import create_access_token
@@ -79,10 +80,13 @@ async def test_superadmin_manages_global_skill_and_tool_catalog(db_connection: p
 
 async def test_tenant_admin_configures_registry_and_metadata_without_secrets(
     db_connection: psycopg.Connection,
+    monkeypatch,
 ) -> None:
     suffix = uuid4().hex
     setup = _seed_registry_tenant(db_connection, suffix, role="tenant_admin")
     token = create_access_token(user_id=setup["user_id"], email=setup["email"])
+    fake_prompt_cache = _FakePromptCache()
+    monkeypatch.setattr(registry_api, "PromptCache", lambda _: fake_prompt_cache)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         skill_response = await client.put(
@@ -113,6 +117,10 @@ async def test_tenant_admin_configures_registry_and_metadata_without_secrets(
     assert metadata["skills"][0]["slug"] == setup["skill_slug"]
     assert metadata["tools"][0]["slug"] == setup["tool_slug"]
     assert "secret_ref" not in str(metadata)
+    assert fake_prompt_cache.invalidated == [
+        (setup["tenant_id"], setup["instance_id"]),
+        (setup["tenant_id"], setup["instance_id"]),
+    ]
 
 
 async def test_registry_rejects_viewer_and_plain_secret_metadata(db_connection: psycopg.Connection) -> None:
@@ -287,3 +295,11 @@ class _FakeRedis:
     async def delete(self, key: str) -> None:
         self.delete_calls += 1
         self.values.pop(key, None)
+
+
+class _FakePromptCache:
+    def __init__(self) -> None:
+        self.invalidated: list[tuple] = []
+
+    async def invalidate(self, *, tenant_id, instance_id) -> None:
+        self.invalidated.append((tenant_id, instance_id))
