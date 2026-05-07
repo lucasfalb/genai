@@ -11,7 +11,7 @@
 | TASK-031 | [Tenant Invitation Lifecycle](task_031_tenant_invitation_lifecycle.md) | COMPLETED | CRITICAL | TASK-025, TASK-030 |
 | TASK-032 | [Tenant Agent Instance CRUD](task_032_tenant_agent_instance_crud.md) | COMPLETED | CRITICAL | TASK-015, TASK-030 |
 | TASK-033 | [Workflow Audit Versions e Cache Invalidation](task_033_workflow_audit_versions_cache_invalidation.md) | COMPLETED | HIGH | TASK-029, TASK-030, TASK-031, TASK-032 |
-| TASK-034 | [Stage 05 API Bruno e Workflow Verification](task_034_stage_05_api_bruno_workflow_verification.md) | PENDING | HIGH | TASK-026, TASK-027, TASK-028, TASK-029, TASK-030, TASK-031, TASK-032, TASK-033 |
+| TASK-034 | [Stage 05 API Bruno e Workflow Verification](task_034_stage_05_api_bruno_workflow_verification.md) | COMPLETED | HIGH | TASK-026, TASK-027, TASK-028, TASK-029, TASK-030, TASK-031, TASK-032, TASK-033 |
 | TASK-035 | [API Response Envelope Standard](task_035_api_response_envelope_standard.md) | COMPLETED | HIGH | TASK-026 |
 | TASK-036 | [SystemPrompt Schema e PromptCache](task_036_system_prompt_schema_prompt_cache.md) | COMPLETED | CRITICAL | TASK-019, TASK-020 |
 | TASK-037 | [PromptBuilder — Montagem Sanduiche](task_037_prompt_builder_sandwich_assembly.md) | COMPLETED | CRITICAL | TASK-015, TASK-036 |
