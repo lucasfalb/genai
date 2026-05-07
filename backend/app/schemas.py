@@ -39,6 +39,20 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class PasswordForgotRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=512)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class AccountActivationRequest(BaseModel):
     email: EmailStr
 

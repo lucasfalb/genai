@@ -14,6 +14,9 @@ from app.schemas import (
     LoginRequest,
     MembershipResponse,
     MessageResponse,
+    PasswordChangeRequest,
+    PasswordForgotRequest,
+    PasswordResetRequest,
     RefreshRequest,
     RegisterRequest,
     UserResponse,
@@ -22,7 +25,7 @@ from app.security import create_access_token, create_action_token, create_refres
 from database.repositories.auth_tokens import AuthActionTokenRepository, EmailEventRepository
 from database.repositories.email_templates import EmailTemplateRepository
 from database.repositories.users import UserRepository
-from dependencies.auth import get_connection
+from dependencies.auth import CurrentUser, get_connection, get_current_user
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -160,6 +163,125 @@ async def _enqueue_activation_email(*, connection: AsyncConnection, user) -> Non
             "user_name": user.name or user.email,
             "activation_url": f"{settings.app_public_url.rstrip('/')}/activate?token={token}",
             "expires_in": f"{settings.action_token_expire_minutes} minutes",
+        },
+    )
+
+
+@router.post(
+    "/password/forgot",
+    response_model=ApiResponse[MessageResponse],
+    summary="Request password reset email",
+    description="Creates a single-use password reset token and queues a reset email when an active account exists. The response is neutral to avoid email enumeration.",
+)
+async def forgot_password(
+    payload: PasswordForgotRequest,
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[MessageResponse]:
+    repository = UserRepository(connection)
+    user = await repository.get_by_email(str(payload.email))
+    if user is not None and user.status == "active":
+        await _enqueue_password_reset_email(connection=connection, user=user)
+    message = "If the account can reset its password, a recovery email will be sent."
+    return api_success(MessageResponse(message=message), message=message)
+
+
+@router.post(
+    "/password/reset",
+    response_model=ApiResponse[MessageResponse],
+    summary="Reset password with token",
+    description="Consumes a valid single-use password reset token, updates the password hash, and revokes active refresh tokens.",
+    responses={400: {"description": "Password reset token is invalid, expired, or already used."}},
+)
+async def reset_password(
+    payload: PasswordResetRequest,
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[MessageResponse]:
+    token_record = await AuthActionTokenRepository(connection).consume(
+        token_hash=hash_token(payload.token),
+        token_type="password_reset",
+    )
+    if token_record is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid or expired password reset token")
+
+    repository = UserRepository(connection)
+    user = await repository.update_password_hash(
+        user_id=token_record.user_id,
+        password_hash=hash_password(payload.new_password),
+    )
+    if user is None or user.status != "active":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid password reset token")
+
+    await repository.revoke_refresh_tokens(user_id=user.id)
+    await _enqueue_password_changed_email(connection=connection, user=user)
+    message = "Password reset successfully."
+    return api_success(MessageResponse(message=message), message=message)
+
+
+@router.post(
+    "/password/change",
+    response_model=ApiResponse[MessageResponse],
+    summary="Change authenticated user password",
+    description="Requires a Bearer token and current password, updates the password hash, and revokes active refresh tokens.",
+    responses={401: {"description": "Bearer token is missing or invalid."}, 403: {"description": "Current password is invalid or account is inactive."}},
+)
+async def change_password(
+    payload: PasswordChangeRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[MessageResponse]:
+    repository = UserRepository(connection)
+    user = await repository.get_by_id(current_user.id)
+    if user is None or user.status != "active":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Account is not active")
+    if not verify_password(payload.current_password, user.password_hash):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Current password is invalid")
+
+    updated_user = await repository.update_password_hash(user_id=user.id, password_hash=hash_password(payload.new_password))
+    if updated_user is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Password could not be changed")
+    await repository.revoke_refresh_tokens(user_id=user.id)
+    await _enqueue_password_changed_email(connection=connection, user=updated_user)
+    message = "Password changed successfully."
+    return api_success(MessageResponse(message=message), message=message)
+
+
+async def _enqueue_password_reset_email(*, connection: AsyncConnection, user) -> None:
+    token, token_hash = create_action_token()
+    expires_at = datetime.now(UTC) + timedelta(minutes=settings.action_token_expire_minutes)
+    await AuthActionTokenRepository(connection).invalidate_all_for_user(
+        user_id=user.id,
+        token_type="password_reset",
+    )
+    await AuthActionTokenRepository(connection).create(
+        user_id=user.id,
+        token_hash=token_hash,
+        token_type="password_reset",
+        expires_at=expires_at,
+    )
+    template = await EmailTemplateRepository(connection).get_by_slug("password_reset")
+    if template is None:
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Password reset template not configured")
+    await EmailEventRepository(connection).create(
+        template_id=template.id,
+        recipient_email=user.email,
+        payload={
+            "user_name": user.name or user.email,
+            "reset_url": f"{settings.app_public_url.rstrip('/')}/reset-password?token={token}",
+            "expires_in": f"{settings.action_token_expire_minutes} minutes",
+        },
+    )
+
+
+async def _enqueue_password_changed_email(*, connection: AsyncConnection, user) -> None:
+    template = await EmailTemplateRepository(connection).get_by_slug("password_changed")
+    if template is None:
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Password changed template not configured")
+    await EmailEventRepository(connection).create(
+        template_id=template.id,
+        recipient_email=user.email,
+        payload={
+            "user_name": user.name or user.email,
+            "changed_at": datetime.now(UTC).isoformat(),
         },
     )
 

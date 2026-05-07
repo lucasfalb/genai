@@ -91,6 +91,21 @@ class UserRepository:
         row = result.one_or_none()
         return None if row is None else _user_from_row(row)
 
+    async def update_password_hash(self, *, user_id: UUID, password_hash: str) -> UserRecord | None:
+        result = await self.connection.execute(
+            text(
+                """
+                UPDATE users
+                SET password_hash = :password_hash
+                WHERE id = :user_id
+                RETURNING id, email, name, password_hash, is_superadmin, status
+                """
+            ),
+            {"user_id": user_id, "password_hash": password_hash},
+        )
+        row = result.one_or_none()
+        return None if row is None else _user_from_row(row)
+
     async def list_active_memberships(self, user_id: UUID) -> list[MembershipRecord]:
         result = await self.connection.execute(
             text(
@@ -174,6 +189,20 @@ class UserRepository:
         if row is None:
             return None
         return await self.get_by_id(row.user_id)
+
+    async def revoke_refresh_tokens(self, *, user_id: UUID) -> int:
+        result = await self.connection.execute(
+            text(
+                """
+                UPDATE refresh_tokens
+                SET revoked_at = now()
+                WHERE user_id = :user_id
+                  AND revoked_at IS NULL
+                """
+            ),
+            {"user_id": user_id},
+        )
+        return result.rowcount
 
 
 def _user_from_row(row) -> UserRecord:

@@ -4,11 +4,11 @@
 | :--- | :--- |
 | **ID** | TASK-027 |
 | **Group** | AUTH |
-| **Status** | PENDING |
+| **Status** | COMPLETED |
 | **Stage Ref** | `docs/stages/stage_05_base_multitenant_workflows.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | CRITICAL |
-| **Owner** | Unassigned |
+| **Owner** | Codex |
 | **Created At** | 2026-05-07 |
 | **Updated At** | 2026-05-07 |
 
@@ -18,10 +18,10 @@ Usuarios precisam recuperar senha sem suporte manual, e usuarios autenticados pr
 
 ## Objectives
 
-- [ ] Criar endpoint `/auth/password/forgot`.
-- [ ] Criar endpoint `/auth/password/reset`.
-- [ ] Criar endpoint `/auth/password/change`.
-- [ ] Revogar refresh tokens apos reset ou change.
+- [x] Criar endpoint `/auth/password/forgot`.
+- [x] Criar endpoint `/auth/password/reset`.
+- [x] Criar endpoint `/auth/password/change`.
+- [x] Revogar refresh tokens apos reset ou change.
 
 ## Non-Goals
 
@@ -51,18 +51,18 @@ Esta task cobre apenas lifecycle de senha com tokens transacionais e JWT existen
 
 ## Implementation Checklist
 
-- [ ] Criar schemas de forgot/reset/change.
-- [ ] Criar endpoints de password lifecycle.
-- [ ] Integrar revogacao de refresh tokens.
-- [ ] Criar email outbox `password_reset` e `password_changed`.
-- [ ] Atualizar Bruno e OpenAPI.
+- [x] Criar schemas de forgot/reset/change.
+- [x] Criar endpoints de password lifecycle.
+- [x] Integrar revogacao de refresh tokens.
+- [x] Criar email outbox `password_reset` e `password_changed`.
+- [x] Atualizar Bruno e OpenAPI.
 
 ## Acceptance Criteria
 
-- [ ] Reset com token valido troca senha e revoga refresh tokens.
-- [ ] Token invalido, expirado ou usado e rejeitado.
-- [ ] Change exige senha atual correta.
-- [ ] Requests Bruno cobrem os tres endpoints.
+- [x] Reset com token valido troca senha e revoga refresh tokens.
+- [x] Token invalido, expirado ou usado e rejeitado.
+- [x] Change exige senha atual correta.
+- [x] Requests Bruno cobrem os tres endpoints.
 
 ## Verification
 
@@ -81,3 +81,5 @@ backend\.venv\Scripts\python scripts\validate_openapi.py
 ## Execution Log
 
 - `[2026-05-07 15:40]`: Task criada para cobrir recovery e change de senha.
+- `[2026-05-07 17:55]`: Implementacao iniciada com endpoints publicos de forgot/reset e endpoint protegido de change.
+- `[2026-05-07 18:10]`: Password lifecycle implementado com tokens single-use, email outbox, revogacao de refresh tokens, Bruno e testes de integracao.

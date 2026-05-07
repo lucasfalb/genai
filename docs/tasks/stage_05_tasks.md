@@ -4,7 +4,7 @@
 | :--- | :--- | :--- | :--- | :--- |
 | TASK-025 | [Auth Token Tables e Email Event Outbox](task_025_auth_token_tables_email_event_outbox.md) | COMPLETED | CRITICAL | TASK-011 |
 | TASK-026 | [Account Activation Flow](task_026_account_activation_flow.md) | COMPLETED | CRITICAL | TASK-025 |
-| TASK-027 | [Password Recovery e Change Flow](task_027_password_recovery_change_flow.md) | PENDING | CRITICAL | TASK-025 |
+| TASK-027 | [Password Recovery e Change Flow](task_027_password_recovery_change_flow.md) | COMPLETED | CRITICAL | TASK-025 |
 | TASK-028 | [Auth Me Logout e Session Introspection](task_028_auth_me_logout_session_introspection.md) | PENDING | HIGH | TASK-008 |
 | TASK-029 | [Superadmin Tenant e User Administration](task_029_superadmin_tenant_user_administration.md) | PENDING | CRITICAL | TASK-012 |
 | TASK-030 | [Tenant Members e RBAC Administration](task_030_tenant_members_rbac_administration.md) | PENDING | CRITICAL | TASK-010, TASK-012 |

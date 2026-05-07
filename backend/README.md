@@ -32,6 +32,9 @@ Useful endpoints:
 - `GET /healthz`
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
+- `POST /api/v1/auth/password/forgot`
+- `POST /api/v1/auth/password/reset`
+- `POST /api/v1/auth/password/change`
 - `POST /api/v1/auth/refresh`
 - `GET /api/v1/superadmin/email-templates`
 - `GET /api/v1/superadmin/email-templates/{slug}`
