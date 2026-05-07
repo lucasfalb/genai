@@ -351,6 +351,39 @@ class ChatEvent(BaseModel):
     metadata: dict = Field(default_factory=dict)
 
 
+class PlatformAIConfigRequest(BaseModel):
+    provider: str = Field(default="openai", pattern=r"^[a-z0-9_-]+$", max_length=80)
+    api_key: str = Field(min_length=1, max_length=512)
+    default_model: str = Field(default="gpt-4.1-mini", max_length=120)
+    base_url: str | None = Field(default=None, max_length=512)
+
+
+class PlatformAIConfigResponse(BaseModel):
+    id: UUID
+    provider: str
+    default_model: str
+    base_url: str | None
+    is_active: bool
+    api_key_hint: str = "****"
+
+
+class TenantAIConfigRequest(BaseModel):
+    provider: str = Field(default="openai", pattern=r"^[a-z0-9_-]+$", max_length=80)
+    api_key: str = Field(min_length=1, max_length=512)
+    default_model: str | None = Field(default=None, max_length=120)
+    base_url: str | None = Field(default=None, max_length=512)
+
+
+class TenantAIConfigResponse(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    provider: str
+    default_model: str | None
+    base_url: str | None
+    is_active: bool
+    api_key_hint: str = "****"
+
+
 class AgentInstanceCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     description: str | None = None

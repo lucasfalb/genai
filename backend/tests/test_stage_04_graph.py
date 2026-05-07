@@ -45,9 +45,16 @@ def test_handoff_node_sets_target_and_summary() -> None:
     assert result == {"handoff_target": "target-1", "handoff_summary": "invoice issue"}
 
 
-def test_base_graph_compiles_and_runs_respond_path() -> None:
+async def test_base_graph_compiles_and_runs_respond_path(monkeypatch) -> None:
+    import engine.base_graph as bg
+
+    async def fake_llm(state):
+        return {"final_response": "ok"}
+
+    monkeypatch.setattr(bg, "llm_node", fake_llm)
+
     graph = create_base_graph()
-    result = graph.invoke({"pending_tool_calls": [], "linked_agents": []})
+    result = await graph.ainvoke({"pending_tool_calls": [], "linked_agents": []})
 
     assert result["retrieved_chunks"] == []
-    assert result["final_response"] == ""
+    assert result["final_response"] == "ok"

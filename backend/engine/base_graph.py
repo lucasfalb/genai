@@ -1,16 +1,58 @@
+import json
+
 from langgraph.graph import END, StateGraph
 
 from engine.state import AgentState
+
+
+def _get_openai_client(*, api_key: str, base_url: str | None):
+    from openai import AsyncOpenAI
+    return AsyncOpenAI(api_key=api_key, base_url=base_url)
 
 
 def rag_node(state: AgentState) -> AgentState:
     return {"retrieved_chunks": state.get("retrieved_chunks") or []}
 
 
-def llm_node(state: AgentState) -> AgentState:
+async def llm_node(state: AgentState) -> AgentState:
     if state.get("final_response"):
         return {}
-    return {"final_response": ""}
+
+    system_prompt = state.get("system_prompt") or ""
+    messages = state.get("messages") or []
+    tool_schemas = state.get("tool_schemas") or []
+    model = state.get("model") or "gpt-4.1-mini"
+    temperature = state.get("temperature", 0.2)
+    api_key = state.get("ai_api_key") or ""
+    base_url = state.get("ai_base_url")
+
+    openai_messages = [{"role": "system", "content": system_prompt}] + list(messages)
+
+    kwargs: dict = {
+        "model": model,
+        "temperature": temperature,
+        "messages": openai_messages,
+    }
+    if tool_schemas:
+        kwargs["tools"] = [{"type": "function", "function": s} for s in tool_schemas]
+        kwargs["tool_choice"] = "auto"
+
+    client = _get_openai_client(api_key=api_key, base_url=base_url)
+    response = await client.chat.completions.create(**kwargs)
+    choice = response.choices[0]
+
+    if choice.finish_reason == "tool_calls" and choice.message.tool_calls:
+        tool_calls = [
+            {
+                "name": tc.function.name,
+                "arguments": json.loads(tc.function.arguments or "{}"),
+                "id": tc.id,
+            }
+            for tc in choice.message.tool_calls
+        ]
+        return {"pending_tool_calls": tool_calls}
+
+    return {"final_response": choice.message.content or ""}
 
 
 def dispatch_node(state: AgentState) -> AgentState:

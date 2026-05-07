@@ -82,7 +82,14 @@ async def test_session_lock_acquire_conflict_and_safe_release() -> None:
     assert SessionLock._key(tenant_id, session_id) not in redis.values
 
 
-async def test_agent_executor_persists_messages_in_order(db_connection: psycopg.Connection) -> None:
+async def test_agent_executor_persists_messages_in_order(db_connection: psycopg.Connection, monkeypatch) -> None:
+    import engine.base_graph as bg
+
+    async def fake_llm(state):
+        return {"final_response": "Fake LLM response."}
+
+    monkeypatch.setattr(bg, "llm_node", fake_llm)
+
     setup = _seed_engine_tenant(db_connection, uuid4().hex)
 
     async with tenant_connection(TenantContext(tenant_id=setup["tenant_id"])) as connection:
@@ -110,7 +117,7 @@ async def test_agent_executor_persists_messages_in_order(db_connection: psycopg.
 
     assert [event.event for event in events] == ["message.persisted", "assistant.delta", "run.completed"]
     assert [(row.role, row.sequence_no) for row in rows] == [("user", 1), ("assistant", 2)]
-    assert "Placeholder response" in rows[1].content
+    assert rows[1].content == "Fake LLM response."
 
 
 async def test_agent_executor_releases_lock_on_error(db_connection: psycopg.Connection, monkeypatch) -> None:

@@ -10,3 +10,4 @@ htmlcov/
 postgres_data/
 qdrant_data/
 .env
+.codegraph/

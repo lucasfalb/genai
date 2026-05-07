@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.rbac import Permission
 from app.registry_cache import ToolMetadataCache
 from app.responses import api_success
+from engine.prompt_cache import PromptCache
 from app.schemas import (
     AgentInstanceCreateRequest,
     AgentInstanceResponse,
@@ -114,6 +115,7 @@ async def update_instance(
     if instance is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Agent instance not found")
     await ToolMetadataCache(connection).invalidate(tenant_id=context.tenant_id, instance_id=instance_id)
+    await PromptCache(connection).invalidate(tenant_id=context.tenant_id, instance_id=instance_id)
     await _after_instance_mutation(
         connection=connection,
         context=context,
@@ -142,6 +144,7 @@ async def archive_instance(
     if instance is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Agent instance not found")
     await ToolMetadataCache(connection).invalidate(tenant_id=context.tenant_id, instance_id=instance_id)
+    await PromptCache(connection).invalidate(tenant_id=context.tenant_id, instance_id=instance_id)
     await _after_instance_mutation(
         connection=connection,
         context=context,

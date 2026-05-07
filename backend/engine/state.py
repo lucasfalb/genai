@@ -8,6 +8,10 @@ class AgentState(TypedDict, total=False):
     tenant_id: str
     instance_id: str
     channel: str
+    model: str
+    temperature: float
+    ai_api_key: str
+    ai_base_url: str | None
     system_prompt: str
     available_tools: list[str]
     available_skills: list[str]

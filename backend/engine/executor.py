@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.schemas import ChatEvent
 from database.repositories.sessions import SessionRepository
+from engine.base_graph import create_base_graph
 from engine.bootstrap import RunBootstrap
 from engine.session_lock import SessionLock
 
@@ -29,7 +30,7 @@ class AgentRunStream:
                 session_id=self.session_id,
                 role="assistant",
                 content=self.response,
-                metadata={"engine": "placeholder"},
+                metadata={"engine": "llm"},
             )
             yield ChatEvent(
                 event="assistant.delta",
@@ -123,13 +124,19 @@ class AgentExecutor:
                 content=message,
                 metadata=metadata,
             )
+            state["messages"].append({"role": "user", "content": message})
+
+            graph = create_base_graph()
+            result_state = await graph.ainvoke(state)
+            response = result_state.get("final_response") or ""
+
             return AgentRunStream(
                 repository=repository,
                 lock=self.lock,
                 tenant_id=tenant_id,
                 session_id=session.id,
                 run_id=run_id,
-                response=self._placeholder_response(message=message, state=state),
+                response=response,
                 user_event=ChatEvent(
                     event="message.persisted",
                     session_id=session.id,
@@ -143,9 +150,3 @@ class AgentExecutor:
     @staticmethod
     def encode_sse(event: ChatEvent) -> str:
         return f"data: {json.dumps(event.model_dump(mode='json'), separators=(',', ':'))}\n\n"
-
-    @staticmethod
-    def _placeholder_response(*, message: str, state: dict) -> str:
-        skills = ", ".join(state.get("available_skills", [])) or "none"
-        tools = ", ".join(state.get("available_tools", [])) or "none"
-        return f"Placeholder response: received '{message}'. Active skills: {skills}. Active tools: {tools}."

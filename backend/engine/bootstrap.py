@@ -5,6 +5,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.registry_cache import ToolMetadataCache
+from engine.ai_provider import AIProviderResolver
+from engine.prompt_builder import PromptBuilder
 from engine.state import AgentState
 
 
@@ -17,6 +19,8 @@ class AgentInstanceRecord:
     id: UUID
     tenant_id: UUID
     core_prompt: str
+    model: str
+    temperature: float
     rag_scope: list
 
 
@@ -41,14 +45,27 @@ class RunBootstrap:
 
         metadata = await ToolMetadataCache(self.connection).get(tenant_id=tenant_id, instance_id=instance_id)
         linked_agents = await self._get_linked_agents(tenant_id=tenant_id, instance_id=instance_id)
+        system_prompt_obj = await PromptBuilder(self.connection).build(
+            tenant_id=tenant_id,
+            instance_id=instance_id,
+            core_prompt=instance.core_prompt,
+            linked_agents=[self._link_to_dict(link) for link in linked_agents],
+        )
+        messages = await self._get_messages(tenant_id=tenant_id, session_id=session_id)
+        ai_config = await AIProviderResolver(self.connection).resolve(tenant_id=tenant_id)
+
         return AgentState(
-            messages=[],
+            messages=messages,
             handoff_summary=None,
             session_id=str(session_id),
             tenant_id=str(tenant_id),
             instance_id=str(instance_id),
             channel=channel,
-            system_prompt=instance.core_prompt,
+            model=instance.model,
+            temperature=instance.temperature,
+            ai_api_key=ai_config.api_key,
+            ai_base_url=ai_config.base_url,
+            system_prompt=system_prompt_obj.full,
             available_tools=[tool.slug for tool in metadata.tools],
             available_skills=[skill.slug for skill in metadata.skills],
             tool_schemas=[skill.tool_schema for skill in metadata.skills]
@@ -68,7 +85,7 @@ class RunBootstrap:
         result = await self.connection.execute(
             text(
                 """
-                SELECT id, tenant_id, core_prompt, rag_scope
+                SELECT id, tenant_id, core_prompt, model, temperature, rag_scope
                 FROM agent_instances
                 WHERE id = :instance_id AND tenant_id = :tenant_id
                 """
@@ -78,7 +95,14 @@ class RunBootstrap:
         row = result.one_or_none()
         if row is None:
             return None
-        return AgentInstanceRecord(id=row.id, tenant_id=row.tenant_id, core_prompt=row.core_prompt, rag_scope=row.rag_scope)
+        return AgentInstanceRecord(
+            id=row.id,
+            tenant_id=row.tenant_id,
+            core_prompt=row.core_prompt,
+            model=row.model,
+            temperature=row.temperature,
+            rag_scope=row.rag_scope or [],
+        )
 
     async def _get_linked_agents(self, *, tenant_id: UUID, instance_id: UUID) -> list[LinkedAgentRecord]:
         result = await self.connection.execute(
@@ -116,6 +140,21 @@ class RunBootstrap:
             )
             for row in result.fetchall()
         ]
+
+    async def _get_messages(self, *, tenant_id: UUID, session_id: UUID) -> list[dict]:
+        result = await self.connection.execute(
+            text(
+                """
+                SELECT role, content
+                FROM messages
+                WHERE session_id = :session_id AND tenant_id = :tenant_id
+                ORDER BY sequence_no ASC
+                LIMIT 50
+                """
+            ),
+            {"session_id": session_id, "tenant_id": tenant_id},
+        )
+        return [{"role": row.role, "content": row.content} for row in result.fetchall()]
 
     @staticmethod
     def _build_handoff_schema(link: LinkedAgentRecord) -> dict:

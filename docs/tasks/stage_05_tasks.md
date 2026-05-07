@@ -13,10 +13,15 @@
 | TASK-033 | [Workflow Audit Versions e Cache Invalidation](task_033_workflow_audit_versions_cache_invalidation.md) | COMPLETED | HIGH | TASK-029, TASK-030, TASK-031, TASK-032 |
 | TASK-034 | [Stage 05 API Bruno e Workflow Verification](task_034_stage_05_api_bruno_workflow_verification.md) | PENDING | HIGH | TASK-026, TASK-027, TASK-028, TASK-029, TASK-030, TASK-031, TASK-032, TASK-033 |
 | TASK-035 | [API Response Envelope Standard](task_035_api_response_envelope_standard.md) | COMPLETED | HIGH | TASK-026 |
+| TASK-036 | [SystemPrompt Schema e PromptCache](task_036_system_prompt_schema_prompt_cache.md) | PENDING | CRITICAL | TASK-019, TASK-020 |
+| TASK-037 | [PromptBuilder — Montagem Sanduiche](task_037_prompt_builder_sandwich_assembly.md) | PENDING | CRITICAL | TASK-015, TASK-036 |
+| TASK-038 | [PromptSanitizer — Validacao e Densidade](task_038_prompt_sanitizer_validation_density.md) | PENDING | HIGH | TASK-037 |
+| TASK-039 | [LLM Node e Provider Integration](task_039_llm_node_provider_integration.md) | PENDING | CRITICAL | TASK-037, TASK-023 |
+| TASK-040 | [Prompt Cache Invalidation em Mutacoes de Instancia](task_040_prompt_cache_invalidation_admin_mutations.md) | PENDING | HIGH | TASK-036, TASK-032 |
 
 ## Scope
 
-Estas tasks cobrem o Stage 05 definido em `docs/stages/stage_05_base_multitenant_workflows.md`: completar os workflows base de autenticacao, tenants, membros, convites, instancias, auditoria/versionamento e contratos Bruno/OpenAPI.
+Estas tasks cobrem o Stage 05 definido em `docs/stages/stage_05_base_multitenant_workflows.md` e `docs/stages/stage_05_prompts.md`: completar os workflows base de autenticacao, tenants, membros, convites, instancias, auditoria/versionamento, contratos Bruno/OpenAPI e runtime de prompt sanduiche.
 
 ## Implementation Order
 
