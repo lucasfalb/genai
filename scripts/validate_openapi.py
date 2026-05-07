@@ -14,6 +14,8 @@ PUBLIC_ENDPOINTS = {
     ("POST", "/api/v1/auth/password/forgot"),
     ("POST", "/api/v1/auth/password/reset"),
     ("POST", "/api/v1/auth/refresh"),
+    ("POST", "/api/v1/invitations/validate"),
+    ("POST", "/api/v1/invitations/accept"),
 }
 
 

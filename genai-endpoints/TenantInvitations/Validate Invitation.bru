@@ -1,0 +1,21 @@
+meta {
+  name: Validate Invitation
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{base_url}}/api/v1/invitations/validate
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "token": "{{invitation_token}}"
+  }
+}
+
+settings {
+  encodeUrl: false
+}

@@ -1,0 +1,30 @@
+meta {
+  name: Create Invitation
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/api/v1/tenant/invitations
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  X-Tenant-ID: {{tenant_id}}
+}
+
+body:json {
+  {
+    "email": "{{invitee_email}}",
+    "role": "{{invited_role}}"
+  }
+}
+
+settings {
+  encodeUrl: false
+}

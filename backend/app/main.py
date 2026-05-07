@@ -7,6 +7,8 @@ from api.v1.registry import router as registry_router
 from api.v1.superadmin.admin import router as superadmin_admin_router
 from api.v1.superadmin.email_templates import router as email_templates_router
 from api.v1.superadmin.registry import router as superadmin_registry_router
+from api.v1.tenant_invitations import public_router as tenant_invitations_public_router
+from api.v1.tenant_invitations import tenant_router as tenant_invitations_router
 from api.v1.tenant_members import router as tenant_members_router
 from app.responses import api_success, http_exception_handler, validation_exception_handler
 from app.schemas import ApiResponse
@@ -21,6 +23,8 @@ app.include_router(superadmin_admin_router, prefix="/api/v1")
 app.include_router(email_templates_router, prefix="/api/v1")
 app.include_router(superadmin_registry_router, prefix="/api/v1")
 app.include_router(registry_router, prefix="/api/v1")
+app.include_router(tenant_invitations_router, prefix="/api/v1")
+app.include_router(tenant_invitations_public_router, prefix="/api/v1")
 app.include_router(tenant_members_router, prefix="/api/v1")
 
 

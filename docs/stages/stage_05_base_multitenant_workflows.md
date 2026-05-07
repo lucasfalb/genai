@@ -100,5 +100,6 @@ python scripts\validate_tasks.py
 - TASK-028 implementa introspeccao de auth: `/auth/me` retorna identidade global segura, `/auth/me/tenants` retorna memberships reais sem membership sintetica para superadmin, e `/auth/logout` revoga refresh tokens.
 - TASK-029 implementa administracao superadmin de tenants e usuarios: CRUD operacional de tenants, list/get/update de usuarios globais, bloqueio de auto-demote/auto-suspensao e auditoria/versionamento em mutacoes.
 - TASK-030 implementa administracao tenant-scoped de membros: listagem sem superadmin visivel, update de role/status, remocao, invalidacao de cache de membership e audit/version com contexto de ator.
+- TASK-031 implementa lifecycle de convites: tenant admin e superadmin criam/listam/reenviam/cancelam convites, endpoints publicos validam/aceitam token, aceite cria/ativa usuario, cria membership ativa, invalida cache e registra audit/version. SMTP fica configuravel em `.env`, mas a validacao do stage permanece por outbox `email_events`.
 - TASK-035 padroniza respostas JSON com `ApiResponse[T]` em sucesso, `ApiErrorResponse` em erro e validacao OpenAPI para impedir regressao de contrato.
 - Login e refresh agora bloqueiam usuarios com `status != 'active'`.

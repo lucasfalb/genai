@@ -1,0 +1,23 @@
+meta {
+  name: Cancel Invitation
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{base_url}}/api/v1/tenant/invitations/{{invitation_id}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  X-Tenant-ID: {{tenant_id}}
+}
+
+settings {
+  encodeUrl: false
+}

@@ -1,0 +1,24 @@
+meta {
+  name: Accept Invitation
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{base_url}}/api/v1/invitations/accept
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "token": "{{invitation_token}}",
+    "email": "{{invitee_email}}",
+    "name": "{{name}}",
+    "password": "{{password}}"
+  }
+}
+
+settings {
+  encodeUrl: false
+}

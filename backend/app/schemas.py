@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Generic, Literal, TypeVar
 from uuid import UUID
 
@@ -156,6 +157,50 @@ class TenantMemberResponse(BaseModel):
     name: str | None
     role: str
     status: str
+
+
+class TenantInvitationCreateRequest(BaseModel):
+    email: EmailStr
+    role: str = Field(pattern=r"^(tenant_admin|member|viewer)$")
+
+
+class TenantInvitationValidateRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=512)
+
+
+class TenantInvitationAcceptRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=512)
+    email: EmailStr
+    name: str | None = Field(default=None, max_length=120)
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+
+
+class TenantInvitationResponse(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    email: EmailStr
+    role: str
+    status: str
+    expires_at: datetime
+    accepted_at: datetime | None
+    created_at: datetime
+
+
+class TenantInvitationPublicResponse(BaseModel):
+    tenant_id: UUID
+    tenant_name: str
+    email: EmailStr
+    role: str
+    status: str
+    expires_at: datetime
+
+
+class TenantInvitationAcceptResponse(BaseModel):
+    user_id: UUID
+    tenant_id: UUID
+    email: EmailStr
+    role: str
+    membership_status: str
 
 
 class EmailTemplateRequest(BaseModel):

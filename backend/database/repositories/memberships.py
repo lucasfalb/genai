@@ -95,6 +95,33 @@ class MembershipAdminRepository:
         )
         return existing
 
+    async def upsert_active_member(
+        self,
+        *,
+        tenant_id: UUID,
+        user_id: UUID,
+        role: str,
+        invited_by: UUID | None,
+    ) -> TenantMemberRecord | None:
+        result = await self.connection.execute(
+            text(
+                """
+                INSERT INTO memberships (user_id, tenant_id, role, status, invited_by)
+                VALUES (:user_id, :tenant_id, :role, 'active', :invited_by)
+                ON CONFLICT (user_id, tenant_id)
+                DO UPDATE SET
+                  role = EXCLUDED.role,
+                  status = 'active',
+                  invited_by = EXCLUDED.invited_by
+                RETURNING user_id
+                """
+            ),
+            {"tenant_id": tenant_id, "user_id": user_id, "role": role, "invited_by": invited_by},
+        )
+        if result.one_or_none() is None:
+            return None
+        return await self.get_member(tenant_id=tenant_id, user_id=user_id)
+
 
 def _member_from_row(row) -> TenantMemberRecord:
     return TenantMemberRecord(

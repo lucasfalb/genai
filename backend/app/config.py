@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
     action_token_expire_minutes: int = 15
     app_public_url: str = "http://localhost:3000"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_secure: bool = False
+    smtp_user: str | None = None
+    smtp_pass: str | None = None
+    smtp_from: str | None = None
 
     model_config = SettingsConfigDict(
         env_file="../.env",
