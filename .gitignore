@@ -9,3 +9,4 @@ htmlcov/
 *.egg-info/
 postgres_data/
 qdrant_data/
+.env
