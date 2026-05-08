@@ -7,9 +7,7 @@
 	import KnowledgeCard from '$lib/components/instance/knowledge-card.svelte';
 	import { instancesApi } from '$lib/api/instances';
 	import { getErrorMessage } from '$lib/api/client';
-	import { tenantBaseFromPath } from '$lib/routes/tenant';
 	import { getAgentUiSettings } from '$lib/settings/agent-ui';
-	import { page } from '$app/state';
 	import type { AgentInstanceResponse } from '$lib/api/types';
 
 	let { data } = $props();
@@ -20,7 +18,6 @@
 		setSaving: (v: boolean) => void;
 	}>('save-action');
 
-	const appBase = $derived(tenantBaseFromPath(page.url.pathname));
 	const agentUi = getAgentUiSettings(data.publicSettings);
 
 	let instance = $state<AgentInstanceResponse>(data.instance);
@@ -29,7 +26,7 @@
 	let core_prompt = $state(data.instance.core_prompt);
 	let model = $state(data.instance.model);
 	let temperature = $state(data.instance.temperature);
-	let rag_scope = $state(data.instance.rag_scope ?? 'none');
+	let ragScope = $state<string[]>(data.instance.rag_scope ?? []);
 	let validationError = $state('');
 
 	const MODELS = agentUi.models.map((item) => item.value);
@@ -47,7 +44,7 @@
 				core_prompt: core_prompt.trim(),
 				model,
 				temperature,
-				rag_scope: rag_scope === 'none' ? undefined : rag_scope
+				rag_scope: ragScope.length > 0 ? ragScope : undefined
 			});
 			toast.success('Agent saved.');
 		} catch (err) {
@@ -73,12 +70,11 @@
 		bind:description
 		bind:model
 		bind:temperature
-		bind:rag_scope
 		status={instance.status}
 		models={MODELS}
 	/>
 
 	<CorePromptCard bind:core_prompt />
 
-	<KnowledgeCard collectionsBaseHref="{appBase}/collections" />
+	<KnowledgeCard bind:ragScope />
 </div>

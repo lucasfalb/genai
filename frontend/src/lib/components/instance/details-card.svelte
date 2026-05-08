@@ -8,7 +8,6 @@
 		description = $bindable(),
 		model = $bindable(),
 		temperature = $bindable(),
-		rag_scope = $bindable(),
 		status,
 		models
 	}: {
@@ -16,12 +15,9 @@
 		description: string;
 		model: string;
 		temperature: number;
-		rag_scope: string;
 		status: string;
 		models: string[];
 	} = $props();
-
-	const RAG_SCOPES = ['none', 'tenant', 'instance'];
 </script>
 
 <div class="rounded-xl p-6 space-y-5" style="background:var(--surface);border:1px solid var(--ds-border)">
@@ -58,10 +54,4 @@
 		</div>
 	</div>
 
-	<div class="space-y-1.5">
-		<label class="block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">RAG scope</label>
-		<NativeSelect bind:value={rag_scope} class="w-full">
-			{#each RAG_SCOPES as s (s)}<option value={s}>{s}</option>{/each}
-		</NativeSelect>
-	</div>
 </div>

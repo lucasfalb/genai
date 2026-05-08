@@ -142,7 +142,7 @@ export interface AgentInstanceResponse {
 	model: string;
 	temperature: number;
 	status: string;
-	rag_scope: string;
+	rag_scope: string[];
 	created_by: string;
 }
 
@@ -152,7 +152,7 @@ export interface AgentInstanceCreateRequest {
 	core_prompt: string;
 	model: string;
 	temperature: number;
-	rag_scope?: string;
+	rag_scope?: string[];
 }
 
 export interface AgentInstanceUpdateRequest {
@@ -162,7 +162,7 @@ export interface AgentInstanceUpdateRequest {
 	model?: string;
 	temperature?: number;
 	status?: string;
-	rag_scope?: string;
+	rag_scope?: string[];
 }
 
 // ─── Prompt config ────────────────────────────────────────────────────────────

@@ -18,10 +18,14 @@
 
 	let {
 		open = $bindable(false),
-		collectionsBaseHref
+		selectedName = $bindable(''),
+		selectedId = '',
+		onSelect
 	}: {
 		open: boolean;
-		collectionsBaseHref: string;
+		selectedName: string;
+		selectedId: string;
+		onSelect: (id: string, name: string) => void;
 	} = $props();
 
 	let collections = $state<CollectionResponse[]>([]);
@@ -137,7 +141,11 @@
 				{:else}
 					<ul class="divide-y" style="border-color:var(--ds-border)">
 						{#each filtered as col (col.id)}
-							<li class="flex items-center gap-3 py-3">
+							{@const isSelected = col.id === selectedId}
+							<li
+								class="flex items-center gap-3 py-3 {isSelected ? 'rounded-lg bg-blue-500/5 -mx-2 px-2' : ''}"
+								style={isSelected ? 'border-color:color-mix(in srgb, #3b82f6 20%, transparent)' : ''}
+							>
 								<div class="flex size-9 items-center justify-center rounded-md bg-blue-500/10 text-blue-400">
 									<Database class="size-4" />
 								</div>
@@ -149,9 +157,13 @@
 									<p class="line-clamp-1 text-xs text-muted-foreground">{col.description || 'No description.'}</p>
 								</div>
 								<Badge variant="outline" class="font-mono">{col.document_count} docs</Badge>
-								<Button variant="ghost" size="icon-sm" href="{collectionsBaseHref}/{col.id}">
-									<ExternalLink />
-								</Button>
+								{#if isSelected}
+									<Badge class="bg-blue-500/10 text-blue-400 border-blue-500/20">Selected</Badge>
+								{:else}
+									<Button size="sm" variant="outline" onclick={() => { onSelect(col.id, col.name); open = false; }}>
+										Select
+									</Button>
+								{/if}
 							</li>
 						{/each}
 					</ul>
@@ -159,7 +171,6 @@
 			</div>
 
 			<Dialog.Footer>
-				<Button variant="outline" href={collectionsBaseHref}>Open full Collections page</Button>
 				<Button variant="ghost" onclick={() => (open = false)}>Close</Button>
 			</Dialog.Footer>
 		{:else}
