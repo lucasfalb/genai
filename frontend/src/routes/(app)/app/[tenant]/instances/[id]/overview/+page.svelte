@@ -1,7 +1,6 @@
 <script lang="ts">
-	import Save from '@lucide/svelte/icons/save';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Spinner } from '$lib/components/ui/spinner/index.js';
+	import { onMount } from 'svelte';
+	import { getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import DetailsCard from '$lib/components/instance/details-card.svelte';
 	import CorePromptCard from '$lib/components/instance/core-prompt-card.svelte';
@@ -15,6 +14,12 @@
 
 	let { data } = $props();
 
+	const { register, unregister, setSaving } = getContext<{
+		register: (handler: () => Promise<void>, label: string) => void;
+		unregister: () => void;
+		setSaving: (v: boolean) => void;
+	}>('save-action');
+
 	const appBase = $derived(tenantBaseFromPath(page.url.pathname));
 	const agentUi = getAgentUiSettings(data.publicSettings);
 
@@ -25,7 +30,6 @@
 	let model = $state(data.instance.model);
 	let temperature = $state(data.instance.temperature);
 	let rag_scope = $state(data.instance.rag_scope ?? 'none');
-	let saving = $state(false);
 	let validationError = $state('');
 
 	const MODELS = agentUi.models.map((item) => item.value);
@@ -35,7 +39,7 @@
 		if (!name.trim()) { validationError = 'Name is required.'; return; }
 		if (!core_prompt.trim()) { validationError = 'Core prompt is required.'; return; }
 		if (temperature < 0 || temperature > 2) { validationError = 'Temperature must be between 0 and 2.'; return; }
-		saving = true;
+		setSaving(true);
 		try {
 			instance = await instancesApi.update(instance.id, {
 				name: name.trim(),
@@ -49,22 +53,20 @@
 		} catch (err) {
 			toast.error(getErrorMessage(err, 'Save failed.'));
 		} finally {
-			saving = false;
+			setSaving(false);
 		}
 	}
+
+	onMount(() => {
+		register(saveConfig, 'Save changes');
+		return () => unregister();
+	});
 </script>
 
 <div class="mx-auto max-w-5xl space-y-5 px-6 py-5">
 	{#if validationError}
 		<div class="rounded-xl px-4 py-3 text-sm text-red-400" style="background:color-mix(in srgb,red 8%,transparent);border:1px solid color-mix(in srgb,red 18%,transparent)">{validationError}</div>
 	{/if}
-
-	<div class="flex justify-end">
-		<Button onclick={saveConfig} disabled={saving}>
-			{#if saving}<Spinner data-icon="inline-start" />{:else}<Save data-icon="inline-start" />{/if}
-			{saving ? 'Saving...' : 'Save changes'}
-		</Button>
-	</div>
 
 	<DetailsCard
 		bind:name

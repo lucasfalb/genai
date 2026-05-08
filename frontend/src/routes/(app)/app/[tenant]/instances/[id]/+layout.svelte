@@ -1,16 +1,20 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import { setContext } from 'svelte';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Bot from '@lucide/svelte/icons/bot';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import Database from '@lucide/svelte/icons/database';
 	import MoreHorizontal from '@lucide/svelte/icons/more-horizontal';
+	import Save from '@lucide/svelte/icons/save';
 	import Send from '@lucide/svelte/icons/send';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
+	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import ThumbsDown from '@lucide/svelte/icons/thumbs-down';
 	import ThumbsUp from '@lucide/svelte/icons/thumbs-up';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Resizable from '$lib/components/ui/resizable/index.js';
 	import { instancesApi } from '$lib/api/instances';
 	import { ApiError } from '$lib/api/client';
@@ -26,6 +30,21 @@
 
 	let error = $state('');
 	let testMessage = $state('');
+
+	let saveHandler: (() => Promise<void>) | null = $state(null);
+	let saveLabel = $state('');
+	let isSaving = $state(false);
+
+	setContext('save-action', {
+		register: (handler: () => Promise<void>, label: string) => {
+			saveHandler = handler;
+			saveLabel = label;
+		},
+		unregister: () => {
+			saveHandler = null;
+		},
+		setSaving: (v: boolean) => { isSaving = v; }
+	});
 
 	const tabs = [
 		{ href: 'overview', label: 'Overview' },
@@ -89,6 +108,12 @@
 			</div>
 		</div>
 		<div class="flex shrink-0 items-center gap-2">
+			{#if saveHandler}
+				<Button onclick={saveHandler} disabled={isSaving}>
+					{#if isSaving}<Spinner data-icon="inline-start" />{:else}<Save data-icon="inline-start" />{/if}
+					{saveLabel}
+				</Button>
+			{/if}
 			<button
 				class="rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-[var(--surface-hover)]"
 				style="border-color:var(--ds-border)">Publish</button
