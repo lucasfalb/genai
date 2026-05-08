@@ -4,7 +4,7 @@
 | :--- | :--- |
 | **ID** | TASK-041 |
 | **Group** | RAG |
-| **Status** | PENDING |
+| **Status** | COMPLETED |
 | **Stage Ref** | `docs/stages/stage_06_rag.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | CRITICAL |
@@ -18,11 +18,11 @@ O Stage 06 precisa das tabelas `collections` e `documents` no PostgreSQL para ar
 
 ## Objectives
 
-- [ ] Criar migration Alembic para tabela `collections` com RLS tenant-scoped.
-- [ ] Criar migration Alembic para tabela `documents` com FK para `collections`.
-- [ ] Implementar `CollectionRepository` em `database/repositories/collections.py`.
-- [ ] Implementar `DocumentRepository` em `database/repositories/documents.py`.
-- [ ] Cobrir operacoes: create, list, get, update status/progress, delete (collection) e update status (document).
+- [x] Criar migration Alembic para tabela `collections` com RLS tenant-scoped.
+- [x] Criar migration Alembic para tabela `documents` com FK para `collections`.
+- [x] Implementar `CollectionRepository` em `database/repositories/collections.py`.
+- [x] Implementar `DocumentRepository` em `database/repositories/documents.py`.
+- [x] Cobrir operacoes: create, list, get, update status/progress, delete (collection) e update status (document).
 
 ## Non-Goals
 
@@ -53,17 +53,17 @@ Apenas banco de dados. Nenhum endpoint ou worker nesta task.
 
 ## Implementation Checklist
 
-- [ ] Criar `alembic/versions/XXXX_add_collections_documents.py`.
-- [ ] Habilitar RLS em `collections` com policy por `app.current_tenant_id`.
-- [ ] Criar `database/repositories/collections.py` com `CollectionRecord` e `CollectionRepository`.
-- [ ] Criar `database/repositories/documents.py` com `DocumentRecord` e `DocumentRepository`.
-- [ ] Testar: create collection, list por tenant, update indexing_status, create document, list por collection.
+- [x] Criar `alembic/versions/XXXX_add_collections_documents.py`.
+- [x] Habilitar RLS em `collections` com policy por `app.current_tenant_id`.
+- [x] Criar `database/repositories/collections.py` com `CollectionRecord` e `CollectionRepository`.
+- [x] Criar `database/repositories/documents.py` com `DocumentRecord` e `DocumentRepository`.
+- [x] Testar: create collection, list por tenant, update indexing_status, create document, list por collection.
 
 ## Acceptance Criteria
 
-- [ ] `alembic upgrade head` cria `collections` e `documents` sem erros.
-- [ ] RLS impede leitura cross-tenant em `collections`.
-- [ ] `CollectionRepository` e `DocumentRepository` CRUD funcionais em testes.
+- [x] `alembic upgrade head` cria `collections` e `documents` sem erros.
+- [x] RLS impede leitura cross-tenant em `collections`.
+- [x] `CollectionRepository` e `DocumentRepository` CRUD funcionais em testes.
 
 ## Verification
 
@@ -81,3 +81,4 @@ pytest tests/test_stage_06_repositories.py
 ## Execution Log
 
 - `[2026-05-07 00:00]`: Task criada para migrations e repositorios do Stage 06.
+- `[2026-05-08 00:00]`: Implementada — migration 0011 idempotente (IF NOT EXISTS + DO $$ policy check), CollectionRepository (create/list/get/update_indexing_status/delete com explicit doc cleanup), DocumentRepository (create/list_by_collection/get/update_status), 12 testes (inclui cross-tenant RLS e cascade). 149 testes passando.

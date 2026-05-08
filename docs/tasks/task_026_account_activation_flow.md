@@ -10,7 +10,7 @@
 | **Priority** | CRITICAL |
 | **Owner** | Unassigned |
 | **Created At** | 2026-05-07 |
-| **Updated At** | 2026-05-07 |
+| **Updated At** | 2026-05-08 |
 
 ## Context
 
@@ -22,6 +22,7 @@ O registro cria usuario `pending`, mas nao existe fluxo para confirmar email e a
 - [x] Criar endpoint para solicitar/reemitir ativacao.
 - [x] Criar endpoint para confirmar ativacao.
 - [x] Atualizar status do usuario para `active` quando token valido for consumido.
+- [x] Renderizar placeholders `{{ variable }}` do template `account_activation` antes do envio.
 
 ## Non-Goals
 
@@ -63,6 +64,7 @@ Esta task fecha lifecycle de conta dentro do dominio de auth base.
 - [x] Token invalido, expirado ou ja consumido e rejeitado.
 - [x] Resposta de request nao permite enumeracao de emails.
 - [x] OpenAPI e Bruno ficam atualizados.
+- [x] Email de ativacao nao exibe placeholders crus como `{ platform_name }`, `{ user_name }` ou `{ expires_in }`.
 
 ## Verification
 
@@ -83,3 +85,4 @@ backend\.venv\Scripts\python scripts\validate_openapi.py
 - `[2026-05-07 15:40]`: Task criada para cobrir lacuna de verificacao de email do Stage 02.
 - `[2026-05-07 16:35]`: Endpoints de request/confirm implementados; registro enfileira ativacao e login/refresh bloqueiam usuarios inativos.
 - `[2026-05-07 16:35]`: Bruno atualizado com `Request Activation` e `Confirm Activation`; testes e OpenAPI passaram.
+- `[2026-05-08 20:00]`: Renderizador de email corrigido para processar placeholders `{{ variable }}` dos templates gerenciaveis, mantendo compatibilidade com `{ variable }` em templates ja salvos. Testes de auth tokens e ativacao executados com sucesso.

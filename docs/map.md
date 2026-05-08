@@ -14,6 +14,7 @@ _Fonte canônica: [`platform_technical_spec.md`](platform_technical_spec.md). A 
 - [`stages/stage_06_rag.md`](stages/stage_06_rag.md): Qdrant, embeddings, documentos, status de indexação e retrieval.
 - [`stages/stage_07_handoff.md`](stages/stage_07_handoff.md): hand-off multiagente, router classifier e resumo sanitizado.
 - [`stages/stage_08_channels.md`](stages/stage_08_channels.md): API, Widget, Webhooks, WhatsApp e Outbound Data Bridge.
+- [`stages/stage_09_frontend.md`](stages/stage_09_frontend.md): frontend SvelteKit 5 completo conectado aos 59 endpoints da API REST.
 - [`tasks/task_template.md`](tasks/task_template.md): template base para quebrar stages em tasks executáveis.
 
 ## Dependências Entre Stages

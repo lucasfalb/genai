@@ -44,7 +44,7 @@ def upgrade() -> None:
           ai_default_model      VARCHAR(120) NOT NULL DEFAULT 'gpt-4.1-mini',
           ai_api_key_encrypted  TEXT,
           custom_settings       JSONB NOT NULL DEFAULT '{}',
-          public_settings       JSONB NOT NULL DEFAULT '{}',
+          public_settings       JSONB NOT NULL DEFAULT '{"agent_ui":{"default_model":"gpt-4o-mini","models":[{"value":"gpt-4o-mini","label":"GPT-4o Mini"},{"value":"gpt-4o","label":"GPT-4o"},{"value":"gpt-4.1-mini","label":"GPT-4.1 Mini"}],"templates":[{"name":"Support Agent","description":"Answers customer questions using tenant knowledge and clear escalation rules.","core_prompt":"You are a support agent. Answer clearly, use available knowledge, and escalate when confidence is low."},{"name":"Sales Assistant","description":"Qualifies leads, explains offers, and prepares next-step summaries.","core_prompt":"You are a sales assistant. Ask concise qualifying questions and recommend the next best action."},{"name":"Knowledge Analyst","description":"Researches tenant documents and produces structured answers with citations when possible.","core_prompt":"You are a knowledge analyst. Synthesize information from approved sources and explain uncertainty."}]}}',
           updated_by            UUID REFERENCES users(id),
           created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
           updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()

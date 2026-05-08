@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.responses import api_success
 from app.schemas import (
     ApiResponse,
+    MessageResponse,
     SkillDefinitionRequest,
     SkillDefinitionResponse,
     ToolDefinitionRequest,
@@ -78,6 +79,38 @@ async def upsert_tool_definition(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Tool slug mismatch")
     repository = RegistryRepository(connection)
     return api_success(_tool_response(await repository.upsert_tool(**payload.model_dump(by_alias=True))), message="Tool saved.")
+
+
+@router.delete(
+    "/skills/{slug}",
+    response_model=ApiResponse[MessageResponse],
+    summary="Delete global skill definition",
+    description="Permanently deletes a global skill definition by slug.",
+)
+async def delete_skill_definition(
+    slug: str,
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[MessageResponse]:
+    deleted = await RegistryRepository(connection).delete_skill(slug=slug)
+    if not deleted:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Skill not found")
+    return api_success(MessageResponse(message="Skill deleted."), message="Skill deleted.")
+
+
+@router.delete(
+    "/tools/{slug}",
+    response_model=ApiResponse[MessageResponse],
+    summary="Delete global tool definition",
+    description="Permanently deletes a global tool definition by slug.",
+)
+async def delete_tool_definition(
+    slug: str,
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[MessageResponse]:
+    deleted = await RegistryRepository(connection).delete_tool(slug=slug)
+    if not deleted:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tool not found")
+    return api_success(MessageResponse(message="Tool deleted."), message="Tool deleted.")
 
 
 def _skill_response(record: SkillDefinitionRecord) -> SkillDefinitionResponse:

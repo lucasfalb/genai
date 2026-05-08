@@ -10,7 +10,7 @@
 | **Priority** | CRITICAL |
 | **Owner** | Codex |
 | **Created At** | 2026-05-07 |
-| **Updated At** | 2026-05-07 |
+| **Updated At** | 2026-05-08 |
 
 ## Context
 
@@ -21,7 +21,8 @@ RBAC existe no middleware, mas tenant admins ainda nao conseguem listar, alterar
 - [x] Criar `GET /tenant/members`.
 - [x] Criar endpoints para alterar role/status de membership.
 - [x] Criar endpoint para remover ou suspender membro.
-- [x] Garantir que superadmin nao aparece como membro visivel.
+- [x] Garantir que superadmin global nao aparece como membro visivel em endpoints tenant-scoped quando nao ha membership explicita.
+- [x] Permitir que superadmin seja adicionado explicitamente como membro via endpoints superadmin.
 
 ## Non-Goals
 
@@ -46,9 +47,10 @@ Esta task cobre administracao de memberships ja existentes, respeitando RBAC ten
 ## Constraints & Rules
 
 1. Tenant admin pode gerir membros do proprio tenant.
-2. Superadmin pode gerir qualquer tenant sem aparecer na listagem.
-3. Viewer/member nao podem alterar roles.
-4. Toda mutacao invalida cache de membership.
+2. Superadmin pode gerir qualquer tenant sem aparecer na listagem tenant-scoped por acesso global implicito.
+3. Superadmin adicionado explicitamente como membro pode aparecer e ser gerido nos endpoints superadmin.
+4. Viewer/member nao podem alterar roles.
+5. Toda mutacao invalida cache de membership.
 
 ## Implementation Checklist
 
@@ -56,11 +58,13 @@ Esta task cobre administracao de memberships ja existentes, respeitando RBAC ten
 - [x] Criar endpoints tenant-scoped de members.
 - [x] Testar RBAC por role.
 - [x] Testar exclusao visual de superadmin.
+- [x] Diferenciar listagem tenant-scoped (oculta superadmin implicito) de listagem superadmin (inclui membership explicita de superadmin).
 - [x] Atualizar Bruno e OpenAPI.
 
 ## Acceptance Criteria
 
-- [x] `GET /tenant/members` nao retorna superadmin.
+- [x] `GET /tenant/members` nao retorna superadmin por acesso global implicito.
+- [x] Endpoints `/superadmin/tenants/{tenant_id}/members` podem adicionar/listar superadmin que possua membership explicita.
 - [x] Tenant admin altera role/status validos.
 - [x] Cache Redis de membership e invalidado em mutacoes.
 - [x] Superadmin age com auditoria, sem membership visivel.
@@ -82,3 +86,4 @@ pytest tests/test_stage_05_tenant_members.py
 - `[2026-05-07 15:40]`: Task criada para cobrir administracao RBAC por tenant.
 - `[2026-05-07 19:45]`: Implementacao iniciada para listagem e mutacao de memberships tenant-scoped.
 - `[2026-05-07 20:05]`: Endpoints de members, repositorio, Bruno, invalidacao de cache, audit/version e testes implementados.
+- `[2026-05-08 19:45]`: Regra refinada: superadmin sem membership continua oculto nos endpoints tenant-scoped, mas endpoints superadmin passam a incluir e gerir superadmins adicionados explicitamente como membros de tenant.

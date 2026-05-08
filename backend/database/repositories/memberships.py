@@ -18,7 +18,9 @@ class MembershipAdminRepository:
     def __init__(self, connection: AsyncConnection) -> None:
         self.connection = connection
 
-    async def list_members(self, *, tenant_id: UUID) -> list[TenantMemberRecord]:
+    async def list_members(
+        self, *, tenant_id: UUID, include_superadmins: bool = False
+    ) -> list[TenantMemberRecord]:
         result = await self.connection.execute(
             text(
                 """
@@ -26,15 +28,17 @@ class MembershipAdminRepository:
                 FROM memberships m
                 JOIN users u ON u.id = m.user_id
                 WHERE m.tenant_id = :tenant_id
-                  AND u.is_superadmin = false
+                  AND (:include_superadmins OR u.is_superadmin = false)
                 ORDER BY u.email
                 """
             ),
-            {"tenant_id": tenant_id},
+            {"tenant_id": tenant_id, "include_superadmins": include_superadmins},
         )
         return [_member_from_row(row) for row in result.fetchall()]
 
-    async def get_member(self, *, tenant_id: UUID, user_id: UUID) -> TenantMemberRecord | None:
+    async def get_member(
+        self, *, tenant_id: UUID, user_id: UUID, include_superadmins: bool = False
+    ) -> TenantMemberRecord | None:
         result = await self.connection.execute(
             text(
                 """
@@ -43,10 +47,14 @@ class MembershipAdminRepository:
                 JOIN users u ON u.id = m.user_id
                 WHERE m.tenant_id = :tenant_id
                   AND m.user_id = :user_id
-                  AND u.is_superadmin = false
+                  AND (:include_superadmins OR u.is_superadmin = false)
                 """
             ),
-            {"tenant_id": tenant_id, "user_id": user_id},
+            {
+                "tenant_id": tenant_id,
+                "user_id": user_id,
+                "include_superadmins": include_superadmins,
+            },
         )
         row = result.one_or_none()
         return None if row is None else _member_from_row(row)
@@ -58,6 +66,7 @@ class MembershipAdminRepository:
         user_id: UUID,
         role: str | None = None,
         status: str | None = None,
+        include_superadmins: bool = False,
     ) -> TenantMemberRecord | None:
         result = await self.connection.execute(
             text(
@@ -70,17 +79,27 @@ class MembershipAdminRepository:
                 WHERE u.id = m.user_id
                   AND m.tenant_id = :tenant_id
                   AND m.user_id = :user_id
-                  AND u.is_superadmin = false
+                  AND (:include_superadmins OR u.is_superadmin = false)
                 RETURNING u.id AS user_id, u.email, u.name, m.role, m.status
                 """
             ),
-            {"tenant_id": tenant_id, "user_id": user_id, "role": role, "status": status},
+            {
+                "tenant_id": tenant_id,
+                "user_id": user_id,
+                "role": role,
+                "status": status,
+                "include_superadmins": include_superadmins,
+            },
         )
         row = result.one_or_none()
         return None if row is None else _member_from_row(row)
 
-    async def delete_member(self, *, tenant_id: UUID, user_id: UUID) -> TenantMemberRecord | None:
-        existing = await self.get_member(tenant_id=tenant_id, user_id=user_id)
+    async def delete_member(
+        self, *, tenant_id: UUID, user_id: UUID, include_superadmins: bool = False
+    ) -> TenantMemberRecord | None:
+        existing = await self.get_member(
+            tenant_id=tenant_id, user_id=user_id, include_superadmins=include_superadmins
+        )
         if existing is None:
             return None
         await self.connection.execute(
@@ -102,6 +121,7 @@ class MembershipAdminRepository:
         user_id: UUID,
         role: str,
         invited_by: UUID | None,
+        include_superadmins: bool = False,
     ) -> TenantMemberRecord | None:
         result = await self.connection.execute(
             text(
@@ -120,7 +140,9 @@ class MembershipAdminRepository:
         )
         if result.one_or_none() is None:
             return None
-        return await self.get_member(tenant_id=tenant_id, user_id=user_id)
+        return await self.get_member(
+            tenant_id=tenant_id, user_id=user_id, include_superadmins=include_superadmins
+        )
 
 
 def _member_from_row(row) -> TenantMemberRecord:

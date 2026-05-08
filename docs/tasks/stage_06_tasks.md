@@ -2,8 +2,8 @@
 
 | ID | Task | Status | Priority | Depends On |
 | :--- | :--- | :--- | :--- | :--- |
-| TASK-041 | [Migracoes e Repositorios Collections e Documents](task_041_collections_documents_migrations_repos.md) | PENDING | CRITICAL | TASK-003 |
-| TASK-042 | [Collections CRUD API Tenant-Scoped](task_042_collections_crud_api.md) | PENDING | CRITICAL | TASK-041, TASK-030 |
+| TASK-041 | [Migracoes e Repositorios Collections e Documents](task_041_collections_documents_migrations_repos.md) | COMPLETED | CRITICAL | TASK-003 |
+| TASK-042 | [Collections CRUD API Tenant-Scoped](task_042_collections_crud_api.md) | COMPLETED | CRITICAL | TASK-041, TASK-030 |
 | TASK-043 | [Documents Upload e Status API](task_043_documents_upload_status_api.md) | PENDING | HIGH | TASK-042 |
 | TASK-044 | [Indexing Pipeline Worker](task_044_indexing_pipeline_worker.md) | PENDING | CRITICAL | TASK-043 |
 | TASK-045 | [TenantRetriever com RBAC e rag_scope](task_045_tenant_retriever_rbac_rag_scope.md) | PENDING | CRITICAL | TASK-041, TASK-015 |

@@ -1,0 +1,23 @@
+meta {
+  name: Get Collection
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/api/v1/tenant/collections/{{collection_id}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  X-Tenant-ID: {{tenant_id}}
+}
+
+settings {
+  encodeUrl: false
+}

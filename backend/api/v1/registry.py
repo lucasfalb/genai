@@ -8,8 +8,11 @@ from app.responses import api_success
 from app.schemas import (
     ActivationRequest,
     ApiResponse,
+    CatalogSkillResponse,
+    CatalogToolResponse,
     CredentialRequest,
     CredentialResponse,
+    RegistryCatalogResponse,
     SkillActivationResponse,
     ToolActivationResponse,
     ToolMetadataResponse,
@@ -27,6 +30,40 @@ from engine.prompt_cache import PromptCache
 
 router = APIRouter(prefix="/registry", tags=["tenant-registry"])
 SENSITIVE_METADATA_KEYS = {"token", "api_key", "apikey", "password", "secret", "authorization", "auth_header"}
+
+
+@router.get(
+    "/catalog",
+    response_model=ApiResponse[RegistryCatalogResponse],
+    summary="Get registry catalog",
+    description="Returns the catalog of all globally active skills and tools available for activation on agent instances. Excludes platform-internal fields like prompt blocks, schemas and executors.",
+)
+async def get_registry_catalog(
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_SKILLS_TOOLS)),
+) -> ApiResponse[RegistryCatalogResponse]:
+    async with tenant_connection(context) as connection:
+        repository = RegistryRepository(connection)
+        skills = [
+            CatalogSkillResponse(
+                slug=s.slug,
+                name=s.name,
+                description=s.description,
+                category=s.category,
+                requires_credential=s.requires_credential,
+            )
+            for s in await repository.list_skills()
+            if s.is_active
+        ]
+        tools = [
+            CatalogToolResponse(
+                slug=t.slug,
+                name=t.name,
+                description=t.description,
+                category=t.category,
+            )
+            for t in await repository.list_tools()
+        ]
+        return api_success(RegistryCatalogResponse(skills=skills, tools=tools))
 
 
 @router.get(

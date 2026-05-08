@@ -4,7 +4,7 @@
 | :--- | :--- |
 | **ID** | TASK-042 |
 | **Group** | RAG |
-| **Status** | PENDING |
+| **Status** | COMPLETED |
 | **Stage Ref** | `docs/stages/stage_06_rag.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | CRITICAL |
@@ -18,14 +18,14 @@ Tenant admins precisam criar, listar, atualizar e remover colecoes de documentos
 
 ## Objectives
 
-- [ ] Criar `APIRouter` em `api/v1/tenant_collections.py` com prefix `/tenant/collections`.
-- [ ] `GET /tenant/collections` — listar collections do tenant.
-- [ ] `POST /tenant/collections` — criar collection (status inicial `empty`).
-- [ ] `GET /tenant/collections/{collection_id}` — detalhe.
-- [ ] `PATCH /tenant/collections/{collection_id}` — atualizar nome/descricao.
-- [ ] `DELETE /tenant/collections/{collection_id}` — remover se sem documents indexados.
-- [ ] Registrar audit/version via `record_tenant_mutation`.
-- [ ] Adicionar requests Bruno em `genai-endpoints/TenantCollections/`.
+- [x] Criar `APIRouter` em `api/v1/tenant_collections.py` com prefix `/tenant/collections`.
+- [x] `GET /tenant/collections` — listar collections do tenant.
+- [x] `POST /tenant/collections` — criar collection (status inicial `empty`).
+- [x] `GET /tenant/collections/{collection_id}` — detalhe.
+- [x] `PATCH /tenant/collections/{collection_id}` — atualizar nome/descricao.
+- [x] `DELETE /tenant/collections/{collection_id}` — remover se sem documents indexados.
+- [x] Registrar audit/version via `record_tenant_mutation`.
+- [x] Adicionar requests Bruno em `genai-endpoints/TenantCollections/`.
 
 ## Non-Goals
 
@@ -56,18 +56,18 @@ Apenas CRUD de collections. Nao toca pipeline de indexacao.
 
 ## Implementation Checklist
 
-- [ ] Criar schemas `CollectionCreateRequest`, `CollectionUpdateRequest`, `CollectionResponse` em `app/schemas.py`.
-- [ ] Criar `api/v1/tenant_collections.py` com 5 endpoints.
-- [ ] Registrar router em `app/main.py`.
-- [ ] Adicionar 5 arquivos `.bru` em `genai-endpoints/TenantCollections/`.
-- [ ] Testar: create, list, get, update, delete bloqueado com documents indexados.
+- [x] Criar schemas `CollectionCreateRequest`, `CollectionUpdateRequest`, `CollectionResponse` em `app/schemas.py`.
+- [x] Criar `api/v1/tenant_collections.py` com 5 endpoints.
+- [x] Registrar router em `app/main.py`.
+- [x] Adicionar 5 arquivos `.bru` em `genai-endpoints/TenantCollections/`.
+- [x] Testar: create, list, get, update, delete bloqueado com documents indexados.
 
 ## Acceptance Criteria
 
-- [ ] CRUD completo de collections retorna `ApiResponse[CollectionResponse]`.
-- [ ] Delete com documents indexados retorna 409.
-- [ ] Audit log gerado em create, update e delete.
-- [ ] Viewer recebe 403 em mutacoes.
+- [x] CRUD completo de collections retorna `ApiResponse[CollectionResponse]`.
+- [x] Delete com documents indexados retorna 409.
+- [x] Audit log gerado em create, update e delete.
+- [x] Viewer recebe 403 em mutacoes.
 
 ## Verification
 
@@ -83,3 +83,4 @@ pytest tests/test_stage_06_collections.py
 ## Execution Log
 
 - `[2026-05-07 00:00]`: Task criada para CRUD de collections tenant-scoped.
+- `[2026-05-08 00:00]`: Implementada — 3 schemas (CollectionCreate/Update/Response), CollectionRepository.update_metadata(), router 5 endpoints com RLS + audit (create/update/delete), delete 409 bloqueado por indexed_count, 5 Bruno files, 10 testes (inclui viewer 403, cross-tenant 404, audit log 3 entries). 159 testes passando.

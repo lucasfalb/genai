@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from datetime import UTC, datetime, timedelta
 
 from app.config import settings
+from app.email_sender import dispatch_email
 from app.responses import api_success
 from app.schemas import (
     AccountActivationConfirmRequest,
@@ -234,15 +235,25 @@ async def _enqueue_activation_email(*, connection: AsyncConnection, user) -> Non
     template = await EmailTemplateRepository(connection).get_by_slug("account_activation")
     if template is None:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Account activation template not configured")
-    await EmailEventRepository(connection).create(
+    payload = {
+        "platform_name": "GenAI",
+        "user_name": user.name or user.email,
+        "activation_url": f"{settings.app_public_url.rstrip('/')}/activation/confirm?token={token}",
+        "expires_in": f"{settings.action_token_expire_minutes} minutes",
+    }
+    event = await EmailEventRepository(connection).create(
         template_id=template.id,
         recipient_email=user.email,
-        payload={
-            "platform_name": "GenAI",
-            "user_name": user.name or user.email,
-            "activation_url": f"{settings.app_public_url.rstrip('/')}/activate?token={token}",
-            "expires_in": f"{settings.action_token_expire_minutes} minutes",
-        },
+        payload=payload,
+    )
+    await dispatch_email(
+        event_id=event.id,
+        recipient_email=user.email,
+        subject_template=template.subject_template,
+        body_template=template.body_template,
+        body_format=template.body_format,
+        payload=payload,
+        connection=connection,
     )
 
 
@@ -340,14 +351,24 @@ async def _enqueue_password_reset_email(*, connection: AsyncConnection, user) ->
     template = await EmailTemplateRepository(connection).get_by_slug("password_reset")
     if template is None:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Password reset template not configured")
-    await EmailEventRepository(connection).create(
+    payload = {
+        "user_name": user.name or user.email,
+        "reset_url": f"{settings.app_public_url.rstrip('/')}/reset-password?token={token}",
+        "expires_in": f"{settings.action_token_expire_minutes} minutes",
+    }
+    event = await EmailEventRepository(connection).create(
         template_id=template.id,
         recipient_email=user.email,
-        payload={
-            "user_name": user.name or user.email,
-            "reset_url": f"{settings.app_public_url.rstrip('/')}/reset-password?token={token}",
-            "expires_in": f"{settings.action_token_expire_minutes} minutes",
-        },
+        payload=payload,
+    )
+    await dispatch_email(
+        event_id=event.id,
+        recipient_email=user.email,
+        subject_template=template.subject_template,
+        body_template=template.body_template,
+        body_format=template.body_format,
+        payload=payload,
+        connection=connection,
     )
 
 
@@ -355,13 +376,23 @@ async def _enqueue_password_changed_email(*, connection: AsyncConnection, user) 
     template = await EmailTemplateRepository(connection).get_by_slug("password_changed")
     if template is None:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Password changed template not configured")
-    await EmailEventRepository(connection).create(
+    payload = {
+        "user_name": user.name or user.email,
+        "changed_at": datetime.now(UTC).isoformat(),
+    }
+    event = await EmailEventRepository(connection).create(
         template_id=template.id,
         recipient_email=user.email,
-        payload={
-            "user_name": user.name or user.email,
-            "changed_at": datetime.now(UTC).isoformat(),
-        },
+        payload=payload,
+    )
+    await dispatch_email(
+        event_id=event.id,
+        recipient_email=user.email,
+        subject_template=template.subject_template,
+        body_template=template.body_template,
+        body_format=template.body_format,
+        payload=payload,
+        connection=connection,
     )
 
 

@@ -1,5 +1,6 @@
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import text
@@ -17,6 +18,19 @@ class AuditLogRecord:
     action: str
     resource: str
     actor_type: str
+
+
+@dataclass(frozen=True)
+class AuditLogFullRecord:
+    id: UUID
+    tenant_id: UUID | None
+    user_id: UUID | None
+    action: str
+    resource: str
+    resource_id: str | None
+    actor_type: str
+    actor_role: str | None
+    created_at: datetime
 
 
 class AuditLogRepository:
@@ -66,6 +80,34 @@ class AuditLogRepository:
             resource=row.resource,
             actor_type=row.actor_type,
         )
+
+    async def list_by_tenant(self, *, tenant_id: UUID, limit: int = 100) -> list[AuditLogFullRecord]:
+        result = await self.connection.execute(
+            text("""
+                SELECT id, tenant_id, user_id, action, resource, resource_id,
+                       actor_type, actor_role, created_at
+                FROM audit_logs
+                WHERE tenant_id = :tenant_id
+                ORDER BY created_at DESC
+                LIMIT :limit
+            """),
+            {"tenant_id": tenant_id, "limit": limit},
+        )
+        return [_audit_full_from_row(row) for row in result.fetchall()]
+
+
+def _audit_full_from_row(row) -> AuditLogFullRecord:
+    return AuditLogFullRecord(
+        id=row.id,
+        tenant_id=row.tenant_id,
+        user_id=row.user_id,
+        action=row.action,
+        resource=row.resource,
+        resource_id=row.resource_id,
+        actor_type=row.actor_type,
+        actor_role=row.actor_role,
+        created_at=row.created_at,
+    )
 
 
 def _redact(value: object) -> object:

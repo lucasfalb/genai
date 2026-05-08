@@ -146,9 +146,33 @@ class SuperadminUserResponse(BaseModel):
     is_superadmin: bool
 
 
+class SuperadminAgentInstanceResponse(BaseModel):
+    id: UUID
+    name: str
+    description: str | None
+    model: str
+    status: str
+
+
+class SuperadminAuditLogResponse(BaseModel):
+    id: UUID
+    user_id: UUID | None
+    action: str
+    resource: str
+    resource_id: str | None
+    actor_type: str
+    actor_role: str | None
+    created_at: datetime
+
+
 class TenantMemberUpdateRequest(BaseModel):
     role: str | None = Field(default=None, pattern=r"^(tenant_admin|member|viewer)$")
     status: str | None = Field(default=None, pattern=r"^(active|pending|suspended)$")
+
+
+class SuperadminMemberAddRequest(BaseModel):
+    email: str = Field(min_length=1, max_length=254)
+    role: str = Field(default="member", pattern=r"^(tenant_admin|member|viewer)$")
 
 
 class TenantMemberResponse(BaseModel):
@@ -336,6 +360,42 @@ class ToolMetadataResponse(BaseModel):
     tools: list[RegistryToolMetadata]
 
 
+class DocumentResponse(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    collection_id: UUID
+    filename: str
+    source_type: str
+    status: str
+    chunk_count: int
+    error_message: str | None
+    storage_path: str | None = None
+    content_type: str | None = None
+    size_bytes: int | None = None
+    created_at: datetime
+    indexed_at: datetime | None
+
+
+class CatalogSkillResponse(BaseModel):
+    slug: str
+    name: str
+    description: str | None
+    category: str | None
+    requires_credential: bool
+
+
+class CatalogToolResponse(BaseModel):
+    slug: str
+    name: str
+    description: str | None
+    category: str | None
+
+
+class RegistryCatalogResponse(BaseModel):
+    skills: list[CatalogSkillResponse]
+    tools: list[CatalogToolResponse]
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=16000)
     session_id: UUID | None = None
@@ -502,6 +562,30 @@ class AgentInstanceResponse(BaseModel):
     status: str
     rag_scope: list
     created_by: UUID
+
+
+class CollectionCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    description: str | None = None
+
+
+class CollectionUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    description: str | None = None
+
+
+class CollectionResponse(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    name: str
+    description: str | None
+    indexing_status: str
+    indexing_progress: float
+    document_count: int
+    indexed_count: int
+    failed_count: int
+    last_indexed_at: datetime | None
+    created_at: datetime
 
 
 _PROMPT_CONFIG_SECRET_MARKERS = (

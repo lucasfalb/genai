@@ -271,6 +271,20 @@ class RegistryRepository:
         row = result.one_or_none()
         return None if row is None else _credential(row)
 
+    async def delete_skill(self, *, slug: str) -> bool:
+        result = await self.connection.execute(
+            text("DELETE FROM skill_definitions WHERE slug = :slug RETURNING id"),
+            {"slug": slug},
+        )
+        return result.one_or_none() is not None
+
+    async def delete_tool(self, *, slug: str) -> bool:
+        result = await self.connection.execute(
+            text("DELETE FROM tool_definitions WHERE slug = :slug RETURNING id"),
+            {"slug": slug},
+        )
+        return result.one_or_none() is not None
+
     async def list_credentials(self, *, tenant_id: UUID) -> list[CredentialRecord]:
         result = await self.connection.execute(
             text(

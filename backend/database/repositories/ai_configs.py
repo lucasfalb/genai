@@ -18,6 +18,34 @@ SENSITIVE_CUSTOM_KEY_PARTS = {
     "token",
 }
 
+DEFAULT_PUBLIC_SETTINGS = {
+    "agent_ui": {
+        "default_model": "gpt-4o-mini",
+        "models": [
+            {"value": "gpt-4o-mini", "label": "GPT-4o Mini"},
+            {"value": "gpt-4o", "label": "GPT-4o"},
+            {"value": "gpt-4.1-mini", "label": "GPT-4.1 Mini"},
+        ],
+        "templates": [
+            {
+                "name": "Support Agent",
+                "description": "Answers customer questions using tenant knowledge and clear escalation rules.",
+                "core_prompt": "You are a support agent. Answer clearly, use available knowledge, and escalate when confidence is low.",
+            },
+            {
+                "name": "Sales Assistant",
+                "description": "Qualifies leads, explains offers, and prepares next-step summaries.",
+                "core_prompt": "You are a sales assistant. Ask concise qualifying questions and recommend the next best action.",
+            },
+            {
+                "name": "Knowledge Analyst",
+                "description": "Researches tenant documents and produces structured answers with citations when possible.",
+                "core_prompt": "You are a knowledge analyst. Synthesize information from approved sources and explain uncertainty.",
+            },
+        ],
+    }
+}
+
 
 @dataclass(frozen=True)
 class SystemSettingsRecord:
@@ -251,6 +279,10 @@ def validate_custom_settings(value: dict | None) -> None:
 
 
 def _settings_from_row(row) -> SystemSettingsRecord:
+    public_settings = (
+        row.public_settings if isinstance(row.public_settings, dict) else json.loads(row.public_settings)
+    )
+    public_settings = {**DEFAULT_PUBLIC_SETTINGS, **public_settings}
     return SystemSettingsRecord(
         id=row.id,
         platform_name=row.platform_name,
@@ -268,7 +300,7 @@ def _settings_from_row(row) -> SystemSettingsRecord:
         has_smtp_pass=row.has_smtp_pass,
         has_ai_api_key=row.has_ai_api_key,
         custom_settings=row.custom_settings if isinstance(row.custom_settings, dict) else json.loads(row.custom_settings),
-        public_settings=row.public_settings if isinstance(row.public_settings, dict) else json.loads(row.public_settings),
+        public_settings=public_settings,
         updated_by=row.updated_by,
     )
 

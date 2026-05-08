@@ -1,0 +1,31 @@
+meta {
+  name: Create Collection
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/api/v1/tenant/collections
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Content-Type: application/json
+  X-Tenant-ID: {{tenant_id}}
+}
+
+body:json {
+  {
+    "name": "Legal Archive",
+    "description": "Collection of legal contracts and agreements."
+  }
+}
+
+settings {
+  encodeUrl: false
+}

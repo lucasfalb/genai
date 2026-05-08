@@ -5,6 +5,8 @@ from datetime import UTC, timedelta, datetime
 import psycopg
 import pytest
 
+from app.email_sender import _render_email_template
+
 from app.config import settings
 
 
@@ -229,3 +231,30 @@ class TestEmailEvents:
             stored_str = str(stored)
             assert "password" not in stored_str.lower()
             assert "secret" not in stored_str.lower()
+
+    def test_email_template_renderer_supports_managed_placeholders(self):
+        payload = {
+            "platform_name": "ContentFlow",
+            "user_name": "Lucas",
+            "activation_url": "https://app.test/activation/confirm?token=abc",
+            "expires_in": "30 minutes",
+        }
+
+        subject = _render_email_template("Ative sua conta na {{ platform_name }}", payload)
+        body = _render_email_template(
+            "<p>Ola {{ user_name }},</p>"
+            '<p><a href="{{ activation_url }}">Ativar conta</a></p>'
+            "<p>Este link expira em {{ expires_in }}.</p>",
+            payload,
+        )
+
+        assert subject == "Ative sua conta na ContentFlow"
+        assert "Ola Lucas" in body
+        assert 'href="https://app.test/activation/confirm?token=abc"' in body
+        assert "30 minutes" in body
+
+    def test_email_template_renderer_keeps_single_brace_compatibility(self):
+        assert (
+            _render_email_template("Ative sua conta na { platform_name }", {"platform_name": "GENAI"})
+            == "Ative sua conta na GENAI"
+        )

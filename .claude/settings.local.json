@@ -1,7 +1,24 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python -m pytest tests/test_stage_05_agent_instances.py -v)"
+      "Bash(python -m pytest tests/test_stage_05_agent_instances.py -v)",
+      "Skill(shadcn)",
+      "Skill(shadcn:*)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(npx svelte-kit *)",
+      "Bash(timeout 30 npx svelte-check --tsconfig ./tsconfig.json)",
+      "Bash(timeout 30 ./node_modules/.bin/svelte-check --tsconfig ./tsconfig.json)",
+      "Bash(npm install *)",
+      "Bash(python3 /c/Users/lucas/Documents/genai/frontend/write_layout.py)",
+      "Bash(python /c/Users/lucas/Documents/genai/frontend/write_layout.py)",
+      "Bash(python -c ' *)",
+      "Bash(mkdir -p \"c:/Users/lucas/Documents/genai/frontend/src/routes/\\(app\\)/app/[tenant]/settings/ai\")",
+      "Bash(cd /mnt/c/Users/lucas/Documents/genai/frontend && npx shadcn@latest info 2>&1 | head -100)",
+      "Read(//mnt/c/Users/lucas/Documents/genai/**)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\lucas\\Documents\\genai\\frontend\\src\\routes\\(app)\\app\\[tenant]\\settings"
     ]
   }
 }

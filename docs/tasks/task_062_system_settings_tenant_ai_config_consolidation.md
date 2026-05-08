@@ -25,6 +25,7 @@ O modelo precisa ser extensivel: configuracoes criticas devem ter colunas tipada
 - [x] Remover as tabelas `llm_providers`, `platform_ai_configs` e `tenant_ai_configs`.
 - [x] Adicionar colunas de AI provider diretamente em `tenants`.
 - [x] Criar tabela singleton `system_settings` para configuracoes globais da plataforma, com colunas tipadas e keys customizadas em JSONB.
+- [x] Definir `public_settings.agent_ui` como key customizada publica para defaults de modelos, templates e painel de teste de agentes.
 - [x] Migrar dados existentes de `tenant_ai_configs` para `tenants`.
 - [x] Migrar o provider ativo de `platform_ai_configs` para `system_settings`.
 - [x] Atualizar `AIProviderResolver` para resolver tenant override em `tenants` e fallback global em `system_settings`.
@@ -59,6 +60,7 @@ Esta task refatora a camada de configuracao operacional do Stage 05 Prompt Runti
   - `system_settings.platform_name`, `system_settings.platform_public_url`, `system_settings.platform_logo_url`, `system_settings.maintenance_mode`, `system_settings.registration_enabled`, `system_settings.smtp_host`, `system_settings.smtp_port`, `system_settings.smtp_secure`, `system_settings.smtp_user`, `system_settings.smtp_pass_encrypted`, `system_settings.smtp_from`, `system_settings.ai_provider`, `system_settings.ai_default_model`, `system_settings.ai_api_key_encrypted`, `system_settings.custom_settings`, `system_settings.public_settings`, `system_settings.updated_by`.
   - `custom_settings`: JSONB para keys operacionais avulsas, nao expostas publicamente por padrao.
   - `public_settings`: JSONB allowlist/materializacao das keys que podem ser consumidas pelo frontend publico.
+  - `public_settings.agent_ui`: defaults publicos para experiencia de agentes (`default_model`, `models`, `templates`, `test_panel_enabled`).
 
 ## Constraints & Rules
 
@@ -77,6 +79,7 @@ Esta task refatora a camada de configuracao operacional do Stage 05 Prompt Runti
 13. Keys em `custom_settings` nao podem usar nomes reservados (`smtp_pass`, `ai_api_key`, `password`, `secret`, `token`, `authorization`, `api_key`) nem variantes case-insensitive.
 14. `public_settings` deve ser uma allowlist explicita para frontend; nenhum valor de `custom_settings` deve ser publico automaticamente.
 15. Endpoint publico de settings deve retornar somente dados nao sensiveis, por exemplo `platform_name`, `platform_public_url`, `platform_logo_url`, `registration_enabled`, `maintenance_mode` e `public_settings`.
+16. `public_settings.agent_ui` nao pode conter segredos e deve ser gerenciavel pelo superadmin para customizar criacao e detalhe de agentes sem nova migration.
 
 ## Implementation Checklist
 
@@ -102,6 +105,7 @@ Esta task refatora a camada de configuracao operacional do Stage 05 Prompt Runti
 - [x] `system_settings` guarda plataforma, SMTP, flags operacionais, provider global e settings customizados.
 - [x] Superadmin consegue criar, atualizar e remover keys customizadas sem migration.
 - [x] Frontend consegue consumir apenas settings explicitamente publicos.
+- [x] Frontend consegue carregar `public_settings.agent_ui` para defaults configuraveis de Agents.
 - [x] Keys customizadas sensiveis ou reservadas sao rejeitadas.
 - [x] Resolver usa tenant override antes do fallback global.
 - [x] Responses nunca retornam `ai_api_key`, `ai_api_key_encrypted`, `smtp_pass` ou `smtp_pass_encrypted`.
@@ -135,3 +139,4 @@ python scripts\validate_tasks.py
 - `[2026-05-07 21:50]`: Confirmado versionamento: mudancas tenant AI usam `record_tenant_mutation` com audit e `resource_versions`; mudancas globais de `system_settings` usam audit global com snapshots redigidos.
 - `[2026-05-07 22:00]`: Validado `alembic upgrade head`, `validate_openapi.py`, `validate_tasks.py`, `pytest -q` com 129 testes passando e introspeccao do banco confirmando apenas `system_settings` entre as tabelas de configuracao.
 - `[2026-05-07 22:10]`: `ai_base_url` removido do contrato inicial de AI provider; `platform_logo_url` adicionado a `system_settings` e ao endpoint publico para branding do frontend.
+- `[2026-05-08 21:40]`: `public_settings.agent_ui` criado como contrato publico configuravel para modelos, templates de criacao e painel de teste da UI de agentes.

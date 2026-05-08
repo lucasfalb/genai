@@ -1,4 +1,9 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -21,9 +26,11 @@ class Settings(BaseSettings):
     smtp_from: str | None = None
     openai_api_key: str | None = None  # dev fallback only; production uses system_settings
     ai_config_encryption_key: str = ""  # Fernet key (base64 32-byte) — required in production
+    storage_dir: str = str(REPO_ROOT / "data" / "uploads")
+    upload_max_bytes: int = 50 * 1024 * 1024  # 50 MB
 
     model_config = SettingsConfigDict(
-        env_file="../.env",
+        env_file=str(REPO_ROOT / ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
