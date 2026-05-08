@@ -59,6 +59,13 @@
 		<div class="rounded-xl px-4 py-3 text-sm text-red-400" style="background:color-mix(in srgb,red 8%,transparent);border:1px solid color-mix(in srgb,red 18%,transparent)">{validationError}</div>
 	{/if}
 
+	<div class="flex justify-end">
+		<Button onclick={saveConfig} disabled={saving}>
+			{#if saving}<Spinner data-icon="inline-start" />{:else}<Save data-icon="inline-start" />{/if}
+			{saving ? 'Saving...' : 'Save changes'}
+		</Button>
+	</div>
+
 	<DetailsCard
 		bind:name
 		bind:description
@@ -72,11 +79,4 @@
 	<CorePromptCard bind:core_prompt />
 
 	<KnowledgeCard collectionsBaseHref="{appBase}/collections" />
-
-	<div class="flex justify-end">
-		<Button onclick={saveConfig} disabled={saving}>
-			{#if saving}<Spinner data-icon="inline-start" />{:else}<Save data-icon="inline-start" />{/if}
-			{saving ? 'Saving...' : 'Save changes'}
-		</Button>
-	</div>
 </div>

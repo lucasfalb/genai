@@ -51,13 +51,13 @@
 </script>
 
 <div class="mx-auto max-w-2xl space-y-6 px-6 py-5">
-	<InstructionBlocks bind:blocks />
-	<Guardrails bind:guardrails />
-
 	<div class="flex justify-end">
 		<Button onclick={save} disabled={saving}>
 			{#if saving}<Spinner data-icon="inline-start" />{/if}
 			{saving ? 'Saving...' : 'Save instructions'}
 		</Button>
 	</div>
+
+	<InstructionBlocks bind:blocks />
+	<Guardrails bind:guardrails />
 </div>
