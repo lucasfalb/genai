@@ -56,30 +56,30 @@ function clearAuthAndRedirect() {
 // ─── Proactive refresh ────────────────────────────────────────────────────────
 
 let refreshInterval: ReturnType<typeof setInterval> | null = null;
-let onVisible: (() => void) | null = null;
+let refreshing = false;
 
 async function tryRefresh() {
+	if (refreshing) return;
 	if (!authStore.isAuthenticated) { stopProactiveRefresh(); return; }
-	const ok = await refreshAccessToken();
-	if (!ok) clearAuthAndRedirect();
+	refreshing = true;
+	try {
+		const ok = await refreshAccessToken();
+		if (!ok) clearAuthAndRedirect();
+	} finally {
+		refreshing = false;
+	}
 }
 
-export function startProactiveRefresh(intervalMs = 10 * 60 * 1000) {
+export function startProactiveRefresh(intervalMs = 15 * 60 * 1000) {
 	stopProactiveRefresh();
 	if (typeof window === 'undefined') return;
 	refreshInterval = setInterval(() => tryRefresh(), intervalMs);
-	onVisible = () => { if (!document.hidden) tryRefresh(); };
-	document.addEventListener('visibilitychange', onVisible);
 }
 
 export function stopProactiveRefresh() {
 	if (refreshInterval !== null) {
 		clearInterval(refreshInterval);
 		refreshInterval = null;
-	}
-	if (onVisible !== null) {
-		document.removeEventListener('visibilitychange', onVisible);
-		onVisible = null;
 	}
 }
 
