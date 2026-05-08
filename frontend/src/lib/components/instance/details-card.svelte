@@ -1,0 +1,67 @@
+<script lang="ts">
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
+	import { Badge } from '$lib/components/ui/badge/index.js';
+
+	let {
+		name = $bindable(),
+		description = $bindable(),
+		model = $bindable(),
+		temperature = $bindable(),
+		rag_scope = $bindable(),
+		status,
+		models
+	}: {
+		name: string;
+		description: string;
+		model: string;
+		temperature: number;
+		rag_scope: string;
+		status: string;
+		models: string[];
+	} = $props();
+
+	const RAG_SCOPES = ['none', 'tenant', 'instance'];
+</script>
+
+<div class="rounded-xl p-6 space-y-5" style="background:var(--surface);border:1px solid var(--ds-border)">
+	<div class="flex items-center justify-between">
+		<div>
+			<h2 class="font-display text-sm font-semibold" style="color:var(--text-main)">Details</h2>
+			<p class="mt-1 text-xs text-muted-foreground">Agent identity, description and runtime model.</p>
+		</div>
+		<Badge variant="outline" class="uppercase text-[10px]">{status}</Badge>
+	</div>
+
+	<div class="space-y-1.5">
+		<label class="block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Name *</label>
+		<Input bind:value={name} placeholder="Agent name" />
+	</div>
+
+	<div class="space-y-1.5">
+		<label class="block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Description</label>
+		<Input bind:value={description} placeholder="Short description" />
+	</div>
+
+	<div class="grid grid-cols-2 gap-4">
+		<div class="space-y-1.5">
+			<label class="block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Model</label>
+			<NativeSelect bind:value={model} class="w-full">
+				{#each models as m (m)}<option value={m}>{m}</option>{/each}
+			</NativeSelect>
+		</div>
+		<div class="space-y-1.5">
+			<label class="block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+				Temperature — <span class="font-mono text-blue-400">{temperature.toFixed(1)}</span>
+			</label>
+			<input type="range" bind:value={temperature} min="0" max="2" step="0.1" class="mt-3 w-full accent-blue-500" />
+		</div>
+	</div>
+
+	<div class="space-y-1.5">
+		<label class="block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">RAG scope</label>
+		<NativeSelect bind:value={rag_scope} class="w-full">
+			{#each RAG_SCOPES as s (s)}<option value={s}>{s}</option>{/each}
+		</NativeSelect>
+	</div>
+</div>
