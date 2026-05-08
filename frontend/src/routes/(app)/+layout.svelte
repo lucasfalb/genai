@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import ModeToggle from '$lib/components/mode-toggle.svelte';
 	import TenantSelector from '$lib/components/tenant-selector.svelte';
@@ -34,12 +35,15 @@
 	$effect(() => {
 		authStore.user = data.user;
 		authStore.memberships = data.memberships;
+		if (data.activeTenant) {
+			tenantStore.setActiveTenant(data.activeTenant);
+		}
+	});
+
+	onMount(() => {
 		if (data.refreshToken) {
 			authStore.setTokens(data.accessToken, data.refreshToken);
 			startProactiveRefresh();
-		}
-		if (data.activeTenant) {
-			tenantStore.setActiveTenant(data.activeTenant);
 		}
 		return () => stopProactiveRefresh();
 	});
