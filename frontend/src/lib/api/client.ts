@@ -67,7 +67,6 @@ async function tryRefresh() {
 export function startProactiveRefresh(intervalMs = 10 * 60 * 1000) {
 	stopProactiveRefresh();
 	if (typeof window === 'undefined') return;
-	tryRefresh();
 	refreshInterval = setInterval(() => tryRefresh(), intervalMs);
 	onVisible = () => { if (!document.hidden) tryRefresh(); };
 	document.addEventListener('visibilitychange', onVisible);
