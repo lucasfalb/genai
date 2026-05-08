@@ -47,8 +47,40 @@ async function refreshAccessToken(): Promise<boolean> {
 function clearAuthAndRedirect() {
 	authStore.clearAuth();
 	tenantStore.clearTenant();
+	stopProactiveRefresh();
 	if (typeof window !== 'undefined') {
 		window.location.href = '/login';
+	}
+}
+
+// ─── Proactive refresh ────────────────────────────────────────────────────────
+
+let refreshInterval: ReturnType<typeof setInterval> | null = null;
+let onVisible: (() => void) | null = null;
+
+async function tryRefresh() {
+	if (!authStore.isAuthenticated) { stopProactiveRefresh(); return; }
+	const ok = await refreshAccessToken();
+	if (!ok) clearAuthAndRedirect();
+}
+
+export function startProactiveRefresh(intervalMs = 10 * 60 * 1000) {
+	stopProactiveRefresh();
+	if (typeof window === 'undefined') return;
+	tryRefresh();
+	refreshInterval = setInterval(() => tryRefresh(), intervalMs);
+	onVisible = () => { if (!document.hidden) tryRefresh(); };
+	document.addEventListener('visibilitychange', onVisible);
+}
+
+export function stopProactiveRefresh() {
+	if (refreshInterval !== null) {
+		clearInterval(refreshInterval);
+		refreshInterval = null;
+	}
+	if (onVisible !== null) {
+		document.removeEventListener('visibilitychange', onVisible);
+		onVisible = null;
 	}
 }
 

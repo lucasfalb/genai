@@ -21,6 +21,7 @@
 	import { authApi } from '$lib/api/auth';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { tenantStore } from '$lib/stores/tenant.svelte';
+	import { startProactiveRefresh, stopProactiveRefresh } from '$lib/api/client';
 	import { tenantPath } from '$lib/routes/tenant';
 	import { toast } from 'svelte-sonner';
 
@@ -35,10 +36,12 @@
 		authStore.memberships = data.memberships;
 		if (data.refreshToken) {
 			authStore.setTokens(data.accessToken, data.refreshToken);
+			startProactiveRefresh();
 		}
 		if (data.activeTenant) {
 			tenantStore.setActiveTenant(data.activeTenant);
 		}
+		return () => stopProactiveRefresh();
 	});
 
 	$effect(() => {
