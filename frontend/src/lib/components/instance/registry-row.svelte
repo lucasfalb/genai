@@ -23,7 +23,7 @@
 		expanded: boolean;
 		onToggle: () => void;
 		onExpandToggle: () => void;
-		onConfigSave: (config: Record<string, unknown>) => void;
+		onConfigSave: (config: Record<string, unknown>) => void | Promise<void>;
 	} = $props();
 
 	function parseJsonConfig(json: string): Record<string, unknown> {
@@ -59,7 +59,7 @@
 		<div class="mt-4">
 			<JsonConfigPanel
 				value={JSON.stringify(config ?? {}, null, 2)}
-				onSave={(json) => onConfigSave(parseJsonConfig(json))}
+				onSave={async (json) => onConfigSave(parseJsonConfig(json))}
 			/>
 		</div>
 	{/if}

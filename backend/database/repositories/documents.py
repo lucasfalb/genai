@@ -16,7 +16,8 @@ class DocumentRecord:
     status: str
     chunk_count: int
     error_message: str | None
-    storage_path: str | None
+    storage_bucket: str | None
+    storage_key: str | None
     content_type: str | None
     size_bytes: int | None
     created_at: datetime
@@ -33,29 +34,34 @@ class DocumentRepository:
         tenant_id: UUID,
         collection_id: UUID,
         filename: str,
+        document_id: UUID | None = None,
         source_type: str = "upload",
-        storage_path: str | None = None,
+        storage_bucket: str | None = None,
+        storage_key: str | None = None,
         content_type: str | None = None,
         size_bytes: int | None = None,
     ) -> DocumentRecord:
         result = await self.connection.execute(
             text(
                 """
-                INSERT INTO documents (tenant_id, collection_id, filename, source_type,
-                                       storage_path, content_type, size_bytes)
-                VALUES (:tenant_id, :collection_id, :filename, :source_type,
-                        :storage_path, :content_type, :size_bytes)
+                INSERT INTO documents (id, tenant_id, collection_id, filename, source_type,
+                                       storage_bucket, storage_key, content_type, size_bytes)
+                VALUES (COALESCE(CAST(:document_id AS uuid), gen_random_uuid()), :tenant_id, :collection_id,
+                        :filename, :source_type, :storage_bucket, :storage_key,
+                        :content_type, :size_bytes)
                 RETURNING id, tenant_id, collection_id, filename, source_type,
-                          status, chunk_count, error_message, storage_path,
+                          status, chunk_count, error_message, storage_bucket, storage_key,
                           content_type, size_bytes, created_at, indexed_at
                 """
             ),
             {
+                "document_id": document_id,
                 "tenant_id": tenant_id,
                 "collection_id": collection_id,
                 "filename": filename,
                 "source_type": source_type,
-                "storage_path": storage_path,
+                "storage_bucket": storage_bucket,
+                "storage_key": storage_key,
                 "content_type": content_type,
                 "size_bytes": size_bytes,
             },
@@ -72,11 +78,35 @@ class DocumentRepository:
             text(
                 """
                 SELECT id, tenant_id, collection_id, filename, source_type,
-                       status, chunk_count, error_message, storage_path,
+                       status, chunk_count, error_message, storage_bucket, storage_key,
                        content_type, size_bytes, created_at, indexed_at
                 FROM documents
                 WHERE tenant_id = :tenant_id AND collection_id = :collection_id
                 ORDER BY created_at DESC
+                """
+            ),
+            {"tenant_id": tenant_id, "collection_id": collection_id},
+        )
+        return [_from_row(row) for row in result.fetchall()]
+
+    async def reset_collection_for_reindex(
+        self,
+        *,
+        tenant_id: UUID,
+        collection_id: UUID,
+    ) -> list[DocumentRecord]:
+        result = await self.connection.execute(
+            text(
+                """
+                UPDATE documents
+                SET status        = 'uploaded',
+                    chunk_count   = 0,
+                    error_message = NULL,
+                    indexed_at    = NULL
+                WHERE tenant_id = :tenant_id AND collection_id = :collection_id
+                RETURNING id, tenant_id, collection_id, filename, source_type,
+                          status, chunk_count, error_message, storage_bucket, storage_key,
+                          content_type, size_bytes, created_at, indexed_at
                 """
             ),
             {"tenant_id": tenant_id, "collection_id": collection_id},
@@ -88,7 +118,7 @@ class DocumentRepository:
             text(
                 """
                 SELECT id, tenant_id, collection_id, filename, source_type,
-                       status, chunk_count, error_message, storage_path,
+                       status, chunk_count, error_message, storage_bucket, storage_key,
                        content_type, size_bytes, created_at, indexed_at
                 FROM documents
                 WHERE tenant_id = :tenant_id AND id = :document_id
@@ -119,7 +149,7 @@ class DocumentRepository:
                     indexed_at    = COALESCE(:indexed_at, indexed_at)
                 WHERE tenant_id = :tenant_id AND id = :document_id
                 RETURNING id, tenant_id, collection_id, filename, source_type,
-                          status, chunk_count, error_message, storage_path,
+                          status, chunk_count, error_message, storage_bucket, storage_key,
                           content_type, size_bytes, created_at, indexed_at
                 """
             ),
@@ -181,7 +211,8 @@ def _from_row(row) -> DocumentRecord:
         status=row.status,
         chunk_count=row.chunk_count,
         error_message=row.error_message,
-        storage_path=row.storage_path,
+        storage_bucket=row.storage_bucket,
+        storage_key=row.storage_key,
         content_type=row.content_type,
         size_bytes=row.size_bytes,
         created_at=row.created_at,

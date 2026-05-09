@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import Mail from '@lucide/svelte/icons/mail';
 	import Lock from '@lucide/svelte/icons/lock';
 	import LogIn from '@lucide/svelte/icons/log-in';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { authApi } from '$lib/api/auth';
 	import { authStore } from '$lib/stores/auth.svelte';
@@ -16,6 +18,14 @@
 	let loading = $state(false);
 	let error = $state('');
 	let { data } = $props();
+
+	onMount(() => {
+		if (page.url.searchParams.get('expired') === '1') {
+			authStore.clearAuth();
+			tenantStore.clearTenant();
+			error = 'Your session expired. Please sign in again.';
+		}
+	});
 
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();

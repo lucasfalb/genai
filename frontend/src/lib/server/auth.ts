@@ -102,12 +102,12 @@ export async function requireAuthSession(
 		const refreshed = await refreshSessionToken(fetcher, cookies, refreshToken);
 		if (!refreshed) {
 			clearAuthCookies(cookies);
-			throw redirect(303, '/login');
+			throw redirect(303, '/login?expired=1');
 		}
 
 		if (!refreshed.access_token) {
 			clearAuthCookies(cookies);
-			throw redirect(303, '/login');
+			throw redirect(303, '/login?expired=1');
 		}
 
 		accessToken = refreshed.access_token;

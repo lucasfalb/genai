@@ -8,6 +8,7 @@
 	import GripVertical from '@lucide/svelte/icons/grip-vertical';
 	import X from '@lucide/svelte/icons/x';
 	import Database from '@lucide/svelte/icons/database';
+	import Puzzle from '@lucide/svelte/icons/puzzle';
 	import Bot from '@lucide/svelte/icons/bot';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import MoreHorizontal from '@lucide/svelte/icons/more-horizontal';
@@ -16,6 +17,7 @@
 	import ThumbsDown from '@lucide/svelte/icons/thumbs-down';
 	import ThumbsUp from '@lucide/svelte/icons/thumbs-up';
 	import JsonConfigPanel from '$lib/components/JsonConfigPanel.svelte';
+	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { instancesApi } from '$lib/api/instances';
 	import { registryApi } from '$lib/api/registry';
 	import { ApiError, getErrorMessage } from '$lib/api/client';
@@ -32,7 +34,15 @@
 		ToolMetadataResponse
 	} from '$lib/api/types';
 
-	let { data } = $props();
+	type InstancePageData = {
+		instance: AgentInstanceResponse;
+		promptConfig: AgentPromptConfigResponse;
+		registryMetadata: ToolMetadataResponse;
+		publicSettings: Record<string, unknown>;
+	};
+
+	let { data: rawData } = $props();
+	const data = rawData as unknown as InstancePageData;
 	const id = $derived(data.instance.id);
 	const appBase = $derived(tenantBaseFromPath(page.url.pathname));
 	const agentUi = getAgentUiSettings(data.publicSettings);
@@ -50,7 +60,11 @@
 	let core_prompt = $state(data.instance.core_prompt);
 	let model = $state(data.instance.model);
 	let temperature = $state(data.instance.temperature);
-	let rag_scope = $state(data.instance.rag_scope ?? 'none');
+	let rag_scope = $state<string>(
+		Array.isArray(data.instance.rag_scope) && data.instance.rag_scope.length > 0
+			? data.instance.rag_scope[0]
+			: 'none'
+	);
 	let saving = $state(false);
 	let saveError = $state('');
 	let saveOk = $state(false);
@@ -104,7 +118,7 @@
 				core_prompt: core_prompt.trim(),
 				model,
 				temperature,
-				rag_scope: rag_scope === 'none' ? undefined : rag_scope
+				rag_scope: rag_scope === 'none' ? [] : [rag_scope]
 			});
 			saveOk = true;
 			setTimeout(() => {
@@ -232,12 +246,11 @@
 
 	async function configureSkill(
 		skill: SkillActivationResponse,
-		is_enabled = skill.is_enabled,
 		config = skill.config ?? {}
 	) {
-		registryBusy = `skill:${skill.skill_slug}`;
+		registryBusy = `skill:${skill.slug}`;
 		try {
-			await registryApi.activateSkill(id, skill.skill_slug, { is_enabled, config });
+			await registryApi.activateSkill(id, skill.slug, { is_enabled: true, config });
 			await refreshRegistryMetadata();
 			toast.success('Skill configuration updated.');
 		} catch (err) {
@@ -249,16 +262,43 @@
 
 	async function configureTool(
 		tool: ToolActivationResponse,
-		is_enabled = tool.is_enabled,
 		config = tool.config ?? {}
 	) {
-		registryBusy = `tool:${tool.tool_slug}`;
+		registryBusy = `tool:${tool.slug}`;
 		try {
-			await registryApi.activateToolItem(id, tool.tool_slug, { is_enabled, config });
+			await registryApi.activateToolItem(id, tool.slug, { is_enabled: true, config });
 			await refreshRegistryMetadata();
 			toast.success('Tool configuration updated.');
 		} catch (err) {
 			toast.error(getErrorMessage(err, 'Tool update failed.'));
+		} finally {
+			registryBusy = '';
+		}
+	}
+
+	async function removeSkill(slug: string) {
+		if (!confirm(`Remove skill "${slug}" from this instance?`)) return;
+		registryBusy = `skill:${slug}`;
+		try {
+			await registryApi.removeSkill(id, slug);
+			await refreshRegistryMetadata();
+			toast.success(`Skill "${slug}" removed.`);
+		} catch (err) {
+			toast.error(getErrorMessage(err, 'Remove failed.'));
+		} finally {
+			registryBusy = '';
+		}
+	}
+
+	async function removeTool(slug: string) {
+		if (!confirm(`Remove tool "${slug}" from this instance?`)) return;
+		registryBusy = `tool:${slug}`;
+		try {
+			await registryApi.removeTool(id, slug);
+			await refreshRegistryMetadata();
+			toast.success(`Tool "${slug}" removed.`);
+		} catch (err) {
+			toast.error(getErrorMessage(err, 'Remove failed.'));
 		} finally {
 			registryBusy = '';
 		}
@@ -881,37 +921,36 @@
 					</p>
 				{:else}
 					<div class="space-y-3">
-						{#each registryMetadata.skills as skill (skill.skill_slug)}
-							{@const busy = registryBusy === `skill:${skill.skill_slug}`}
-							{@const configKey = `skill:${skill.skill_slug}`}
+						{#each registryMetadata.skills as skill (skill.slug)}
+							{@const busy = registryBusy === `skill:${skill.slug}`}
+							{@const configKey = `skill:${skill.slug}`}
 							<div
 								class="rounded-lg p-4"
 								style="background:var(--surface-hover);border:1px solid var(--ds-border)"
 							>
-								<div class="flex flex-wrap items-center justify-between gap-3">
-									<div class="min-w-0">
-										<p class="font-mono text-sm font-semibold" style="color:var(--text-main)">
-											{skill.skill_slug}
-										</p>
-										<p class="mt-0.5 text-xs text-muted-foreground/70">{skill.skill_id}</p>
+								<div class="flex flex-wrap items-start justify-between gap-3">
+									<div class="min-w-0 flex-1">
+										<div class="flex items-center gap-2">
+											<div class="flex size-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-400">
+												<Puzzle class="size-4" />
+											</div>
+											<div>
+												<p class="text-sm font-semibold" style="color:var(--text-main)">{skill.name}</p>
+												<p class="text-xs text-muted-foreground/70">{skill.slug}</p>
+											</div>
+										</div>
+										{#if skill.description}
+											<p class="mt-2 text-xs text-muted-foreground">{skill.description}</p>
+										{/if}
+										<div class="mt-2 flex flex-wrap gap-2">
+											<Badge variant="outline" class="text-[10px]">{skill.category ?? 'uncategorized'}</Badge>
+											<Badge variant="outline" class="text-[10px] font-mono">{skill.executor}</Badge>
+											{#if skill.requires_credential}
+												<Badge variant="outline" class="text-[10px] text-amber-400 border-amber-400/30">requires credential</Badge>
+											{/if}
+										</div>
 									</div>
-									<div class="flex items-center gap-2">
-										<span
-											class="rounded-full px-2 py-1 text-[10px] font-semibold uppercase {skill.is_enabled
-												? 'bg-emerald-500/10 text-emerald-400'
-												: 'bg-white/5 text-muted-foreground'}"
-										>
-											{skill.is_enabled ? 'Enabled' : 'Disabled'}
-										</span>
-										<button
-											onclick={() => configureSkill(skill, !skill.is_enabled, skill.config ?? {})}
-											disabled={busy}
-											class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors {skill.is_enabled
-												? 'text-red-400 hover:bg-red-400/10'
-												: 'text-blue-400 hover:bg-blue-400/10'} disabled:opacity-60"
-										>
-											{busy ? 'Saving...' : skill.is_enabled ? 'Disable' : 'Enable'}
-										</button>
+									<div class="flex shrink-0 items-center gap-2">
 										<button
 											onclick={() => {
 												expandedConfig = expandedConfig === configKey ? '' : configKey;
@@ -920,6 +959,14 @@
 										>
 											Config
 										</button>
+										<button
+											onclick={() => removeSkill(skill.slug)}
+											disabled={busy}
+											class="rounded-lg p-1.5 text-xs text-red-400 transition-colors hover:bg-red-400/10 disabled:opacity-60"
+											title="Remove skill"
+										>
+											<Trash2 class="size-3.5" />
+										</button>
 									</div>
 								</div>
 								{#if expandedConfig === configKey}
@@ -927,7 +974,7 @@
 										<JsonConfigPanel
 											value={JSON.stringify(skill.config ?? {}, null, 2)}
 											onSave={(json) =>
-												configureSkill(skill, skill.is_enabled, parseJsonConfig(json))}
+												configureSkill(skill, parseJsonConfig(json))}
 										/>
 									</div>
 								{/if}
@@ -956,37 +1003,36 @@
 					</p>
 				{:else}
 					<div class="space-y-3">
-						{#each registryMetadata.tools as tool (tool.tool_slug)}
-							{@const busy = registryBusy === `tool:${tool.tool_slug}`}
-							{@const configKey = `tool:${tool.tool_slug}`}
+						{#each registryMetadata.tools as tool (tool.slug)}
+							{@const busy = registryBusy === `tool:${tool.slug}`}
+							{@const configKey = `tool:${tool.slug}`}
 							<div
 								class="rounded-lg p-4"
 								style="background:var(--surface-hover);border:1px solid var(--ds-border)"
 							>
-								<div class="flex flex-wrap items-center justify-between gap-3">
-									<div class="min-w-0">
-										<p class="font-mono text-sm font-semibold" style="color:var(--text-main)">
-											{tool.tool_slug}
-										</p>
-										<p class="mt-0.5 text-xs text-muted-foreground/70">{tool.tool_id}</p>
+								<div class="flex flex-wrap items-start justify-between gap-3">
+									<div class="min-w-0 flex-1">
+										<div class="flex items-center gap-2">
+											<div class="flex size-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-400">
+												<Database class="size-4" />
+											</div>
+											<div>
+												<p class="text-sm font-semibold" style="color:var(--text-main)">{tool.name}</p>
+												<p class="text-xs text-muted-foreground/70">{tool.slug}</p>
+											</div>
+										</div>
+										{#if tool.description}
+											<p class="mt-2 text-xs text-muted-foreground">{tool.description}</p>
+										{/if}
+										<div class="mt-2 flex flex-wrap gap-2">
+											<Badge variant="outline" class="text-[10px]">{tool.category ?? 'uncategorized'}</Badge>
+											<Badge variant="outline" class="text-[10px] font-mono">{tool.executor}</Badge>
+											{#if tool.is_builtin}
+												<Badge variant="outline" class="text-[10px] text-emerald-400 border-emerald-400/30">builtin</Badge>
+											{/if}
+										</div>
 									</div>
-									<div class="flex items-center gap-2">
-										<span
-											class="rounded-full px-2 py-1 text-[10px] font-semibold uppercase {tool.is_enabled
-												? 'bg-emerald-500/10 text-emerald-400'
-												: 'bg-white/5 text-muted-foreground'}"
-										>
-											{tool.is_enabled ? 'Enabled' : 'Disabled'}
-										</span>
-										<button
-											onclick={() => configureTool(tool, !tool.is_enabled, tool.config ?? {})}
-											disabled={busy}
-											class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors {tool.is_enabled
-												? 'text-red-400 hover:bg-red-400/10'
-												: 'text-blue-400 hover:bg-blue-400/10'} disabled:opacity-60"
-										>
-											{busy ? 'Saving...' : tool.is_enabled ? 'Disable' : 'Enable'}
-										</button>
+									<div class="flex shrink-0 items-center gap-2">
 										<button
 											onclick={() => {
 												expandedConfig = expandedConfig === configKey ? '' : configKey;
@@ -995,13 +1041,103 @@
 										>
 											Config
 										</button>
+										<button
+											onclick={() => removeTool(tool.slug)}
+											disabled={busy}
+											class="rounded-lg p-1.5 text-xs text-red-400 transition-colors hover:bg-red-400/10 disabled:opacity-60"
+											title="Remove tool"
+										>
+											<Trash2 class="size-3.5" />
+										</button>
 									</div>
 								</div>
 								{#if expandedConfig === configKey}
 									<div class="mt-4">
 										<JsonConfigPanel
 											value={JSON.stringify(tool.config ?? {}, null, 2)}
-											onSave={(json) => configureTool(tool, tool.is_enabled, parseJsonConfig(json))}
+											onSave={(json) =>
+												configureTool(tool, parseJsonConfig(json))}
+										/>
+									</div>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</section>
+
+			<section
+				class="rounded-xl p-6"
+				style="background:var(--surface);border:1px solid var(--ds-border)"
+			>
+				<div class="mb-4 flex items-center justify-between gap-4">
+					<div>
+						<h3 class="font-display text-sm font-semibold" style="color:var(--text-main)">Tools</h3>
+						<p class="mt-0.5 text-xs text-muted-foreground">
+							Utility tools available to this agent instance
+						</p>
+					</div>
+				</div>
+
+				{#if registryMetadata.tools.length === 0}
+					<p class="py-4 text-center text-sm text-muted-foreground">
+						No tools configured for this instance.
+					</p>
+				{:else}
+					<div class="space-y-3">
+						{#each registryMetadata.tools as tool (tool.slug)}
+							{@const busy = registryBusy === `tool:${tool.slug}`}
+							{@const configKey = `tool:${tool.slug}`}
+							<div
+								class="rounded-lg p-4"
+								style="background:var(--surface-hover);border:1px solid var(--ds-border)"
+							>
+								<div class="flex flex-wrap items-start justify-between gap-3">
+									<div class="min-w-0 flex-1">
+										<div class="flex items-center gap-2">
+											<div class="flex size-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-400">
+												<Database class="size-4" />
+											</div>
+											<div>
+												<p class="text-sm font-semibold" style="color:var(--text-main)">{tool.name}</p>
+												<p class="text-xs text-muted-foreground/70">{tool.slug}</p>
+											</div>
+										</div>
+										{#if tool.description}
+											<p class="mt-2 text-xs text-muted-foreground">{tool.description}</p>
+										{/if}
+										<div class="mt-2 flex flex-wrap gap-2">
+											<Badge variant="outline" class="text-[10px]">{tool.category ?? 'uncategorized'}</Badge>
+											<Badge variant="outline" class="text-[10px] font-mono">{tool.executor}</Badge>
+											{#if tool.is_builtin}
+												<Badge variant="outline" class="text-[10px] text-emerald-400 border-emerald-400/30">builtin</Badge>
+											{/if}
+										</div>
+									</div>
+									<div class="flex shrink-0 items-center gap-2">
+										<button
+											onclick={() => {
+												expandedConfig = expandedConfig === configKey ? '' : configKey;
+											}}
+											class="rounded-lg px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+										>
+											Config
+										</button>
+										<button
+											onclick={() => removeTool(tool.slug)}
+											disabled={busy}
+											class="rounded-lg p-1.5 text-xs text-red-400 transition-colors hover:bg-red-400/10 disabled:opacity-60"
+											title="Remove tool"
+										>
+											<Trash2 class="size-3.5" />
+										</button>
+									</div>
+								</div>
+								{#if expandedConfig === configKey}
+									<div class="mt-4">
+										<JsonConfigPanel
+											value={JSON.stringify(tool.config ?? {}, null, 2)}
+											onSave={(json) => configureTool(tool, parseJsonConfig(json))}
 										/>
 									</div>
 								{/if}

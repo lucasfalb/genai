@@ -44,7 +44,7 @@
 				core_prompt: core_prompt.trim(),
 				model,
 				temperature,
-				rag_scope: ragScope.length > 0 ? ragScope : undefined
+				rag_scope: ragScope
 			});
 			toast.success('Agent saved.');
 		} catch (err) {

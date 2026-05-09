@@ -49,7 +49,7 @@ function clearAuthAndRedirect() {
 	tenantStore.clearTenant();
 	stopProactiveRefresh();
 	if (typeof window !== 'undefined') {
-		window.location.href = '/login';
+		window.location.href = '/login?expired=1';
 	}
 }
 

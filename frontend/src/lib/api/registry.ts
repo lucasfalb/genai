@@ -24,5 +24,11 @@ export const registryApi = {
 		api.put<SkillActivationResponse>(`/registry/instances/${instanceId}/skills/${skillSlug}`, body),
 
 	activateToolItem: (instanceId: string, toolSlug: string, body: ActivationRequest) =>
-		api.put<ToolActivationResponse>(`/registry/instances/${instanceId}/tools/${toolSlug}`, body)
+		api.put<ToolActivationResponse>(`/registry/instances/${instanceId}/tools/${toolSlug}`, body),
+
+	removeSkill: (instanceId: string, skillSlug: string) =>
+		api.del<{ message: string }>(`/registry/instances/${instanceId}/skills/${skillSlug}`),
+
+	removeTool: (instanceId: string, toolSlug: string) =>
+		api.del<{ message: string }>(`/registry/instances/${instanceId}/tools/${toolSlug}`)
 };

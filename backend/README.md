@@ -2,10 +2,10 @@
 
 ## Local Services
 
-Start PostgreSQL, Redis and Qdrant:
+Start PostgreSQL, Redis, Qdrant and MinIO:
 
 ```bash
-docker compose up -d postgres redis qdrant
+docker compose up -d postgres redis qdrant minio
 ```
 
 Environment values are kept in the repository root `.env` for local development.
@@ -25,6 +25,14 @@ Run from `backend/`:
 
 ```bash
 uvicorn app.main:app --reload
+```
+
+## RAG Worker
+
+Run from `backend/` after PostgreSQL, Redis, Qdrant and MinIO are up:
+
+```bash
+python -m rag.indexing_worker
 ```
 
 Useful endpoints:
@@ -85,6 +93,10 @@ Run from `backend/`:
 pytest
 ```
 
+The test suite uses `TEST_DATABASE_URL` and truncates tables before and after each test.
+Keep it pointed at a database whose name contains `test` (for example `genai_test`).
+The test fixture refuses to clean any database without `test` in its name.
+
 OpenAPI endpoint contract validation from the repository root:
 
 ```bash
@@ -105,3 +117,5 @@ python scripts/seed_stage_01.py
 - Redis: `localhost:6379`
 - Qdrant HTTP: `http://localhost:6333`
 - Qdrant gRPC: `localhost:6334`
+- MinIO S3 API: `http://localhost:9000`
+- MinIO Console: `http://localhost:9001`

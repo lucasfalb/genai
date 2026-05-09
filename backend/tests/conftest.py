@@ -1,8 +1,23 @@
 from collections.abc import Iterator
+import os
 
 import psycopg
 import pytest
 from psycopg import sql
+from sqlalchemy.engine import make_url
+
+os.environ.setdefault(
+    "DATABASE_URL",
+    "postgresql+asyncpg://genai_app:genai_app@localhost:5432/genai_test",
+)
+os.environ.setdefault(
+    "TEST_DATABASE_URL",
+    "postgresql://genai_app:genai_app@localhost:5432/genai_test",
+)
+os.environ.setdefault(
+    "SYNC_DATABASE_URL",
+    "postgresql+psycopg://genai:genai@localhost:5432/genai_test",
+)
 
 from app.config import settings
 
@@ -17,11 +32,16 @@ DEFAULT_EMAIL_TEMPLATE_SLUGS = {
 
 
 def psycopg_url() -> str:
-    return settings.test_database_url.replace("postgresql+psycopg://", "postgresql://")
+    _assert_test_database(settings.test_database_url, "TEST_DATABASE_URL")
+    return _as_psycopg_dsn(settings.test_database_url)
 
 
 def admin_psycopg_url() -> str:
-    return settings.sync_database_url.replace("postgresql+psycopg://", "postgresql://")
+    test_url = make_url(settings.test_database_url)
+    admin_url = make_url(settings.sync_database_url).set(database=test_url.database)
+    dsn = admin_url.render_as_string(hide_password=False)
+    _assert_test_database(dsn, "SYNC_DATABASE_URL/TEST_DATABASE_URL")
+    return _as_psycopg_dsn(dsn)
 
 
 @pytest.fixture(autouse=True)
@@ -51,6 +71,7 @@ def api_error(response):
 
 
 def _cleanup_test_database() -> None:
+    _assert_test_database(settings.test_database_url, "TEST_DATABASE_URL")
     with psycopg.connect(admin_psycopg_url(), autocommit=True) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -71,6 +92,20 @@ def _cleanup_test_database() -> None:
                 "DELETE FROM email_templates WHERE slug <> ALL(%s)",
                 (list(DEFAULT_EMAIL_TEMPLATE_SLUGS),),
             )
+
+
+def _as_psycopg_dsn(url: str) -> str:
+    parsed = make_url(url)
+    drivername = parsed.drivername.split("+", 1)[0]
+    return parsed.set(drivername=drivername).render_as_string(hide_password=False)
+
+
+def _assert_test_database(url: str, label: str) -> None:
+    database = make_url(url).database or ""
+    if "test" not in database.lower():
+        raise RuntimeError(
+            f"Refusing to clean database '{database}' from {label}; test database name must contain 'test'."
+        )
 
 
 @pytest.fixture()

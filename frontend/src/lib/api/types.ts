@@ -205,22 +205,28 @@ export interface ActivationRequest {
 }
 
 export interface SkillActivationResponse {
-	id: string;
-	tenant_id: string;
-	instance_id: string;
-	skill_id: string;
-	skill_slug: string;
-	is_enabled: boolean;
+	slug: string;
+	name: string;
+	description: string | null;
+	category: string | null;
+	prompt_block: string;
+	tool_schema: Record<string, unknown>;
+	executor: string;
+	input_schema: Record<string, unknown>;
+	output_schema: Record<string, unknown>;
+	requires_credential: boolean;
 	config: Record<string, unknown>;
 }
 
 export interface ToolActivationResponse {
-	id: string;
-	tenant_id: string;
-	instance_id: string;
-	tool_id: string;
-	tool_slug: string;
-	is_enabled: boolean;
+	slug: string;
+	name: string;
+	description: string | null;
+	category: string | null;
+	prompt_block: string;
+	schema: Record<string, unknown>;
+	executor: string;
+	is_builtin: boolean;
 	config: Record<string, unknown>;
 }
 
@@ -433,7 +439,6 @@ export interface DocumentResponse {
 	status: string;
 	chunk_count: number;
 	error_message: string | null;
-	storage_path: string | null;
 	content_type: string | null;
 	size_bytes: number | null;
 	created_at: string;

@@ -12,6 +12,7 @@ from app.schemas import (
     CatalogToolResponse,
     CredentialRequest,
     CredentialResponse,
+    MessageResponse,
     RegistryCatalogResponse,
     SkillActivationResponse,
     ToolActivationResponse,
@@ -133,6 +134,50 @@ async def configure_instance_tool(
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Instance or tool not found")
         await _invalidate_instance_caches(connection, tenant_id=context.tenant_id, instance_id=instance_id)
         return api_success(_tool_activation_response(activation), message="Tool configuration updated.")
+
+
+@router.delete(
+    "/instances/{instance_id}/skills/{skill_slug}",
+    response_model=ApiResponse[MessageResponse],
+    summary="Remove instance skill",
+    description="Permanently removes a skill activation from an agent instance in the selected tenant and invalidates registry metadata and prompt caches.",
+)
+async def remove_instance_skill(
+    instance_id: UUID,
+    skill_slug: str,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_SKILLS_TOOLS)),
+) -> ApiResponse[MessageResponse]:
+    async with tenant_connection(context) as connection:
+        repository = RegistryRepository(connection)
+        deleted = await repository.deactivate_skill(
+            tenant_id=context.tenant_id, instance_id=instance_id, skill_slug=skill_slug
+        )
+        if not deleted:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Skill activation not found")
+        await _invalidate_instance_caches(connection, tenant_id=context.tenant_id, instance_id=instance_id)
+        return api_success(MessageResponse(message="Skill removed."), message="Skill removed.")
+
+
+@router.delete(
+    "/instances/{instance_id}/tools/{tool_slug}",
+    response_model=ApiResponse[MessageResponse],
+    summary="Remove instance tool",
+    description="Permanently removes a tool activation from an agent instance in the selected tenant and invalidates registry metadata and prompt caches.",
+)
+async def remove_instance_tool(
+    instance_id: UUID,
+    tool_slug: str,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_SKILLS_TOOLS)),
+) -> ApiResponse[MessageResponse]:
+    async with tenant_connection(context) as connection:
+        repository = RegistryRepository(connection)
+        deleted = await repository.deactivate_tool(
+            tenant_id=context.tenant_id, instance_id=instance_id, tool_slug=tool_slug
+        )
+        if not deleted:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Tool activation not found")
+        await _invalidate_instance_caches(connection, tenant_id=context.tenant_id, instance_id=instance_id)
+        return api_success(MessageResponse(message="Tool removed."), message="Tool removed.")
 
 
 @router.get(

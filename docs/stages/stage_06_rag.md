@@ -43,6 +43,7 @@ CREATE TABLE documents (
 ### Vector Store (Qdrant)
 
 Coleções compartilhadas por plan/modelo, filtradas por payload `tenant_id` e `collection_id`. Coleções dedicadas apenas em Enterprise.
+Qdrant armazena vetores e payload JSON dos chunks indexados; os arquivos originais de upload ficam em object storage S3-compatible. No ambiente local, esse storage e fornecido por MinIO.
 
 ```json
 {
@@ -90,6 +91,8 @@ Estados:
 - `failed`: nenhum documento novo ficou pesquisável.
 
 O backend expõe `indexing_progress`, `document_count`, `indexed_count`, `failed_count` e `last_indexed_at` para a tela de Knowledge Base e para a aba RAG da instância. Uploads grandes devem ser processados por worker em background, com atualização incremental de progresso.
+
+O backend tambem expoe `POST /tenant/collections/{collection_id}/reindex` para reenfileirar todos os documentos de uma collection. O reindex reseta os documents para `uploaded`, marca a collection como `indexing` e o worker remove os chunks antigos do document no Qdrant antes do novo upsert.
 
 ### Retriever com RBAC
 

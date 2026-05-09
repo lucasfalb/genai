@@ -14,6 +14,7 @@ export const collectionsApi = {
 	update: (id: string, body: CollectionUpdateRequest) =>
 		api.patch<CollectionResponse>(`/tenant/collections/${id}`, body),
 	delete: (id: string) => api.del(`/tenant/collections/${id}`),
+	reindex: (id: string) => api.post<CollectionResponse>(`/tenant/collections/${id}/reindex`, {}),
 
 	listDocuments: (collectionId: string) =>
 		api.get<DocumentResponse[]>(`/tenant/collections/${collectionId}/documents`),

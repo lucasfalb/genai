@@ -17,16 +17,9 @@
 	let core_prompt = $state('');
 	let model = $state(agentUi.default_model);
 	let temperature = $state(0.7);
-	let rag_scope = $state('none');
 	let loading = $state(false);
 	let error = $state('');
 	const appBase = $derived(tenantBaseFromPath(page.url.pathname));
-
-	const RAG_SCOPES = [
-		{ value: 'none', label: 'None — no knowledge base' },
-		{ value: 'tenant', label: 'Tenant — all tenant collections' },
-		{ value: 'instance', label: 'Instance — specific collections' }
-	];
 
 	function applyTemplate(template: AgentTemplateOption) {
 		name = template.name;
@@ -46,8 +39,7 @@
 				description: description.trim() || undefined,
 				core_prompt: core_prompt.trim(),
 				model,
-				temperature,
-				rag_scope: rag_scope === 'none' ? undefined : rag_scope
+				temperature
 			});
 			await goto(`${appBase}/instances/${inst.id}`);
 		} catch (err) {
@@ -137,14 +129,6 @@
 			</div>
 		</div>
 
-		<div class="space-y-1.5">
-			<label class="block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">RAG scope</label>
-			<select bind:value={rag_scope} class="auth-input w-full rounded-lg px-3.5 py-2.5 text-sm">
-				{#each RAG_SCOPES as s (s.value)}
-					<option value={s.value}>{s.label}</option>
-				{/each}
-			</select>
-		</div>
 	</div>
 
 	<div class="rounded-xl p-6 space-y-3" style="background:var(--surface);border:1px solid var(--ds-border)">

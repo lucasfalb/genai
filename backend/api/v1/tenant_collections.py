@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
@@ -9,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.cache import redis_client
 from app.config import settings
+from app.object_storage import ObjectStorageError, object_storage
 from app.rbac import Permission
 from app.responses import api_success
 from app.schemas import (
@@ -167,11 +167,77 @@ async def delete_collection(
 
 
 @router.post(
+    "/{collection_id}/reindex",
+    response_model=ApiResponse[CollectionResponse],
+    summary="Reindex collection",
+    description="Resets all documents in the collection to uploaded status and enqueues indexing jobs for the worker.",
+)
+async def reindex_collection(
+    collection_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_AGENT_INSTANCES)),
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[CollectionResponse]:
+    await _set_tenant(connection, context)
+    collection_repo = CollectionRepository(connection)
+    document_repo = DocumentRepository(connection)
+    collection = await collection_repo.get(tenant_id=context.tenant_id, collection_id=collection_id)
+    if collection is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Collection not found")
+
+    documents = await document_repo.reset_collection_for_reindex(
+        tenant_id=context.tenant_id,
+        collection_id=collection_id,
+    )
+    stats = await document_repo.recalc_collection_stats(
+        tenant_id=context.tenant_id,
+        collection_id=collection_id,
+    )
+    updated = await collection_repo.update_indexing_status(
+        tenant_id=context.tenant_id,
+        collection_id=collection_id,
+        indexing_status="indexing" if documents else "empty",
+        indexing_progress=0.0,
+        document_count=stats["document_count"],
+        indexed_count=stats["indexed_count"],
+        failed_count=stats["failed_count"],
+    )
+
+    for document in documents:
+        try:
+            await redis_client.rpush(
+                INDEXING_QUEUE_KEY,
+                json.dumps(
+                    {
+                        "document_id": str(document.id),
+                        "tenant_id": str(context.tenant_id),
+                        "collection_id": str(collection_id),
+                    }
+                ),
+            )
+        except (RedisError, RuntimeError):
+            pass
+
+    await record_tenant_mutation(
+        connection=connection,
+        context=context,
+        action="collection.reindex_requested",
+        resource="collections",
+        resource_id=str(collection_id),
+        snapshot=_collection_response(updated or collection).model_dump(mode="json"),
+        metadata={"document_count": len(documents)},
+    )
+    return api_success(
+        _collection_response(updated or collection),
+        message="Collection reindex queued.",
+    )
+
+
+@router.post(
     "/{collection_id}/documents",
     status_code=status.HTTP_201_CREATED,
     response_model=ApiResponse[DocumentResponse],
     summary="Upload document to collection",
-    description="Uploads a document file (PDF/DOCX/TXT/MD) up to the configured size limit, persists it to the storage directory, and enqueues an indexing job.",
+    description="Uploads a document file (PDF/DOCX/TXT/MD) up to the configured size limit, stores it in S3-compatible object storage, and enqueues an indexing job.",
 )
 async def upload_document(
     collection_id: UUID,
@@ -201,22 +267,46 @@ async def upload_document(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Collection not found")
 
     document_id = uuid4()
-    safe_filename = Path(file.filename or "document").name
-    base_dir = Path(settings.storage_dir) / str(context.tenant_id) / str(collection_id) / str(document_id)
-    base_dir.mkdir(parents=True, exist_ok=True)
-    target_path = base_dir / safe_filename
-    target_path.write_bytes(payload)
+    safe_filename = _safe_filename(file.filename)
+    object_key = "/".join(
+        [
+            "tenants",
+            str(context.tenant_id),
+            "collections",
+            str(collection_id),
+            "documents",
+            str(document_id),
+            safe_filename,
+        ]
+    )
+    try:
+        stored_object = await object_storage.put_object(
+            key=object_key,
+            body=payload,
+            content_type=file.content_type or "application/octet-stream",
+        )
+    except ObjectStorageError as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Document storage is unavailable",
+        ) from exc
 
     document_repo = DocumentRepository(connection)
-    document = await document_repo.create(
-        tenant_id=context.tenant_id,
-        collection_id=collection_id,
-        filename=safe_filename,
-        source_type="upload",
-        storage_path=str(target_path),
-        content_type=file.content_type,
-        size_bytes=len(payload),
-    )
+    try:
+        document = await document_repo.create(
+            document_id=document_id,
+            tenant_id=context.tenant_id,
+            collection_id=collection_id,
+            filename=safe_filename,
+            source_type="upload",
+            storage_bucket=stored_object.bucket,
+            storage_key=stored_object.key,
+            content_type=file.content_type,
+            size_bytes=len(payload),
+        )
+    except Exception:
+        await _delete_stored_object(stored_object.bucket, stored_object.key)
+        raise
 
     stats = await document_repo.recalc_collection_stats(
         tenant_id=context.tenant_id, collection_id=collection_id
@@ -305,7 +395,7 @@ async def get_document(
     "/{collection_id}/documents/{document_id}",
     response_model=ApiResponse[MessageResponse],
     summary="Delete document",
-    description="Removes the document, its stored file, and recalculates collection stats. Indexed chunks in Qdrant are removed by the worker.",
+    description="Removes the document, its object-storage file, and recalculates collection stats. Indexed chunks in Qdrant are removed by the worker.",
 )
 async def delete_document(
     collection_id: UUID,
@@ -319,11 +409,8 @@ async def delete_document(
     if document is None or document.collection_id != collection_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
 
-    if document.storage_path:
-        try:
-            Path(document.storage_path).unlink(missing_ok=True)
-        except OSError:
-            pass
+    if document.storage_bucket and document.storage_key:
+        await _delete_stored_object(document.storage_bucket, document.storage_key)
 
     await repo.delete(tenant_id=context.tenant_id, document_id=document_id)
     stats = await repo.recalc_collection_stats(
@@ -384,12 +471,27 @@ def _document_response(record: DocumentRecord) -> DocumentResponse:
         status=record.status,
         chunk_count=record.chunk_count,
         error_message=record.error_message,
-        storage_path=record.storage_path,
         content_type=record.content_type,
         size_bytes=record.size_bytes,
         created_at=record.created_at,
         indexed_at=record.indexed_at,
     )
+
+
+def _safe_filename(filename: str | None) -> str:
+    raw = filename or "document"
+    safe = raw.replace("\\", "/").split("/")[-1].strip()
+    return safe or "document"
+
+
+async def _delete_stored_object(bucket: str, key: str) -> None:
+    try:
+        await object_storage.delete_object(bucket=bucket, key=key)
+    except ObjectStorageError as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Document storage is unavailable",
+        ) from exc
 
 
 def _collection_response(record: CollectionRecord) -> CollectionResponse:

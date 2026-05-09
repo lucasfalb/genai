@@ -1,0 +1,27 @@
+meta {
+  name: Upload Document
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{base_url}}/api/v1/tenant/collections/{{collection_id}}/documents
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  X-Tenant-ID: {{tenant_id}}
+}
+
+body:multipart-form {
+  file: @{{document_file_path}}
+}
+
+settings {
+  encodeUrl: false
+}

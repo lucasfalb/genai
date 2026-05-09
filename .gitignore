@@ -9,5 +9,6 @@ htmlcov/
 *.egg-info/
 postgres_data/
 qdrant_data/
+data/
 .env
 .codegraph/

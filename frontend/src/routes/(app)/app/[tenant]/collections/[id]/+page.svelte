@@ -13,6 +13,7 @@
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Database from '@lucide/svelte/icons/database';
 	import Pencil from '@lucide/svelte/icons/pencil';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import { toast } from 'svelte-sonner';
 
@@ -21,6 +22,7 @@
 	let documents = $state<DocumentResponse[]>(data.documents);
 	let editOpen = $state(false);
 	let deleting = $state(false);
+	let reindexing = $state(false);
 	const appBase = $derived(tenantBaseFromPath(page.url.pathname));
 
 	async function refreshCollection() {
@@ -51,6 +53,19 @@
 			deleting = false;
 		}
 	}
+
+	async function reindexCollection() {
+		reindexing = true;
+		try {
+			collection = await collectionsApi.reindex(collection.id);
+			documents = await collectionsApi.listDocuments(collection.id);
+			toast.success('Reindex queued.');
+		} catch (err) {
+			toast.error(getErrorMessage(err, 'Reindex failed.'));
+		} finally {
+			reindexing = false;
+		}
+	}
 </script>
 
 <div class="mx-auto max-w-5xl space-y-6 p-6">
@@ -68,6 +83,10 @@
 			</div>
 		</div>
 		<div class="flex gap-2">
+			<Button variant="outline" disabled={reindexing || collection.document_count === 0} onclick={reindexCollection}>
+				{#if reindexing}<Spinner data-icon="inline-start" />{:else}<RefreshCw data-icon="inline-start" />{/if}
+				{reindexing ? 'Queueing...' : 'Reindex'}
+			</Button>
 			<Button variant="outline" onclick={() => (editOpen = true)}>
 				<Pencil data-icon="inline-start" />
 				Edit

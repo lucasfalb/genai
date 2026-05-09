@@ -271,6 +271,40 @@ class RegistryRepository:
         row = result.one_or_none()
         return None if row is None else _credential(row)
 
+    async def deactivate_skill(
+        self, *, tenant_id: UUID, instance_id: UUID, skill_slug: str
+    ) -> bool:
+        result = await self.connection.execute(
+            text(
+                """
+                DELETE FROM agent_instance_skills
+                WHERE tenant_id = :tenant_id
+                  AND instance_id = :instance_id
+                  AND skill_id = (SELECT id FROM skill_definitions WHERE slug = :slug)
+                RETURNING id
+                """
+            ),
+            {"tenant_id": tenant_id, "instance_id": instance_id, "slug": skill_slug},
+        )
+        return result.one_or_none() is not None
+
+    async def deactivate_tool(
+        self, *, tenant_id: UUID, instance_id: UUID, tool_slug: str
+    ) -> bool:
+        result = await self.connection.execute(
+            text(
+                """
+                DELETE FROM agent_instance_tools
+                WHERE tenant_id = :tenant_id
+                  AND instance_id = :instance_id
+                  AND tool_id = (SELECT id FROM tool_definitions WHERE slug = :slug)
+                RETURNING id
+                """
+            ),
+            {"tenant_id": tenant_id, "instance_id": instance_id, "slug": tool_slug},
+        )
+        return result.one_or_none() is not None
+
     async def delete_skill(self, *, slug: str) -> bool:
         result = await self.connection.execute(
             text("DELETE FROM skill_definitions WHERE slug = :slug RETURNING id"),
