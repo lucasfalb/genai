@@ -124,6 +124,7 @@
 		try {
 			await collectionsApi.deleteDocument(ragScope[0], target.id);
 			documents = documents.filter((d) => d.id !== target.id);
+			selectedCollection = await collectionsApi.get(ragScope[0]);
 			toast.success('Document deleted.');
 		} catch (err) {
 			toast.error(getErrorMessage(err, 'Delete failed.'));
@@ -140,7 +141,7 @@
 	function formatDate(value: string | null): string {
 		if (!value) return '\u2014';
 		const d = new Date(value);
-		return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
+		return Number.isNaN(d.getTime()) ? value : d.toLocaleString('pt-BR');
 	}
 </script>
 

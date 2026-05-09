@@ -39,10 +39,9 @@
 	}
 
 	function formatDate(value: string | null): string {
-		if (!value) return 'Never indexed';
+		if (!value) return '—';
 		const date = new Date(value);
-		if (Number.isNaN(date.getTime())) return value;
-		return date.toLocaleString();
+		return Number.isNaN(date.getTime()) ? value : date.toLocaleString('pt-BR');
 	}
 
 	async function deleteCollection() {

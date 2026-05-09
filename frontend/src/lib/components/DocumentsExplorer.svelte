@@ -74,7 +74,7 @@
 	function formatDate(value: string | null): string {
 		if (!value) return '—';
 		const d = new Date(value);
-		return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
+		return Number.isNaN(d.getTime()) ? value : d.toLocaleString('pt-BR');
 	}
 
 	async function refresh() {

@@ -23,25 +23,35 @@ export function getErrorMessage(error: unknown, fallback = 'Request failed. Plea
 	return fallback;
 }
 
-// ─── Token refresh ────────────────────────────────────────────────────────────
+// ─── Token refresh (single-flight) ────────────────────────────────────────────
+
+let refreshPromise: Promise<boolean> | null = null;
 
 async function refreshAccessToken(): Promise<boolean> {
-	const token = authStore.refreshToken;
-	if (!token) return false;
-	try {
-		const res = await fetch(`${PUBLIC_API_BASE_URL}/auth/refresh`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ refresh_token: token })
-		});
-		if (!res.ok) return false;
-		const json: ApiResponse<{ access_token: string; refresh_token: string }> = await res.json();
-		if (json.status !== 'success') return false;
-		authStore.setTokens(json.data.access_token, json.data.refresh_token);
-		return true;
-	} catch {
-		return false;
-	}
+	if (refreshPromise) return refreshPromise;
+
+	refreshPromise = (async () => {
+		const token = authStore.refreshToken;
+		if (!token) return false;
+		try {
+			const res = await fetch(`${PUBLIC_API_BASE_URL}/auth/refresh`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ refresh_token: token })
+			});
+			if (!res.ok) return false;
+			const json: ApiResponse<{ access_token: string; refresh_token: string }> = await res.json();
+			if (json.status !== 'success') return false;
+			authStore.setTokens(json.data.access_token, json.data.refresh_token);
+			return true;
+		} catch {
+			return false;
+		} finally {
+			refreshPromise = null;
+		}
+	})();
+
+	return refreshPromise;
 }
 
 function clearAuthAndRedirect() {
@@ -56,18 +66,11 @@ function clearAuthAndRedirect() {
 // ─── Proactive refresh ────────────────────────────────────────────────────────
 
 let refreshInterval: ReturnType<typeof setInterval> | null = null;
-let refreshing = false;
 
 async function tryRefresh() {
-	if (refreshing) return;
 	if (!authStore.isAuthenticated) { stopProactiveRefresh(); return; }
-	refreshing = true;
-	try {
-		const ok = await refreshAccessToken();
-		if (!ok) clearAuthAndRedirect();
-	} finally {
-		refreshing = false;
-	}
+	const ok = await refreshAccessToken();
+	if (!ok) clearAuthAndRedirect();
 }
 
 export function startProactiveRefresh(intervalMs = 15 * 60 * 1000) {
