@@ -22,9 +22,9 @@
 			dot: [0.34, 0.48, 1.0]
 		},
 		light: {
-			bgA: [0.973, 0.980, 0.988],
+			bgA: [0.01, 0.015, 0.05],
 			bgB: [0.886, 0.906, 0.961],
-			neon: [0.255, 0.510, 0.965],
+			neon: [0.255, 0.51, 0.965],
 			dot: [0.412, 0.541, 0.761]
 		}
 	};
@@ -115,18 +115,18 @@
 			flow += vec2(
 				fbm(p * 3.0 + vec2(u_time * 0.12, u_time * 0.05)),
 				fbm(p * 3.0 - vec2(u_time * 0.06, u_time * 0.14))
-			) * 0.45;
+			) * 0.95;
 
 			vec2 mouseDir = p - m;
 			float len = length(mouseDir);
 			mouseDir = len > 0.0001 ? mouseDir / len : vec2(0.0);
 
 			flow += mouseDir * mouseFlow * 0.055;
-			flow += vec2(-mouseDir.y, mouseDir.x) * mouseFlow * 0.035;
+			flow += vec2(-mouseDir.y, mouseDir.x) * mouseFlow * 0.065;
 
 			float lava =
 				fbm(flow * 2.0 + u_time * 0.08) +
-				fbm(flow * 4.0 - u_time * 0.05) * 0.45;
+				fbm(flow * 4.0 - u_time * 0.05) * 0.15;
 
 			float neonLine = smoothstep(0.48, 0.62, lava) * smoothstep(0.95, 0.64, lava);
 
@@ -149,7 +149,7 @@
 					vec2 dir = origCenterP - m;
 					float dist = length(dir);
 
-					float radius = 0.13;
+					float radius = 0.23;
 					float influence = smoothstep(radius, 0.0, dist) * u_strength;
 
 					float push = influence * 0.58;

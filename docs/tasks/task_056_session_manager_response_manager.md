@@ -1,16 +1,16 @@
 # Task: TASK-056 - SessionManager e ResponseManager
 
-| Atributo | Valor |
-| :--- | :--- |
-| **ID** | TASK-056 |
-| **Group** | CHANNELS |
-| **Status** | PENDING |
-| **Stage Ref** | `docs/stages/stage_08_channels.md` |
-| **Spec Ref** | `docs/platform_technical_spec.md` |
-| **Priority** | CRITICAL |
-| **Owner** | Unassigned |
-| **Created At** | 2026-05-07 |
-| **Updated At** | 2026-05-07 |
+| Atributo       | Valor                              |
+| :------------- | :--------------------------------- |
+| **ID**         | TASK-056                           |
+| **Group**      | CHANNELS                           |
+| **Status**     | PENDING                            |
+| **Stage Ref**  | `docs/stages/stage_08_channels.md` |
+| **Spec Ref**   | `docs/platform_technical_spec.md`  |
+| **Priority**   | CRITICAL                           |
+| **Owner**      | Unassigned                         |
+| **Created At** | 2026-05-07                         |
+| **Updated At** | 2026-05-07                         |
 
 ## Context
 
