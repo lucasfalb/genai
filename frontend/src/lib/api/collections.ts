@@ -1,3 +1,6 @@
+import { PUBLIC_API_BASE_URL } from '$env/static/public';
+import { authStore } from '$lib/stores/auth.svelte';
+import { tenantStore } from '$lib/stores/tenant.svelte';
 import { api } from '$lib/api/client';
 import type {
 	CollectionCreateRequest,
@@ -29,5 +32,28 @@ export const collectionsApi = {
 		);
 	},
 	deleteDocument: (collectionId: string, documentId: string) =>
-		api.del(`/tenant/collections/${collectionId}/documents/${documentId}`)
+		api.del(`/tenant/collections/${collectionId}/documents/${documentId}`),
+	createDocument: (collectionId: string, filename: string, content: string) =>
+		api.post<DocumentResponse>(`/tenant/collections/${collectionId}/documents/create`, {
+			filename,
+			content
+		}),
+	updateDocumentContent: (collectionId: string, documentId: string, content: string) =>
+		api.put<DocumentResponse>(
+			`/tenant/collections/${collectionId}/documents/${documentId}/content`,
+			{ content }
+		),
+
+	fetchDocumentContent: async (collectionId: string, documentId: string): Promise<{ blob: Blob; contentType: string }> => {
+		const headers: Record<string, string> = {};
+		if (authStore.accessToken) headers['Authorization'] = `Bearer ${authStore.accessToken}`;
+		if (tenantStore.activeTenantId) headers['X-Tenant-ID'] = tenantStore.activeTenantId;
+		const res = await fetch(
+			`${PUBLIC_API_BASE_URL}/tenant/collections/${collectionId}/documents/${documentId}/content`,
+			{ headers }
+		);
+		if (!res.ok) throw new Error('Failed to fetch document content');
+		const blob = await res.blob();
+		return { blob, contentType: res.headers.get('content-type') || 'application/octet-stream' };
+	}
 };

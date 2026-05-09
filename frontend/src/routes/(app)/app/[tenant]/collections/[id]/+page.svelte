@@ -12,6 +12,7 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import type { CollectionResponse, DocumentResponse } from '$lib/api/types';
 	import { tenantBaseFromPath } from '$lib/routes/tenant';
+	import FilePreview from '$lib/components/FilePreview.svelte';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Database from '@lucide/svelte/icons/database';
 	import Pencil from '@lucide/svelte/icons/pencil';
@@ -29,6 +30,8 @@
 	let confirmName = $state('');
 	const canDelete = $derived(confirmName === collection.name);
 	const appBase = $derived(tenantBaseFromPath(page.url.pathname));
+	let previewTarget = $state<DocumentResponse | null>(null);
+	let explorerKey = $state(0);
 
 	async function refreshCollection() {
 		try {
@@ -36,6 +39,10 @@
 		} catch {
 			// silent
 		}
+	}
+
+	function handleDocumentsChange() {
+		refreshCollection();
 	}
 
 	function formatDate(value: string | null): string {
@@ -62,7 +69,9 @@
 		reindexing = true;
 		try {
 			collection = await collectionsApi.reindex(collection.id);
-			documents = await collectionsApi.listDocuments(collection.id);
+			const updated = await collectionsApi.listDocuments(collection.id);
+			documents = updated;
+			explorerKey++; // Force re-render DocumentsExplorer
 			toast.success('Reindex queued.');
 		} catch (err) {
 			toast.error(getErrorMessage(err, 'Reindex failed.'));
@@ -87,7 +96,7 @@
 			</div>
 		</div>
 		<div class="flex gap-2">
-			{#if collection.document_count > 1}
+			{#if collection.document_count > 0}
 				<Button variant="outline" disabled={reindexing} onclick={reindexCollection}>
 					{#if reindexing}<Spinner data-icon="inline-start" />{:else}<RefreshCw data-icon="inline-start" />{/if}
 					{reindexing ? 'Queueing...' : 'Reindex'}
@@ -117,7 +126,14 @@
 		</div>
 		<div class="rounded-xl p-4" style="background:var(--surface);border:1px solid var(--ds-border)">
 			<p class="text-xs text-muted-foreground">Indexed</p>
-			<p class="mt-2 text-2xl font-semibold text-emerald-400">{collection.indexed_count}</p>
+			<div class="flex items-baseline gap-2">
+				<p class="mt-2 text-2xl font-semibold text-emerald-400">{collection.indexed_count}</p>
+				{#if collection.document_count > 0}
+					<span class="text-xs text-muted-foreground">
+						({Math.round((collection.indexed_count / collection.document_count) * 100)}%)
+					</span>
+				{/if}
+			</div>
 		</div>
 		<div class="rounded-xl p-4" style="background:var(--surface);border:1px solid var(--ds-border)">
 			<p class="text-xs text-muted-foreground">Failed</p>
@@ -125,10 +141,19 @@
 		</div>
 	</section>
 
-	<DocumentsExplorer
-		collectionId={collection.id}
-		initialDocuments={documents}
-		onChange={refreshCollection}
+	{#key explorerKey}
+		<DocumentsExplorer
+			collectionId={collection.id}
+			initialDocuments={documents}
+			onChange={handleDocumentsChange}
+			onPreview={(doc) => (previewTarget = doc)}
+		/>
+	{/key}
+
+	<FilePreview
+		open={previewTarget !== null}
+		document={previewTarget}
+		onclose={() => (previewTarget = null)}
 	/>
 
 	<p class="text-xs text-muted-foreground">Last indexed: {formatDate(collection.last_indexed_at)}</p>

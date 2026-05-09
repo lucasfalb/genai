@@ -375,6 +375,15 @@ class DocumentResponse(BaseModel):
     indexed_at: datetime | None
 
 
+class DocumentCreateRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    content: str = Field(min_length=1)
+
+
+class DocumentContentUpdateRequest(BaseModel):
+    content: str = Field(min_length=1)
+
+
 class CatalogSkillResponse(BaseModel):
     slug: str
     name: str

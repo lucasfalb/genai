@@ -2,6 +2,7 @@ import json
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi.responses import Response
 from redis.exceptions import RedisError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
@@ -16,6 +17,8 @@ from app.schemas import (
     CollectionCreateRequest,
     CollectionResponse,
     CollectionUpdateRequest,
+    DocumentCreateRequest,
+    DocumentContentUpdateRequest,
     DocumentResponse,
     MessageResponse,
 )
@@ -465,6 +468,233 @@ async def delete_document(
 
     message = "Document deleted."
     return api_success(MessageResponse(message=message), message=message)
+
+
+@router.get(
+    "/{collection_id}/documents/{document_id}/content",
+    summary="Get document file content",
+    description="Returns the raw file content from object storage for the specified document.",
+)
+async def get_document_content(
+    collection_id: UUID,
+    document_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_AGENT_INSTANCES)),
+    connection: AsyncConnection = Depends(get_connection),
+) -> Response:
+    await _set_tenant(connection, context)
+    repo = DocumentRepository(connection)
+    document = await repo.get(tenant_id=context.tenant_id, document_id=document_id)
+    if document is None or document.collection_id != collection_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+    if not document.storage_bucket or not document.storage_key:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document content not available")
+    data = await object_storage.get_object(bucket=document.storage_bucket, key=document.storage_key)
+    return Response(content=data, media_type=document.content_type or "application/octet-stream")
+
+
+@router.post(
+    "/{collection_id}/documents/create",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ApiResponse[DocumentResponse],
+    summary="Create markdown document",
+    description="Creates a new markdown document (.md) with the provided filename and content, stores it in object storage, and enqueues an indexing job.",
+)
+async def create_text_document(
+    collection_id: UUID,
+    payload: DocumentCreateRequest,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_AGENT_INSTANCES)),
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[DocumentResponse]:
+    await _set_tenant(connection, context)
+    collection = await CollectionRepository(connection).get(
+        tenant_id=context.tenant_id, collection_id=collection_id
+    )
+    if collection is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Collection not found")
+
+    filename = payload.filename
+    if not filename.endswith(".md"):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Filename must end with .md",
+        )
+
+    content_bytes = payload.content.encode("utf-8")
+    content_type = "text/markdown"
+
+    if len(content_bytes) > settings.upload_max_bytes:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"Content exceeds maximum size of {settings.upload_max_bytes} bytes",
+        )
+
+    document_id = uuid4()
+    safe_filename = _safe_filename(filename)
+    object_key = f"tenants/{context.tenant_id}/{document_id}/{safe_filename}"
+    try:
+        stored_object = await object_storage.put_object(
+            key=object_key,
+            body=content_bytes,
+            content_type=content_type,
+        )
+    except ObjectStorageError as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Document storage is unavailable",
+        ) from exc
+
+    document_repo = DocumentRepository(connection)
+    try:
+        document = await document_repo.create(
+            document_id=document_id,
+            tenant_id=context.tenant_id,
+            collection_id=collection_id,
+            filename=safe_filename,
+            source_type="created",
+            storage_bucket=stored_object.bucket,
+            storage_key=stored_object.key,
+            content_type=content_type,
+            size_bytes=len(content_bytes),
+        )
+    except Exception:
+        await _delete_stored_object(stored_object.bucket, stored_object.key)
+        raise
+
+    stats = await document_repo.recalc_collection_stats(
+        tenant_id=context.tenant_id, collection_id=collection_id
+    )
+    await CollectionRepository(connection).update_indexing_status(
+        tenant_id=context.tenant_id,
+        collection_id=collection_id,
+        indexing_status="indexing",
+        document_count=stats["document_count"],
+        indexed_count=stats["indexed_count"],
+        failed_count=stats["failed_count"],
+    )
+
+    await record_tenant_mutation(
+        connection=connection,
+        context=context,
+        action="document.created",
+        resource="documents",
+        resource_id=str(document.id),
+        snapshot=_document_response(document).model_dump(mode="json"),
+        metadata={"collection_id": str(collection_id), "filename": safe_filename, "size_bytes": len(content_bytes)},
+    )
+
+    try:
+        await redis_client.rpush(
+            INDEXING_QUEUE_KEY,
+            json.dumps(
+                {
+                    "document_id": str(document.id),
+                    "tenant_id": str(context.tenant_id),
+                    "collection_id": str(collection_id),
+                }
+            ),
+        )
+    except (RedisError, RuntimeError):
+        pass
+
+    return api_success(_document_response(document), message="Document created.")
+
+
+@router.put(
+    "/{collection_id}/documents/{document_id}/content",
+    response_model=ApiResponse[DocumentResponse],
+    summary="Update markdown document content",
+    description="Updates the content of a markdown document (.md), stores the new content in object storage, and triggers reindexing.",
+)
+async def update_document_content(
+    collection_id: UUID,
+    document_id: UUID,
+    payload: DocumentContentUpdateRequest,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_AGENT_INSTANCES)),
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[DocumentResponse]:
+    await _set_tenant(connection, context)
+    repo = DocumentRepository(connection)
+    document = await repo.get(tenant_id=context.tenant_id, document_id=document_id)
+    if document is None or document.collection_id != collection_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+
+    if not document.content_type or document.content_type != "text/markdown":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Only markdown documents can be updated",
+        )
+
+    content_bytes = payload.content.encode("utf-8")
+    if len(content_bytes) > settings.upload_max_bytes:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"Content exceeds maximum size of {settings.upload_max_bytes} bytes",
+        )
+
+    if not document.storage_bucket or not document.storage_key:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document storage not available")
+
+    try:
+        await object_storage.put_object(
+            key=document.storage_key,
+            body=content_bytes,
+            content_type=document.content_type,
+        )
+    except ObjectStorageError as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Document storage is unavailable",
+        ) from exc
+
+    updated_document = await repo.update_status(
+        tenant_id=context.tenant_id,
+        document_id=document_id,
+        status="uploaded",
+        chunk_count=0,
+        error_message=None,
+        indexed_at=None,
+    )
+
+    stats = await repo.recalc_collection_stats(
+        tenant_id=context.tenant_id, collection_id=collection_id
+    )
+    await CollectionRepository(connection).update_indexing_status(
+        tenant_id=context.tenant_id,
+        collection_id=collection_id,
+        indexing_status="indexing",
+        document_count=stats["document_count"],
+        indexed_count=stats["indexed_count"],
+        failed_count=stats["failed_count"],
+    )
+
+    await record_tenant_mutation(
+        connection=connection,
+        context=context,
+        action="document.content_updated",
+        resource="documents",
+        resource_id=str(document_id),
+        snapshot=_document_response(updated_document or document).model_dump(mode="json") if updated_document else None,
+        metadata={"collection_id": str(collection_id), "filename": document.filename, "size_bytes": len(content_bytes)},
+    )
+
+    try:
+        await redis_client.rpush(
+            INDEXING_QUEUE_KEY,
+            json.dumps(
+                {
+                    "document_id": str(document_id),
+                    "tenant_id": str(context.tenant_id),
+                    "collection_id": str(collection_id),
+                }
+            ),
+        )
+    except (RedisError, RuntimeError):
+        pass
+
+    return api_success(
+        _document_response(updated_document or document),
+        message="Document content updated.",
+    )
 
 
 async def _set_tenant(connection: AsyncConnection, context: TenantContext) -> None:

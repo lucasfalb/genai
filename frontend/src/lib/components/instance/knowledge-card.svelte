@@ -9,6 +9,7 @@
 	import { getErrorMessage } from '$lib/api/client';
 	import { toast } from 'svelte-sonner';
 	import ProgressCircle from '$lib/components/ProgressCircle.svelte';
+	import FilePreview from '$lib/components/FilePreview.svelte';
 	import KnowledgeDialog from './knowledge-dialog.svelte';
 	import * as Accordion from '$lib/components/ui/accordion/index.js';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
@@ -25,6 +26,7 @@
 	let documents = $state<DocumentResponse[]>([]);
 	let loadingDocs = $state(false);
 	let deleteTarget = $state<DocumentResponse | null>(null);
+	let previewTarget = $state<DocumentResponse | null>(null);
 	let uploading = $state(false);
 	let polling = $state(false);
 	let pollTimer: ReturnType<typeof setInterval> | undefined = $state();
@@ -32,7 +34,8 @@
 
 	let collectionId = $derived(ragScope[0] ?? '');
 
-	const ACCEPT = '.pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown';
+	const ACCEPT =
+		'.pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown';
 
 	function pendingDocs(): boolean {
 		return documents.some((d) => d.status === 'uploaded' || d.status === 'indexing');
@@ -92,10 +95,7 @@
 			return;
 		}
 		loadingDocs = true;
-		Promise.all([
-			collectionsApi.get(collectionId),
-			collectionsApi.listDocuments(collectionId)
-		])
+		Promise.all([collectionsApi.get(collectionId), collectionsApi.listDocuments(collectionId)])
 			.then(([col, docs]) => {
 				selectedCollection = col;
 				documents = docs;
@@ -145,7 +145,10 @@
 	}
 </script>
 
-<div class="rounded-xl p-6 space-y-4" style="background:var(--surface);border:1px solid var(--ds-border)">
+<div
+	class="space-y-4 rounded-xl p-6"
+	style="background:var(--surface);border:1px solid var(--ds-border)"
+>
 	<div class="flex items-center justify-between gap-4">
 		<div class="flex items-center gap-3">
 			<div class="flex size-10 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
@@ -153,57 +156,118 @@
 			</div>
 			<div>
 				<h2 class="font-display text-sm font-semibold" style="color:var(--text-main)">Knowledge</h2>
-				<p class="mt-1 text-sm text-muted-foreground">Select a collection as knowledge base for this agent.</p>
+				<p class="mt-1 text-sm text-muted-foreground">
+					Select a collection as knowledge base for this agent.
+				</p>
 			</div>
 		</div>
 		<Button variant="outline" onclick={onDialogOpen}>Browse Collections</Button>
 	</div>
 
 	{#if ragScope.length > 0 && selectedCollection}
-		<div class="flex items-center gap-2 rounded-lg px-4 py-2" style="background:color-mix(in srgb, #3b82f6 8%, transparent);border:1px solid color-mix(in srgb, #3b82f6 20%, transparent)">
+		<div
+			class="flex items-center gap-2 rounded-lg px-4 py-2"
+			style="background:color-mix(in srgb, #3b82f6 8%, transparent);border:1px solid color-mix(in srgb, #3b82f6 20%, transparent)"
+		>
 			<Database class="size-4 shrink-0 text-blue-400" />
-			<span class="flex-1 text-sm font-medium" style="color:var(--text-main)">{selectedCollection.name}</span>
-			<button onclick={onDialogOpen} class="rounded px-2 py-0.5 text-[10px] font-semibold text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition-colors">
+			<span class="flex-1 text-sm font-medium" style="color:var(--text-main)"
+				>{selectedCollection.name}</span
+			>
+			<button
+				onclick={onDialogOpen}
+				class="rounded px-2 py-0.5 text-[10px] font-semibold text-blue-400 transition-colors hover:bg-blue-500/10 hover:text-blue-300"
+			>
 				{selectedCollection.document_count} docs
 			</button>
-			<Badge variant="outline" class="text-[10px] capitalize">{selectedCollection.indexing_status}</Badge>
-			<button onclick={() => fileInput.click()} disabled={uploading || polling} class="rounded p-1 text-muted-foreground hover:text-blue-400 hover:bg-blue-500/10 transition-colors" aria-label="Upload documents">
+			<Badge variant="outline" class="text-[10px] capitalize"
+				>{selectedCollection.indexing_status}</Badge
+			>
+			<button
+				onclick={() => fileInput.click()}
+				disabled={uploading || polling}
+				class="rounded p-1 text-muted-foreground transition-colors hover:bg-blue-500/10 hover:text-blue-400"
+				aria-label="Upload documents"
+			>
 				<Upload class="size-3.5" />
 			</button>
-			<button onclick={() => { ragScope = []; }} class="rounded p-1 text-muted-foreground hover:text-red-400 hover:bg-red-400/10 transition-colors" aria-label="Remove collection">
+			<button
+				onclick={() => {
+					ragScope = [];
+				}}
+				class="rounded p-1 text-muted-foreground transition-colors hover:bg-red-400/10 hover:text-red-400"
+				aria-label="Remove collection"
+			>
 				<X class="size-3.5" />
 			</button>
 		</div>
-		<input bind:this={fileInput} type="file" multiple accept={ACCEPT} class="hidden" onchange={(e) => handleUpload(e.currentTarget.files)} />
+		<input
+			bind:this={fileInput}
+			type="file"
+			multiple
+			accept={ACCEPT}
+			class="hidden"
+			onchange={(e) => handleUpload(e.currentTarget.files)}
+		/>
 
 		{#if loadingDocs}
 			<p class="py-3 text-center text-xs text-muted-foreground">Loading documents...</p>
 		{:else if documents.length > 0}
-			<Accordion.Root type="multiple" class="rounded-lg border" style="border-color:var(--ds-border)">
+			<Accordion.Root
+				type="multiple"
+				class="max-h-44 overflow-y-auto rounded-lg border"
+				style="border-color:var(--ds-border)"
+			>
 				{#each documents as doc (doc.id)}
 					<Accordion.Item value={doc.id}>
 						<Accordion.Trigger class="px-4">
-							<div class="flex items-center gap-2 min-w-0 flex-1 mr-2">
+							<div class="mr-2 flex min-w-0 flex-1 items-center gap-2">
 								<ProgressCircle status={doc.status} size={12} />
-								<span class="truncate font-mono text-xs">{doc.filename}</span>
+								<button
+									onclick={(e) => {
+										e.stopPropagation();
+										previewTarget = doc;
+									}}
+									class="cursor-pointer truncate text-left font-mono text-xs transition-colors hover:text-blue-400"
+									>{doc.filename}</button
+								>
 							</div>
 						</Accordion.Trigger>
 						<Accordion.Content class="px-4">
-							<div class="grid grid-cols-2 gap-2 text-xs pt-1 pb-2">
-								<div><span class="text-muted-foreground">Status:</span> <span class="capitalize">{doc.status}</span></div>
+							<div class="grid grid-cols-2 gap-2 pt-1 pb-2 text-xs">
+								<div>
+									<span class="text-muted-foreground">Status:</span>
+									<span class="capitalize">{doc.status}</span>
+								</div>
 								<div><span class="text-muted-foreground">Chunks:</span> {doc.chunk_count}</div>
-								<div><span class="text-muted-foreground">Size:</span> {formatBytes(doc.size_bytes)}</div>
-								<div><span class="text-muted-foreground">Uploaded:</span> {formatDate(doc.created_at)}</div>
+								<div>
+									<span class="text-muted-foreground">Size:</span>
+									{formatBytes(doc.size_bytes)}
+								</div>
+								<div>
+									<span class="text-muted-foreground">Uploaded:</span>
+									{formatDate(doc.created_at)}
+								</div>
 								{#if doc.indexed_at}
-									<div><span class="text-muted-foreground">Indexed:</span> {formatDate(doc.indexed_at)}</div>
+									<div>
+										<span class="text-muted-foreground">Indexed:</span>
+										{formatDate(doc.indexed_at)}
+									</div>
 								{/if}
 								{#if doc.error_message}
-									<div class="col-span-2"><span class="text-muted-foreground">Error:</span> <span class="text-red-400">{doc.error_message}</span></div>
+									<div class="col-span-2">
+										<span class="text-muted-foreground">Error:</span>
+										<span class="text-red-400">{doc.error_message}</span>
+									</div>
 								{/if}
 							</div>
 							<div class="flex gap-2 border-t pt-2" style="border-color:var(--ds-border)">
-								<Button variant="ghost" size="sm" class="h-7 text-[10px]" onclick={() => (deleteTarget = doc)}>
-									<Trash2 class="size-3 mr-1" /> Delete
+								<Button
+									variant="ghost"
+									size="sm"
+									class="h-7 text-[10px]"
+									onclick={() => (deleteTarget = doc)}
+								>
+									<Trash2 class="mr-1 size-3" /> Delete
 								</Button>
 							</div>
 						</Accordion.Content>
@@ -216,11 +280,24 @@
 	{/if}
 </div>
 
-<KnowledgeDialog bind:open selectedName={selectedCollection?.name ?? ''} selectedId={ragScope[0] ?? ''} {onSelect} />
+<FilePreview
+	open={!!previewTarget}
+	document={previewTarget}
+	onclose={() => (previewTarget = null)}
+/>
+
+<KnowledgeDialog
+	bind:open
+	selectedName={selectedCollection?.name ?? ''}
+	selectedId={ragScope[0] ?? ''}
+	{onSelect}
+/>
 
 <AlertDialog.Root
 	open={!!deleteTarget}
-	onOpenChange={(o) => { if (!o) deleteTarget = null; }}
+	onOpenChange={(o) => {
+		if (!o) deleteTarget = null;
+	}}
 >
 	<AlertDialog.Content>
 		<AlertDialog.Header>
