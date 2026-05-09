@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID
@@ -17,6 +18,8 @@ from rag.chunker import chunk_text
 from rag.embedder import OpenAIEmbedder
 from rag.qdrant_client import QdrantRagClient
 from rag.text_extractor import extract_text
+
+logger = logging.getLogger("rag.indexing_worker")
 
 INDEXING_QUEUE_KEY = "rag:indexing_queue"
 
@@ -55,6 +58,10 @@ class IndexingWorker:
         await self.process_job(IndexingJob.from_json(payload))
 
     async def process_job(self, job: IndexingJob) -> None:
+        logger.info(
+            "Processing job | action=%s tenant=%s collection=%s document=%s",
+            job.action, job.tenant_id, job.collection_id, job.document_id,
+        )
         async with tenant_connection(TenantContext(tenant_id=job.tenant_id)) as connection:
             await connection.execute(
                 text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
@@ -63,6 +70,7 @@ class IndexingWorker:
             document_repo = DocumentRepository(connection)
             collection_repo = CollectionRepository(connection)
             if job.action == "delete":
+                logger.info("Deleting document chunks from Qdrant | document=%s", job.document_id)
                 await self.qdrant.delete_document(document_id=str(job.document_id))
                 await _refresh_collection_status(
                     collection_repo=collection_repo,
@@ -70,12 +78,21 @@ class IndexingWorker:
                     tenant_id=job.tenant_id,
                     collection_id=job.collection_id,
                 )
+                logger.info("Delete done | document=%s", job.document_id)
                 return
 
             document = await document_repo.get(tenant_id=job.tenant_id, document_id=job.document_id)
             if document is None or document.collection_id != job.collection_id:
+                logger.warning(
+                    "Document not found or mismatch | tenant=%s document=%s collection=%s",
+                    job.tenant_id, job.document_id, job.collection_id,
+                )
                 return
 
+            logger.info(
+                "Indexing document | filename=%s size=%s",
+                document.filename, document.size_bytes,
+            )
             await document_repo.update_status(
                 tenant_id=job.tenant_id,
                 document_id=job.document_id,
@@ -90,7 +107,13 @@ class IndexingWorker:
                     chunk_count=chunk_count,
                     indexed_at=datetime.now(timezone.utc),
                 )
+                logger.info(
+                    "Index complete | document=%s chunks=%d", job.document_id, chunk_count,
+                )
             except Exception as exc:
+                logger.error(
+                    "Index failed | document=%s error=%s", job.document_id, exc, exc_info=True,
+                )
                 await document_repo.update_status(
                     tenant_id=job.tenant_id,
                     document_id=job.document_id,
@@ -108,17 +131,29 @@ class IndexingWorker:
     async def _index_document(self, *, job: IndexingJob, document: DocumentRecord) -> int:
         if not document.storage_bucket or not document.storage_key:
             raise RuntimeError("Document has no object storage location")
+        logger.info(
+            "Fetching from storage | bucket=%s key=%s",
+            document.storage_bucket, document.storage_key,
+        )
         data = await self.storage.get_object(bucket=document.storage_bucket, key=document.storage_key)
-        text = extract_text(filename=document.filename, content_type=document.content_type, data=data)
+        logger.info("Storage fetched | bytes=%d", len(data))
+        extracted = extract_text(filename=document.filename, content_type=document.content_type, data=data)
+        logger.info("Text extracted | chars=%d", len(extracted))
         chunks = chunk_text(
-            text,
+            extracted,
             chunk_tokens=settings.rag_chunk_tokens,
             overlap_tokens=settings.rag_chunk_overlap_tokens,
         )
         if not chunks:
             raise RuntimeError("Document produced no indexable text")
+        logger.info("Chunking done | chunks=%d", len(chunks))
         embeddings = await self.embedder.embed_texts(chunks)
+        logger.info(
+            "Embeddings generated | count=%d dim=%d",
+            len(embeddings), len(embeddings[0]) if embeddings else 0,
+        )
         await self.qdrant.delete_document(document_id=str(job.document_id))
+        logger.info("Old chunks deleted from Qdrant | document=%s", job.document_id)
         await self.qdrant.upsert_chunks(
             tenant_id=str(job.tenant_id),
             collection_id=str(job.collection_id),
@@ -126,6 +161,10 @@ class IndexingWorker:
             chunks=chunks,
             embeddings=embeddings,
             embedding_model=settings.embedding_model,
+        )
+        logger.info(
+            "Upsert to Qdrant done | collection=%s points=%d",
+            settings.qdrant_collection_name, len(chunks),
         )
         return len(chunks)
 
@@ -174,14 +213,30 @@ async def _refresh_collection_status(
 
 
 async def run_worker(redis: Redis = redis_client) -> None:
+    logger.info("Worker started | queue=%s qdrant_url=%s", INDEXING_QUEUE_KEY, settings.qdrant_url)
     worker = IndexingWorker()
+    errors = 0
     while True:
-        item = await redis.blpop(INDEXING_QUEUE_KEY, timeout=0)
-        if item is None:
-            continue
-        _, payload = item
-        await worker.process_payload(payload)
+        try:
+            item = await redis.blpop(INDEXING_QUEUE_KEY, timeout=0)
+            if item is None:
+                continue
+            _, payload = item
+            await worker.process_payload(payload)
+            errors = 0
+        except Exception as exc:
+            errors += 1
+            logger.critical("Worker crashed | errors=%d error=%s", errors, exc, exc_info=True)
+            if errors >= 3:
+                logger.critical("Too many consecutive errors, exiting")
+                raise
+            await asyncio.sleep(1)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+    logger.info("Starting indexing worker from command line")
     asyncio.run(run_worker())

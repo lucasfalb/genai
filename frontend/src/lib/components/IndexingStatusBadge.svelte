@@ -1,4 +1,6 @@
 <script lang="ts">
+	import ProgressCircle from './ProgressCircle.svelte';
+
 	let { status, progress = 0 } = $props<{ status: string; progress?: number }>();
 
 	const LABELS: Record<string, string> = {
@@ -16,17 +18,16 @@
 		partial: 'bg-amber-500/10 text-amber-400',
 		failed: 'bg-red-500/10 text-red-400'
 	};
-
-	const percent = $derived(Math.max(0, Math.min(100, Math.round((progress ?? 0) * 100))));
 </script>
 
-<div class="inline-flex flex-col gap-1">
-	<span class="w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider {CLASSES[status] ?? CLASSES.empty}">
-		{LABELS[status] ?? status}
-	</span>
-	{#if status === 'indexing'}
-		<div class="h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
-			<div class="h-full rounded-full bg-blue-500 transition-all" style={`width:${percent}%`}></div>
-		</div>
-	{/if}
+<div class="inline-flex items-center gap-2">
+	<ProgressCircle {status} {progress} size={20} />
+	<div class="inline-flex flex-col gap-0.5">
+		<span class="w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider {CLASSES[status] ?? CLASSES.empty}">
+			{LABELS[status] ?? status}
+		</span>
+		{#if status === 'indexing'}
+			<span class="text-[9px] text-muted-foreground">{Math.round((progress ?? 0) * 100)}%</span>
+		{/if}
+	</div>
 </div>

@@ -139,7 +139,7 @@ async def update_collection(
     "/{collection_id}",
     response_model=ApiResponse[MessageResponse],
     summary="Delete collection",
-    description="Deletes a document collection and all its documents. Returns 409 if any documents are indexed.",
+    description="Cascade-deletes a document collection: removes indexed chunks from Qdrant, deletes files from object storage, then drops documents and the collection record.",
 )
 async def delete_collection(
     collection_id: UUID,
@@ -148,21 +148,44 @@ async def delete_collection(
 ) -> ApiResponse[MessageResponse]:
     await _set_tenant(connection, context)
     repo = CollectionRepository(connection)
+    doc_repo = DocumentRepository(connection)
     collection = await repo.get(tenant_id=context.tenant_id, collection_id=collection_id)
     if collection is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Collection not found")
-    if collection.indexed_count > 0:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Cannot delete collection with indexed documents")
+
+    documents = await doc_repo.list_by_collection(
+        tenant_id=context.tenant_id, collection_id=collection_id,
+    )
+
+    for document in documents:
+        if document.storage_bucket and document.storage_key:
+            await _delete_stored_object(document.storage_bucket, document.storage_key)
+
+    for document in documents:
+        try:
+            await redis_client.rpush(
+                INDEXING_QUEUE_KEY,
+                json.dumps({
+                    "action": "delete",
+                    "document_id": str(document.id),
+                    "tenant_id": str(context.tenant_id),
+                    "collection_id": str(collection_id),
+                }),
+            )
+        except (RedisError, RuntimeError):
+            pass
+
     await record_tenant_mutation(
         connection=connection,
         context=context,
         action="collection.deleted",
         resource="collections",
         resource_id=str(collection_id),
+        snapshot={"name": collection.name, "document_count": len(documents), "indexed_count": collection.indexed_count},
         metadata={"collection_name": collection.name},
     )
     await repo.delete(tenant_id=context.tenant_id, collection_id=collection_id)
-    message = "Collection deleted."
+    message = f"Collection deleted{' with ' + str(len(documents)) + ' document(s)' if documents else ''}."
     return api_success(MessageResponse(message=message), message=message)
 
 
@@ -268,17 +291,7 @@ async def upload_document(
 
     document_id = uuid4()
     safe_filename = _safe_filename(file.filename)
-    object_key = "/".join(
-        [
-            "tenants",
-            str(context.tenant_id),
-            "collections",
-            str(collection_id),
-            "documents",
-            str(document_id),
-            safe_filename,
-        ]
-    )
+    object_key = f"tenants/{context.tenant_id}/{document_id}/{safe_filename}"
     try:
         stored_object = await object_storage.put_object(
             key=object_key,

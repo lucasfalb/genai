@@ -1,152 +1,319 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { mode } from 'mode-watcher';
+
+	type RGB = [number, number, number];
+
+	type ThemeColors = {
+		bgA: RGB;
+		bgB: RGB;
+		neon: RGB;
+		dot: RGB;
+	};
+
+	const colors: {
+		dark: ThemeColors;
+		light: ThemeColors;
+	} = {
+		dark: {
+			bgA: [0.01, 0.015, 0.05],
+			bgB: [0.03, 0.08, 0.2],
+			neon: [0.05, 0.45, 1.0],
+			dot: [0.34, 0.48, 1.0]
+		},
+		light: {
+			bgA: [0.973, 0.980, 0.988],
+			bgB: [0.886, 0.906, 0.961],
+			neon: [0.255, 0.510, 0.965],
+			dot: [0.412, 0.541, 0.761]
+		}
+	};
+
+	function resolveMode(): 'dark' | 'light' {
+		if (typeof window === 'undefined') return 'dark';
+		try {
+			const stored = localStorage.getItem('mode-watcher-mode');
+			if (stored === 'light') return 'light';
+			if (stored === 'dark') return 'dark';
+			return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+		} catch {
+			return 'dark';
+		}
+	}
+
+	let currentMode = $state(resolveMode());
+
+	$effect(() => {
+		currentMode = mode.current ?? 'dark';
+	});
 
 	let canvas: HTMLCanvasElement;
 
 	const VERT = `
-attribute vec2 a_pos;
-void main() {
-    gl_Position = vec4(a_pos, 0.0, 1.0);
-}`;
+		attribute vec2 a_pos;
+
+		void main() {
+			gl_Position = vec4(a_pos, 0.0, 1.0);
+		}
+	`;
 
 	const FRAG = `
-precision mediump float;
-uniform float u_time;
-uniform vec2 u_res;
-uniform vec2 u_mouse;
+		precision highp float;
 
-void main() {
-    vec2 uv = gl_FragCoord.xy / u_res;
-    float ar = u_res.x / u_res.y;
-    vec2 p = vec2(uv.x * ar, uv.y);
-    float t = u_time * 0.3;
+		uniform vec2 u_res;
+		uniform vec2 u_mouse;
+		uniform float u_strength;
+		uniform float u_time;
 
-    // Animated blob centers
-    vec2 c0 = vec2((0.30 + 0.20 * sin(t * 1.10)) * ar, 0.52 + 0.22 * cos(t * 0.85));
-    vec2 c1 = vec2((0.68 + 0.17 * cos(t * 0.75)) * ar, 0.30 + 0.20 * sin(t * 1.15));
-    vec2 c2 = vec2((0.50 + 0.22 * sin(t * 0.55 + 1.5)) * ar, 0.74 + 0.16 * cos(t * 0.95));
-    vec2 c3 = vec2((0.18 + 0.12 * cos(t * 1.25)) * ar, 0.22 + 0.14 * sin(t * 0.65));
-    vec2 c4 = vec2((0.82 + 0.12 * sin(t * 0.90 + 2.0)) * ar, 0.65 + 0.18 * cos(t * 1.05));
+		uniform vec3 u_bgA;
+		uniform vec3 u_bgB;
+		uniform vec3 u_neon;
+		uniform vec3 u_dot;
 
-    // Mouse influence
-    vec2 m = vec2(u_mouse.x / u_res.x * ar, 1.0 - u_mouse.y / u_res.y);
+		float hash(vec2 p) {
+			return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+		}
 
-    // Metaball scalar field
-    float f = 0.0;
-    f += 0.024 / max(dot(p - c0, p - c0), 0.0001);
-    f += 0.018 / max(dot(p - c1, p - c1), 0.0001);
-    f += 0.020 / max(dot(p - c2, p - c2), 0.0001);
-    f += 0.013 / max(dot(p - c3, p - c3), 0.0001);
-    f += 0.015 / max(dot(p - c4, p - c4), 0.0001);
-    f += 0.006 / max(dot(p - m,  p - m),  0.0001);
+		float noise(vec2 p) {
+			vec2 i = floor(p);
+			vec2 f = fract(p);
 
-    // Exponential color weights per blob
-    float d0 = length(p - c0);
-    float d1 = length(p - c1);
-    float d2 = length(p - c2);
-    float d3 = length(p - c3);
-    float d4 = length(p - c4);
+			vec2 u = f * f * (3.0 - 2.0 * f);
 
-    // App palette
-    vec3 bg     = vec3(0.031, 0.031, 0.063); // #080810
-    vec3 blue   = vec3(0.376, 0.647, 0.980); // blue-400
-    vec3 cyan   = vec3(0.133, 0.827, 0.937); // cyan-400
-    vec3 violet = vec3(0.655, 0.545, 0.980); // violet-400
-    vec3 indigo = vec3(0.506, 0.549, 0.980); // indigo-400
+			return mix(
+				mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+				mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+				u.y
+			);
+		}
 
-    float k = 5.0;
-    float w0 = exp(-d0 * k);
-    float w1 = exp(-d1 * k);
-    float w2 = exp(-d2 * k);
-    float w3 = exp(-d3 * k);
-    float w4 = exp(-d4 * k);
-    float wt = w0 + w1 + w2 + w3 + w4 + 0.0001;
+		float fbm(vec2 p) {
+			float v = 0.0;
+			float a = 0.5;
 
-    vec3 blobCol = (blue * w0 + cyan * w1 + mix(blue, cyan, 0.4) * w2 + violet * w3 + indigo * w4) / wt;
+			for (int i = 0; i < 5; i++) {
+				v += a * noise(p);
+				p *= 2.0;
+				a *= 0.5;
+			}
 
-    float glow = smoothstep(0.4, 2.5, f);
-    float aura = smoothstep(0.0, 0.6, f * 0.3);
+			return v;
+		}
 
-    vec3 col = bg;
-    col += blobCol * glow * 0.55;
-    col += (blue * 0.4 + cyan * 0.4 + violet * 0.2) * aura * 0.08;
+		void main() {
+			vec2 uv = gl_FragCoord.xy / u_res;
+			float ar = u_res.x / u_res.y;
 
-    // Subtle surface shimmer
-    float shimmer = sin(p.x * 9.0 + t) * cos(p.y * 9.0 + t * 0.7) * 0.012;
-    col += blobCol * shimmer * glow;
+			vec2 p = vec2(uv.x * ar, uv.y);
+			vec2 m = vec2(u_mouse.x / u_res.x * ar, u_mouse.y / u_res.y);
 
-    // Edge vignette
-    float vig = 1.0 - 0.5 * smoothstep(0.2, 1.1, length(uv - 0.5) * 1.8);
-    col *= vig;
+			float mouseDist = length(p - m);
+			float mouseFlow = smoothstep(0.38, 0.0, mouseDist) * u_strength;
 
-    gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
-}`;
+			vec2 flow = p * 2.2;
+
+			flow += vec2(
+				fbm(p * 3.0 + vec2(u_time * 0.12, u_time * 0.05)),
+				fbm(p * 3.0 - vec2(u_time * 0.06, u_time * 0.14))
+			) * 0.45;
+
+			vec2 mouseDir = p - m;
+			float len = length(mouseDir);
+			mouseDir = len > 0.0001 ? mouseDir / len : vec2(0.0);
+
+			flow += mouseDir * mouseFlow * 0.055;
+			flow += vec2(-mouseDir.y, mouseDir.x) * mouseFlow * 0.035;
+
+			float lava =
+				fbm(flow * 2.0 + u_time * 0.08) +
+				fbm(flow * 4.0 - u_time * 0.05) * 0.45;
+
+			float neonLine = smoothstep(0.48, 0.62, lava) * smoothstep(0.95, 0.64, lava);
+
+			vec3 bg = mix(u_bgA, u_bgB, lava * 0.6);
+			bg += u_neon * neonLine * 0.22;
+
+			float gridScale = 35.0;
+			vec2 g_uv = uv * vec2(gridScale * ar, gridScale);
+			vec2 cell = floor(g_uv);
+
+			float finalMask = 0.0;
+
+			for (int i = -2; i <= 2; i++) {
+				for (int j = -2; j <= 2; j++) {
+					vec2 nCell = cell + vec2(float(i), float(j));
+
+					vec2 origCenterUV = (nCell + 0.5) / vec2(gridScale * ar, gridScale);
+					vec2 origCenterP = vec2(origCenterUV.x * ar, origCenterUV.y);
+
+					vec2 dir = origCenterP - m;
+					float dist = length(dir);
+
+					float radius = 0.13;
+					float influence = smoothstep(radius, 0.0, dist) * u_strength;
+
+					float push = influence * 0.58;
+
+					vec2 safeDir = dist > 0.0001 ? dir / dist : vec2(0.0);
+					vec2 pushedCenterP = origCenterP + safeDir * push * 0.038;
+
+					float d = length(p - pushedCenterP) * gridScale;
+
+					float dotMask = smoothstep(0.085, 0.055, d);
+
+					float fade = 1.0 - influence;
+					fade = smoothstep(0.0, 1.0, fade);
+
+					dotMask *= fade;
+
+					finalMask = max(finalMask, dotMask);
+				}
+			}
+
+			vec3 color = bg + u_dot * finalMask;
+
+			gl_FragColor = vec4(color, 1.0);
+		}
+	`;
 
 	onMount(() => {
-		const gl = canvas.getContext('webgl');
+		const gl = canvas.getContext('webgl', { antialias: true });
 		if (!gl) return;
 
-		function makeShader(type: number, src: string) {
-			const s = gl!.createShader(type)!;
-			gl!.shaderSource(s, src);
-			gl!.compileShader(s);
-			return s;
-		}
+		const createShader = (type: number, src: string) => {
+			const shader = gl.createShader(type);
+			if (!shader) return null;
 
-		const program = gl.createProgram()!;
-		gl.attachShader(program, makeShader(gl.VERTEX_SHADER, VERT));
-		gl.attachShader(program, makeShader(gl.FRAGMENT_SHADER, FRAG));
-		gl.linkProgram(program);
-		gl.useProgram(program);
+			gl.shaderSource(shader, src);
+			gl.compileShader(shader);
 
-		const buf = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+			if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+				console.error(gl.getShaderInfoLog(shader));
+				gl.deleteShader(shader);
+				return null;
+			}
 
-		const posLoc = gl.getAttribLocation(program, 'a_pos');
-		gl.enableVertexAttribArray(posLoc);
-		gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
-
-		const timeLoc = gl.getUniformLocation(program, 'u_time');
-		const resLoc = gl.getUniformLocation(program, 'u_res');
-		const mouseLoc = gl.getUniformLocation(program, 'u_mouse');
-
-		const mouse = [0, 0];
-		const onMouseMove = (e: MouseEvent) => {
-			const dpr = window.devicePixelRatio || 1;
-			mouse[0] = e.clientX * dpr;
-			mouse[1] = canvas.height - e.clientY * dpr;
+			return shader;
 		};
-		window.addEventListener('mousemove', onMouseMove);
 
-		let raf: number;
+		const vert = createShader(gl.VERTEX_SHADER, VERT);
+		const frag = createShader(gl.FRAGMENT_SHADER, FRAG);
+		if (!vert || !frag) return;
 
-		function resize() {
-			const dpr = window.devicePixelRatio || 1;
-			canvas.width = canvas.offsetWidth * dpr;
-			canvas.height = canvas.offsetHeight * dpr;
-			gl!.viewport(0, 0, canvas.width, canvas.height);
-			gl!.uniform2f(resLoc, canvas.width, canvas.height);
+		const prog = gl.createProgram();
+		if (!prog) return;
+
+		gl.attachShader(prog, vert);
+		gl.attachShader(prog, frag);
+		gl.linkProgram(prog);
+
+		if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+			console.error(gl.getProgramInfoLog(prog));
+			return;
 		}
 
-		const ro = new ResizeObserver(resize);
-		ro.observe(canvas);
+		gl.useProgram(prog);
+
+		const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
+
+		const buffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+		gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+		const pos = gl.getAttribLocation(prog, 'a_pos');
+		gl.enableVertexAttribArray(pos);
+		gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+
+		const uRes = gl.getUniformLocation(prog, 'u_res');
+		const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+		const uStrength = gl.getUniformLocation(prog, 'u_strength');
+		const uTime = gl.getUniformLocation(prog, 'u_time');
+
+		const uBgA = gl.getUniformLocation(prog, 'u_bgA');
+		const uBgB = gl.getUniformLocation(prog, 'u_bgB');
+		const uNeon = gl.getUniformLocation(prog, 'u_neon');
+		const uDot = gl.getUniformLocation(prog, 'u_dot');
+
+		let mouse = {
+			x: 0,
+			y: 0,
+			cx: 0,
+			cy: 0
+		};
+
+		let strength = 0;
+		let targetStrength = 0;
+		const start = performance.now();
+
+		const applyColors = () => {
+			const active = colors[currentMode];
+
+			gl.uniform3f(uBgA, active.bgA[0], active.bgA[1], active.bgA[2]);
+			gl.uniform3f(uBgB, active.bgB[0], active.bgB[1], active.bgB[2]);
+			gl.uniform3f(uNeon, active.neon[0], active.neon[1], active.neon[2]);
+			gl.uniform3f(uDot, active.dot[0], active.dot[1], active.dot[2]);
+		};
+
+		const move = (e: MouseEvent) => {
+			const rect = canvas.getBoundingClientRect();
+
+			mouse.x = e.clientX - rect.left;
+			mouse.y = rect.height - (e.clientY - rect.top);
+
+			targetStrength = 1;
+		};
+
+		const leave = () => {
+			targetStrength = 0;
+		};
+
+		const resize = () => {
+			const dpr = window.devicePixelRatio || 1;
+
+			canvas.width = Math.floor(canvas.clientWidth * dpr);
+			canvas.height = Math.floor(canvas.clientHeight * dpr);
+
+			gl.viewport(0, 0, canvas.width, canvas.height);
+		};
+
+		window.addEventListener('resize', resize);
+		canvas.addEventListener('mousemove', move);
+		canvas.addEventListener('mouseleave', leave);
+
 		resize();
 
-		function render(time: number) {
-			gl!.uniform1f(timeLoc, time * 0.001);
-			gl!.uniform2f(mouseLoc, mouse[0], mouse[1]);
-			gl!.drawArrays(gl!.TRIANGLE_STRIP, 0, 4);
-			raf = requestAnimationFrame(render);
-		}
-		raf = requestAnimationFrame(render);
+		let frame: number;
+
+		const render = () => {
+			mouse.cx += (mouse.x - mouse.cx) * 0.055;
+			mouse.cy += (mouse.y - mouse.cy) * 0.055;
+
+			strength += (targetStrength - strength) * 0.08;
+
+			const scaleX = canvas.width / canvas.clientWidth;
+			const scaleY = canvas.height / canvas.clientHeight;
+
+			applyColors();
+
+			gl.uniform2f(uRes, canvas.width, canvas.height);
+			gl.uniform2f(uMouse, mouse.cx * scaleX, mouse.cy * scaleY);
+			gl.uniform1f(uStrength, strength);
+			gl.uniform1f(uTime, (performance.now() - start) * 0.001);
+
+			gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+			frame = requestAnimationFrame(render);
+		};
+
+		render();
 
 		return () => {
-			cancelAnimationFrame(raf);
-			ro.disconnect();
-			window.removeEventListener('mousemove', onMouseMove);
+			cancelAnimationFrame(frame);
+			window.removeEventListener('resize', resize);
+			canvas.removeEventListener('mousemove', move);
+			canvas.removeEventListener('mouseleave', leave);
 		};
 	});
 </script>
 
-<canvas bind:this={canvas} class="absolute inset-0 size-full"></canvas>
+<canvas bind:this={canvas} class="block h-full w-full"></canvas>

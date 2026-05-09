@@ -7,7 +7,9 @@
 	import { collectionsApi } from '$lib/api/collections';
 	import { getErrorMessage } from '$lib/api/client';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import type { CollectionResponse, DocumentResponse } from '$lib/api/types';
 	import { tenantBaseFromPath } from '$lib/routes/tenant';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
@@ -23,6 +25,9 @@
 	let editOpen = $state(false);
 	let deleting = $state(false);
 	let reindexing = $state(false);
+	let deleteConfirmOpen = $state(false);
+	let confirmName = $state('');
+	const canDelete = $derived(confirmName === collection.name);
 	const appBase = $derived(tenantBaseFromPath(page.url.pathname));
 
 	async function refreshCollection() {
@@ -41,8 +46,8 @@
 	}
 
 	async function deleteCollection() {
-		if (!confirm('Delete this collection and its documents? This action is irreversible.')) return;
 		deleting = true;
+		deleteConfirmOpen = false;
 		try {
 			await collectionsApi.delete(collection.id);
 			toast.success('Collection deleted.');
@@ -83,15 +88,17 @@
 			</div>
 		</div>
 		<div class="flex gap-2">
-			<Button variant="outline" disabled={reindexing || collection.document_count === 0} onclick={reindexCollection}>
-				{#if reindexing}<Spinner data-icon="inline-start" />{:else}<RefreshCw data-icon="inline-start" />{/if}
-				{reindexing ? 'Queueing...' : 'Reindex'}
-			</Button>
+			{#if collection.document_count > 1}
+				<Button variant="outline" disabled={reindexing} onclick={reindexCollection}>
+					{#if reindexing}<Spinner data-icon="inline-start" />{:else}<RefreshCw data-icon="inline-start" />{/if}
+					{reindexing ? 'Queueing...' : 'Reindex'}
+				</Button>
+			{/if}
 			<Button variant="outline" onclick={() => (editOpen = true)}>
 				<Pencil data-icon="inline-start" />
 				Edit
 			</Button>
-			<Button variant="destructive" disabled={deleting} onclick={deleteCollection}>
+			<Button variant="destructive" disabled={deleting} onclick={() => (deleteConfirmOpen = true)}>
 				{#if deleting}<Spinner data-icon="inline-start" />{:else}<Trash2 data-icon="inline-start" />{/if}
 				{deleting ? 'Deleting...' : 'Delete'}
 			</Button>
@@ -127,3 +134,41 @@
 
 	<p class="text-xs text-muted-foreground">Last indexed: {formatDate(collection.last_indexed_at)}</p>
 </div>
+
+<AlertDialog.Root
+	open={deleteConfirmOpen}
+	onOpenChange={(o) => {
+		if (!o) { deleteConfirmOpen = false; confirmName = ''; }
+	}}
+>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title class="text-red-400">Delete collection</AlertDialog.Title>
+			<AlertDialog.Description>
+				This will permanently delete <strong class="text-foreground">"{collection.name}"</strong>
+				and all its {collection.document_count} document(s).
+				{#if collection.indexed_count > 0}
+					<br /><span class="text-amber-400">Indexed data in the vector store will also be removed.</span>
+				{/if}
+				<br />This action <strong class="text-red-400">cannot</strong> be undone.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<div class="px-6 pb-4">
+			<label class="mb-1.5 block text-xs text-muted-foreground">
+				Type <span class="font-mono font-semibold text-foreground">{collection.name}</span> to confirm:
+			</label>
+			<Input
+				bind:value={confirmName}
+				placeholder={collection.name}
+				onkeydown={(e) => { if (e.key === 'Enter' && canDelete) deleteCollection(); }}
+			/>
+		</div>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<Button variant="destructive" disabled={!canDelete || deleting} onclick={deleteCollection}>
+				{#if deleting}<Spinner data-icon="inline-start" />{:else}<Trash2 data-icon="inline-start" />{/if}
+				{deleting ? 'Deleting...' : 'Delete'}
+			</Button>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>

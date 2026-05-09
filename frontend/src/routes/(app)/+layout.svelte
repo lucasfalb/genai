@@ -12,6 +12,7 @@
 	import Network from '@lucide/svelte/icons/network';
 	import Cpu from '@lucide/svelte/icons/cpu';
 	import Activity from '@lucide/svelte/icons/activity';
+	import Library from '@lucide/svelte/icons/library';
 	import Settings from '@lucide/svelte/icons/settings';
 	import Users from '@lucide/svelte/icons/users';
 	import LogOut from '@lucide/svelte/icons/log-out';
@@ -64,6 +65,12 @@
 			label: 'Workspace',
 			items: [
 				{ href: '/instances', label: 'Agents', icon: Network, description: 'Manage tenant agents' },
+				{
+					href: '/collections',
+					label: 'Collections & Knowledge',
+					icon: Library,
+					description: 'RAG collections and knowledge bases'
+				},
 				{
 					href: '/observability',
 					label: 'Observability',

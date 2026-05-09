@@ -81,7 +81,7 @@ describe('api client', () => {
 
 		expect(authStore.accessToken).toBeNull();
 		expect(authStore.refreshToken).toBeNull();
-		expect(location.href).toBe('/login');
+		expect(location.href).toBe('/login?expired=1');
 	});
 
 	it('throws ApiError with the backend error message and code', async () => {

@@ -16,21 +16,19 @@
 	let password = $state('');
 	let remember = $state(false);
 	let loading = $state(false);
-	let error = $state('');
 	let { data } = $props();
 
 	onMount(() => {
 		if (page.url.searchParams.get('expired') === '1') {
 			authStore.clearAuth();
 			tenantStore.clearTenant();
-			error = 'Your session expired. Please sign in again.';
+			toast.error('Your session expired. Please sign in again.');
 		}
 	});
 
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
-		if (!email || !password) { error = 'Please fill in all fields.'; return; }
-		error = '';
+		if (!email || !password) { toast.error('Please fill in all fields.'); return; }
 		loading = true;
 		try {
 			const auth = await authApi.login({ email, password });
@@ -59,7 +57,6 @@
 				await goto('/awaiting');
 				return;
 			}
-			tenantStore.loadFromLocalStorage(memberships);
 			if (!tenantStore.activeTenantId && memberships.length === 1) {
 				tenantStore.setActiveTenant(memberships[0]);
 			}
@@ -70,8 +67,7 @@
 					: tenantPath(memberships.find((membership) => membership.tenant_id === tenantStore.activeTenantId) ?? memberships[0], '/dashboard')
 			);
 		} catch (err) {
-			error = getErrorMessage(err, 'Login failed. Please try again.');
-			toast.error(error);
+			toast.error(getErrorMessage(err, 'Login failed. Please try again.'));
 		} finally {
 			loading = false;
 		}
@@ -85,10 +81,6 @@
 
 <div class="auth-card rounded-xl p-7">
 	<form onsubmit={handleSubmit} class="flex flex-col gap-4">
-		{#if error}
-			<div class="rounded-lg px-3 py-2.5 text-xs font-medium text-red-500" style="background:color-mix(in srgb,red 8%,transparent);border:1px solid color-mix(in srgb,red 18%,transparent)">{error}</div>
-		{/if}
-
 		<div class="flex flex-col gap-1.5">
 			<label class="font-display block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Email</label>
 			<div class="relative">

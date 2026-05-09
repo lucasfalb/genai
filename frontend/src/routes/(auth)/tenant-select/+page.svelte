@@ -21,8 +21,12 @@
 	});
 
 	function select(m: (typeof memberships)[number]) {
+		console.log('[tenant-select] selected:', m.tenant_id, m.tenant_slug, m.tenant_name);
 		tenantStore.setActiveTenant(m);
-		goto(tenantPath(m, '/dashboard'));
+		const url = tenantPath(m, '/dashboard');
+		console.log('[tenant-select] cookie after set:', document.cookie);
+		console.log('[tenant-select] navigating to:', url);
+		goto(url);
 	}
 
 	async function logout() {

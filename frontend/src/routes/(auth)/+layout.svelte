@@ -1,5 +1,7 @@
 <script lang="ts">
 	import '../layout.css';
+	import { page } from '$app/state';
+	import { fly } from 'svelte/transition';
 	import { ModeWatcher } from 'mode-watcher';
 	import ModeToggle from '$lib/components/mode-toggle.svelte';
 	import Bot from '@lucide/svelte/icons/bot';
@@ -20,10 +22,7 @@
 	style="background:var(--canvas);color:var(--text-main)"
 >
 	<!-- ── HERO SIDE ─────────────────────────────────────────── -->
-	<div
-		class="relative hidden w-1/2 flex-col overflow-hidden border-r lg:flex"
-		style="background:#080810;border-color:rgba(255,255,255,0.05)"
-	>
+	<div class="relative hidden w-1/2 flex-col overflow-hidden border-r lg:flex">
 		<!-- WebGL metaball animation -->
 		<HeroCanvas />
 	</div>
@@ -54,7 +53,11 @@
 			style="z-index:2"
 		>
 			<div class="w-full max-w-[400px]">
-				{@render children()}
+				{#key page.url.pathname}
+					<div in:fly={{ y: 16, duration: 280, opacity: 0 }}>
+						{@render children()}
+					</div>
+				{/key}
 			</div>
 		</div>
 	</div>

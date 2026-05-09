@@ -1,9 +1,12 @@
+import logging
 from uuid import NAMESPACE_URL, uuid5
 
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models
 
 from app.config import settings
+
+logger = logging.getLogger("rag.qdrant_client")
 
 
 class QdrantRagClient:
@@ -21,7 +24,9 @@ class QdrantRagClient:
     async def ensure_collection(self) -> None:
         exists = await self.client.collection_exists(self.collection_name)
         if exists:
+            logger.debug("Collection exists | collection=%s", self.collection_name)
             return
+        logger.info("Creating Qdrant collection | name=%s dim=%d", self.collection_name, self.vector_size)
         await self.client.create_collection(
             collection_name=self.collection_name,
             vectors_config=models.VectorParams(
@@ -58,9 +63,14 @@ class QdrantRagClient:
             for index, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=True))
         ]
         if points:
+            logger.info(
+                "Upserting %d points to Qdrant | collection=%s tenant=%s document=%s",
+                len(points), self.collection_name, tenant_id, document_id,
+            )
             await self.client.upsert(collection_name=self.collection_name, points=points)
 
     async def delete_document(self, *, document_id: str) -> None:
+        logger.info("Deleting Qdrant points | document=%s", document_id)
         await self.ensure_collection()
         await self.client.delete(
             collection_name=self.collection_name,

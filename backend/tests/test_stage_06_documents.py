@@ -69,7 +69,7 @@ async def test_upload_document_stores_object_and_enqueues_job(
     assert "storage_path" not in document
     assert len(storage.objects) == 1
     object_key = next(iter(storage.objects))[1]
-    assert object_key.startswith(f"tenants/{setup['tenant_id']}/collections/{collection_id}/documents/")
+    assert object_key.startswith(f"tenants/{setup['tenant_id']}/{document['id']}/")
 
     assert len(redis.items) == 1
     assert redis.items[0][0] == "rag:indexing_queue"

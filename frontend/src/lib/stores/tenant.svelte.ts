@@ -1,7 +1,7 @@
 import { browser } from '$app/environment';
 import type { TenantAccessResponse } from '$lib/api/types';
 
-const LS_TENANT = 'genai_tenant_id';
+const COOKIE_TENANT = 'genai_tenant_id';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 let activeTenantId = $state<string | null>(null);
@@ -15,8 +15,7 @@ function setActiveTenant(tenant: TenantAccessResponse) {
 	activeTenantName = tenant.tenant_name;
 	role = tenant.role;
 	if (browser) {
-		localStorage.setItem(LS_TENANT, tenant.tenant_id);
-		document.cookie = `${LS_TENANT}=${encodeURIComponent(tenant.tenant_id)}; path=/; max-age=${COOKIE_MAX_AGE}; samesite=lax`;
+		document.cookie = `${COOKIE_TENANT}=${encodeURIComponent(tenant.tenant_id)}; path=/; max-age=${COOKIE_MAX_AGE}; samesite=lax`;
 	}
 }
 
@@ -26,17 +25,8 @@ function clearTenant() {
 	activeTenantName = null;
 	role = null;
 	if (browser) {
-		localStorage.removeItem(LS_TENANT);
-		document.cookie = `${LS_TENANT}=; path=/; max-age=0; samesite=lax`;
+		document.cookie = `${COOKIE_TENANT}=; path=/; max-age=0; samesite=lax`;
 	}
-}
-
-function loadFromLocalStorage(memberships: TenantAccessResponse[]) {
-	if (!browser) return;
-	const stored = localStorage.getItem(LS_TENANT);
-	if (!stored) return;
-	const match = memberships.find((m) => m.tenant_id === stored);
-	if (match) setActiveTenant(match);
 }
 
 export const tenantStore = {
@@ -53,6 +43,5 @@ export const tenantStore = {
 		return role;
 	},
 	setActiveTenant,
-	clearTenant,
-	loadFromLocalStorage
+	clearTenant
 };

@@ -3,9 +3,10 @@
 	import { getErrorMessage } from '$lib/api/client';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
-	import { Badge } from '$lib/components/ui/badge/index.js';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
+	import { Badge } from '$lib/components/ui/badge/index.js';
+	import ProgressCircle from '$lib/components/ProgressCircle.svelte';
 	import { toast } from 'svelte-sonner';
 	import type { DocumentResponse } from '$lib/api/types';
 	import Upload from '@lucide/svelte/icons/upload';
@@ -28,15 +29,40 @@
 	let refreshing = $state(false);
 	let deleteTarget = $state<DocumentResponse | null>(null);
 	let fileInput: HTMLInputElement;
+	let polling = $state(false);
+	let pollTimer: ReturnType<typeof setInterval> | undefined = $state();
+
+	function pendingDocs(): boolean {
+		return documents.some((d) => d.status === 'uploaded' || d.status === 'indexing');
+	}
+
+	$effect(() => {
+		return () => {
+			if (pollTimer) clearInterval(pollTimer);
+		};
+	});
+
+	async function pollUntilDone() {
+		if (pollTimer) clearInterval(pollTimer);
+		polling = true;
+		pollTimer = setInterval(async () => {
+			try {
+				documents = await collectionsApi.listDocuments(collectionId);
+				onChange?.();
+				if (!pendingDocs()) {
+					clearInterval(pollTimer);
+					pollTimer = undefined;
+					polling = false;
+				}
+			} catch {
+				clearInterval(pollTimer);
+				pollTimer = undefined;
+				polling = false;
+			}
+		}, 1000);
+	}
 
 	const ACCEPT = '.pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown';
-
-	function statusVariant(status: string): 'default' | 'secondary' | 'outline' | 'destructive' {
-		if (status === 'indexed') return 'default';
-		if (status === 'failed') return 'destructive';
-		if (status === 'indexing' || status === 'uploaded') return 'secondary';
-		return 'outline';
-	}
 
 	function formatBytes(bytes: number | null): string {
 		if (!bytes) return '—';
@@ -76,6 +102,7 @@
 				}
 			}
 			onChange?.();
+			pollUntilDone();
 		} finally {
 			uploading = false;
 			if (fileInput) fileInput.value = '';
@@ -124,11 +151,15 @@
 		ondrop={onDrop}
 	>
 		<div class="flex size-12 items-center justify-center rounded-full bg-blue-500/10 text-blue-400">
-			<Upload class="size-5" />
+			{#if polling}<Spinner class="size-5" />{:else}<Upload class="size-5" />{/if}
 		</div>
 		<div>
-			<p class="text-sm font-semibold" style="color:var(--text-main)">Drop files or click to upload</p>
-			<p class="text-xs text-muted-foreground">PDF, DOCX, TXT, MD up to 50 MB</p>
+			<p class="text-sm font-semibold" style="color:var(--text-main)">
+				{polling ? 'Indexing in progress...' : 'Drop files or click to upload'}
+			</p>
+			<p class="text-xs text-muted-foreground">
+				{polling ? 'Refreshing every second until done.' : 'PDF, DOCX, TXT, MD up to 50 MB'}
+			</p>
 		</div>
 		<input
 			bind:this={fileInput}
@@ -150,7 +181,7 @@
 			<div class="flex items-center gap-2">
 				<FileText class="size-4 text-muted-foreground" />
 				<p class="text-sm font-semibold" style="color:var(--text-main)">Documents</p>
-				<Badge variant="outline">{documents.length}</Badge>
+				<span class="rounded-md border px-2 py-0.5 text-[10px] font-semibold" style="border-color:var(--ds-border);color:var(--text-muted)">{documents.length}</span>
 			</div>
 			<Button variant="ghost" size="sm" disabled={refreshing} onclick={refresh}>
 				{#if refreshing}<Spinner data-icon="inline-start" />{:else}<RefreshCw data-icon="inline-start" />{/if}
@@ -177,7 +208,10 @@
 						<Table.Row>
 							<Table.Cell class="font-mono text-xs">{doc.filename}</Table.Cell>
 							<Table.Cell>
-								<Badge variant={statusVariant(doc.status)}>{doc.status}</Badge>
+								<div class="flex items-center gap-1.5">
+									<ProgressCircle status={doc.status} size={14} />
+									<span class="text-xs capitalize text-muted-foreground">{doc.status}</span>
+								</div>
 								{#if doc.error_message}
 									<p class="mt-1 text-[10px] text-red-400">{doc.error_message}</p>
 								{/if}
