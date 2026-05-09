@@ -4,7 +4,7 @@
 | :--- | :--- |
 | **ID** | TASK-045 |
 | **Group** | RAG |
-| **Status** | PENDING |
+| **Status** | DONE |
 | **Stage Ref** | `docs/stages/stage_06_rag.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | CRITICAL |
@@ -18,13 +18,13 @@ O `TenantRetriever` e responsavel por buscar chunks relevantes no Qdrant dado um
 
 ## Objectives
 
-- [ ] Implementar `TenantRetriever` em `rag/retriever.py`.
-- [ ] Filtrar `rag_scope` da instancia contra `indexing_status` pesquisavel no banco.
-- [ ] Gerar embedding do query via OpenAI.
-- [ ] Chamar Qdrant com filtro `must[tenant_id, collection_id in ready_scope, document_status=indexed]`.
-- [ ] Retornar lista de `{text, source, score}`.
-- [ ] Retornar `[]` se `rag_scope` vazio ou nenhuma collection pesquisavel.
-- [ ] Testar com Qdrant mockado: retorno correto, scope vazio, nenhuma collection ready.
+- [x] Implementar `TenantRetriever` em `rag/retriever.py`.
+- [x] Filtrar `rag_scope` da instancia contra `indexing_status` pesquisavel no banco.
+- [x] Gerar embedding do query via OpenAI.
+- [x] Chamar Qdrant com filtro `must[tenant_id, collection_id in ready_scope, document_status=indexed]`.
+- [x] Retornar lista de `{text, source, score}`.
+- [x] Retornar `[]` se `rag_scope` vazio ou nenhuma collection pesquisavel.
+- [x] Testar com Qdrant mockado: retorno correto, scope vazio, nenhuma collection ready, isolamento cross-tenant.
 
 ## Non-Goals
 
@@ -55,10 +55,10 @@ Apenas logica de recuperacao. Nao cria endpoints.
 
 ## Implementation Checklist
 
-- [ ] Adicionar `get_searchable_collections(tenant_id, collection_ids, allowed_statuses)` ao `CollectionRepository`.
-- [ ] Criar `rag/retriever.py` com `TenantRetriever(db, redis, qdrant)`.
-- [ ] Implementar `retrieve(query, tenant_id, rag_scope, top_k)`.
-- [ ] Testar: scope vazio, nenhuma collection ready, resultado correto com mock Qdrant.
+- [x] Adicionar `get_searchable_collections(tenant_id, collection_ids, allowed_statuses)` ao `CollectionRepository`.
+- [x] Criar `rag/retriever.py` com `TenantRetriever(db, qdrant, embedder)`.
+- [x] Implementar `retrieve(query, tenant_id, rag_scope, top_k)`.
+- [x] Testar: scope vazio, nenhuma collection ready, resultado correto com mock Qdrant, isolamento cross-tenant.
 
 ## Acceptance Criteria
 
@@ -82,3 +82,4 @@ pytest tests/test_stage_06_retriever.py
 ## Execution Log
 
 - `[2026-05-07 00:00]`: Task criada para retriever com RBAC e rag_scope.
+- `[2026-05-09 00:00]`: Implementado TenantRetriever em rag/retriever.py, get_searchable_collections em CollectionRepository, search() em QdrantRagClient. 4 testes passando.

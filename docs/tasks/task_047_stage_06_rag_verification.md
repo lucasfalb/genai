@@ -4,7 +4,7 @@
 | :--- | :--- |
 | **ID** | TASK-047 |
 | **Group** | RAG |
-| **Status** | PENDING |
+| **Status** | DONE |
 | **Stage Ref** | `docs/stages/stage_06_rag.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | HIGH |
@@ -18,11 +18,11 @@ Antes de avancar para handoff, o pipeline RAG completo precisa estar validado: m
 
 ## Objectives
 
-- [ ] Executar suite pytest completa.
-- [ ] Executar validador OpenAPI.
-- [ ] Executar validador de tasks.
-- [ ] Verificar cobertura Bruno para endpoints de collections e documents.
-- [ ] Confirmar isolamento cross-tenant no Qdrant.
+- [x] Executar suite pytest completa (38/38 Stage 06, 1 pre-existing em Stage 05).
+- [x] Executar validador OpenAPI.
+- [x] Executar validador de tasks.
+- [x] Verificar cobertura Bruno para endpoints de collections e documents (10/10).
+- [x] Confirmar isolamento cross-tenant no Qdrant (test_retrieve_cross_tenant_isolation).
 
 ## Non-Goals
 
@@ -49,11 +49,11 @@ Validacao somente do Stage 06 e regressao dos stages anteriores.
 
 ## Implementation Checklist
 
-- [ ] Rodar `pytest`.
-- [ ] Rodar `validate_openapi.py`.
-- [ ] Rodar `validate_tasks.py`.
-- [ ] Conferir `genai-endpoints/TenantCollections/` contra rotas novas.
-- [ ] Registrar pendencias residuais.
+- [x] Rodar `pytest` — 38 testes Stage 06 passando (28 novos + 10 repos/collections existentes).
+- [x] Rodar `validate_openapi.py` — OK.
+- [x] Rodar `validate_tasks.py` — OK (82 tasks validadas).
+- [x] Conferir `genai-endpoints/TenantCollections/` contra rotas novas — 10 rotas, 10 Brunos.
+- [x] Registrar pendencias residuais — test_stage_05_system_settings.py pre-existente (public_settings com agent_ui extra).
 
 ## Acceptance Criteria
 
@@ -82,3 +82,4 @@ python scripts\validate_tasks.py
 ## Execution Log
 
 - `[2026-05-07 00:00]`: Task criada para verificacao final do Stage 06.
+- `[2026-05-09 00:00]`: Verificacao completa — pytest 38/38, OpenAPI OK, tasks OK, Bruno coverage completo. Stage 06 concluido.

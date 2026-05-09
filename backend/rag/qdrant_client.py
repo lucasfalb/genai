@@ -69,6 +69,33 @@ class QdrantRagClient:
             )
             await self.client.upsert(collection_name=self.collection_name, points=points)
 
+    async def search(
+        self,
+        *,
+        query_vector: list[float],
+        tenant_id: str,
+        collection_ids: list[str],
+        document_status: str = "indexed",
+        top_k: int = 5,
+    ) -> list[dict]:
+        await self.ensure_collection()
+        results = await self.client.search(
+            collection_name=self.collection_name,
+            query_vector=query_vector,
+            query_filter=models.Filter(
+                must=[
+                    models.FieldCondition(key="tenant_id", match=models.MatchValue(value=tenant_id)),
+                    models.FieldCondition(key="collection_id", match=models.MatchAny(any=collection_ids)),
+                    models.FieldCondition(key="document_status", match=models.MatchValue(value=document_status)),
+                ]
+            ),
+            limit=top_k,
+        )
+        return [
+            {"text": r.payload.get("text", ""), "source": r.payload.get("source"), "score": r.score}
+            for r in results
+        ]
+
     async def delete_document(self, *, document_id: str) -> None:
         logger.info("Deleting Qdrant points | document=%s", document_id)
         await self.ensure_collection()

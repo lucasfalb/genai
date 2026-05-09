@@ -139,7 +139,7 @@ async def test_delete_collection(db_connection: psycopg.Connection) -> None:
     assert get_resp.status_code == 404
 
 
-async def test_delete_blocked_with_indexed_documents(db_connection: psycopg.Connection) -> None:
+async def test_delete_cascade_removes_collection_with_indexed_documents(db_connection: psycopg.Connection) -> None:
     setup = _seed_collections_tenant(db_connection)
     token = create_access_token(user_id=setup["admin_id"], email=setup["admin_email"])
 
@@ -159,7 +159,14 @@ async def test_delete_blocked_with_indexed_documents(db_connection: psycopg.Conn
             headers={"Authorization": f"Bearer {token}", "X-Tenant-ID": str(setup["tenant_id"])},
         )
 
-    assert delete_resp.status_code == 409
+        assert delete_resp.status_code == 200
+        assert "document" in api_data(delete_resp)["message"]
+
+        get_resp = await client.get(
+            f"/api/v1/tenant/collections/{collection_id}",
+            headers={"Authorization": f"Bearer {token}", "X-Tenant-ID": str(setup["tenant_id"])},
+        )
+        assert get_resp.status_code == 404
 
 
 async def test_audit_log_on_create_update_delete(db_connection: psycopg.Connection) -> None:

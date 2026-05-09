@@ -4,7 +4,7 @@
 | :--- | :--- |
 | **ID** | TASK-046 |
 | **Group** | RAG |
-| **Status** | PENDING |
+| **Status** | DONE |
 | **Stage Ref** | `docs/stages/stage_06_rag.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | HIGH |
@@ -18,11 +18,11 @@ O grafo LangGraph ja tem um node `rag` registrado mas sem implementacao real. Es
 
 ## Objectives
 
-- [ ] Reescrever `engine/nodes/rag_node.py` usando `TenantRetriever`.
-- [ ] Popular `AgentState.retrieved_chunks` com resultados do retriever.
-- [ ] Injetar chunks como contexto no `system_prompt` ou como mensagem de contexto antes do LLM call.
-- [ ] Manter `rag_scope` do `AgentState` (vem do bootstrap via `instance.rag_scope`).
-- [ ] Testar: chunks injetados no prompt, rag_scope vazio nao chama retriever.
+- [x] Reescrever `engine/nodes/rag_node.py` usando `TenantRetriever`.
+- [x] Popular `AgentState.retrieved_chunks` com resultados do retriever.
+- [x] Injetar chunks como contexto no `system_prompt` antes de `### Restrições`.
+- [x] Manter `rag_scope` do `AgentState` (vem do bootstrap via `instance.rag_scope`).
+- [x] Testar: chunks injetados no prompt, rag_scope vazio nao chama retriever, sem chunks nao modifica prompt.
 
 ## Non-Goals
 
@@ -53,9 +53,9 @@ Apenas o node `rag` e integracao com `llm_node`. Nenhum endpoint novo.
 
 ## Implementation Checklist
 
-- [ ] Reescrever `engine/nodes/rag_node.py` com chamada real ao `TenantRetriever`.
-- [ ] Montar secao de contexto e injetar em `AgentState.system_prompt` ou como mensagem.
-- [ ] Testar node isolado: chunks populados, rag_scope vazio retorna estado inalterado.
+- [x] Reescrever `engine/nodes/rag_node.py` com chamada real ao `TenantRetriever`.
+- [x] Montar secao de contexto e injetar em `AgentState.system_prompt` antes de `### Restrições`.
+- [x] Testar node isolado: chunks populados, rag_scope vazio retorna estado inalterado, sem chunks nao modifica prompt.
 
 ## Acceptance Criteria
 
@@ -78,3 +78,4 @@ pytest tests/test_stage_06_rag_node.py
 ## Execution Log
 
 - `[2026-05-07 00:00]`: Task criada para integracao do RAG node real no LangGraph.
+- `[2026-05-09 00:00]`: Implementado engine/nodes/rag_node.py com factory create_rag_node(), integrado em base_graph.py, executor.py passando connection. 4 testes passando.

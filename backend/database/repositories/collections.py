@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
@@ -157,6 +159,32 @@ class CollectionRepository:
         )
         row = result.one_or_none()
         return _from_row(row) if row else None
+
+    async def get_searchable_collections(
+        self,
+        *,
+        tenant_id: UUID,
+        collection_ids: list[UUID],
+        allowed_statuses: list[str],
+    ) -> list[UUID]:
+        if not collection_ids:
+            return []
+        result = await self.connection.execute(
+            text(
+                """
+                SELECT id FROM collections
+                WHERE tenant_id = :tenant_id
+                  AND id = ANY(:collection_ids)
+                  AND indexing_status = ANY(:allowed_statuses)
+                """
+            ),
+            {
+                "tenant_id": tenant_id,
+                "collection_ids": collection_ids,
+                "allowed_statuses": allowed_statuses,
+            },
+        )
+        return [row.id for row in result.fetchall()]
 
     async def delete(self, *, tenant_id: UUID, collection_id: UUID) -> bool:
         await self.connection.execute(

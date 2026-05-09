@@ -1,10 +1,12 @@
 from langgraph.graph import END, StateGraph
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from engine.llm_client import complete_chat
+from engine.nodes.rag_node import create_rag_node
 from engine.state import AgentState
 
 
-def rag_node(state: AgentState) -> AgentState:
+async def _noop_rag_node(state: AgentState) -> AgentState:
     return {"retrieved_chunks": state.get("retrieved_chunks") or []}
 
 
@@ -62,8 +64,9 @@ def route_after_llm(state: AgentState) -> str:
     return "tool_call"
 
 
-def create_base_graph():
+def create_base_graph(*, connection: AsyncConnection | None = None):
     graph = StateGraph(AgentState)
+    rag_node = create_rag_node(connection) if connection else _noop_rag_node
     graph.add_node("rag", rag_node)
     graph.add_node("llm", llm_node)
     graph.add_node("dispatch", dispatch_node)

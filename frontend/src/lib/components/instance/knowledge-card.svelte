@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Database from '@lucide/svelte/icons/database';
 	import X from '@lucide/svelte/icons/x';
+	import Upload from '@lucide/svelte/icons/upload';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
@@ -24,8 +25,64 @@
 	let documents = $state<DocumentResponse[]>([]);
 	let loadingDocs = $state(false);
 	let deleteTarget = $state<DocumentResponse | null>(null);
+	let uploading = $state(false);
+	let polling = $state(false);
+	let pollTimer: ReturnType<typeof setInterval> | undefined = $state();
+	let fileInput: HTMLInputElement;
 
 	let collectionId = $derived(ragScope[0] ?? '');
+
+	const ACCEPT = '.pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown';
+
+	function pendingDocs(): boolean {
+		return documents.some((d) => d.status === 'uploaded' || d.status === 'indexing');
+	}
+
+	async function pollUntilDone() {
+		if (pollTimer) clearInterval(pollTimer);
+		polling = true;
+		pollTimer = setInterval(async () => {
+			try {
+				const fresh = await collectionsApi.listDocuments(collectionId);
+				documents = fresh;
+				if (!pendingDocs()) {
+					clearInterval(pollTimer);
+					pollTimer = undefined;
+					polling = false;
+				}
+			} catch {
+				clearInterval(pollTimer);
+				pollTimer = undefined;
+				polling = false;
+			}
+		}, 1000);
+	}
+
+	$effect(() => {
+		return () => {
+			if (pollTimer) clearInterval(pollTimer);
+		};
+	});
+
+	async function handleUpload(files: FileList | null) {
+		if (!files || files.length === 0 || !collectionId) return;
+		uploading = true;
+		try {
+			for (const file of Array.from(files)) {
+				try {
+					const created = await collectionsApi.uploadDocument(collectionId, file);
+					documents = [created, ...documents];
+					toast.success(`Uploaded "${file.name}"`);
+				} catch (err) {
+					toast.error(`${file.name}: ${getErrorMessage(err, 'Upload failed.')}`);
+				}
+			}
+			pollUntilDone();
+		} finally {
+			uploading = false;
+			if (fileInput) fileInput.value = '';
+		}
+	}
 
 	$effect(() => {
 		if (!collectionId) {
@@ -109,10 +166,14 @@
 				{selectedCollection.document_count} docs
 			</button>
 			<Badge variant="outline" class="text-[10px] capitalize">{selectedCollection.indexing_status}</Badge>
+			<button onclick={() => fileInput.click()} disabled={uploading || polling} class="rounded p-1 text-muted-foreground hover:text-blue-400 hover:bg-blue-500/10 transition-colors" aria-label="Upload documents">
+				<Upload class="size-3.5" />
+			</button>
 			<button onclick={() => { ragScope = []; }} class="rounded p-1 text-muted-foreground hover:text-red-400 hover:bg-red-400/10 transition-colors" aria-label="Remove collection">
 				<X class="size-3.5" />
 			</button>
 		</div>
+		<input bind:this={fileInput} type="file" multiple accept={ACCEPT} class="hidden" onchange={(e) => handleUpload(e.currentTarget.files)} />
 
 		{#if loadingDocs}
 			<p class="py-3 text-center text-xs text-muted-foreground">Loading documents...</p>

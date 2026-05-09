@@ -126,7 +126,7 @@ class AgentExecutor:
             )
             state["messages"].append({"role": "user", "content": message})
 
-            graph = create_base_graph()
+            graph = create_base_graph(connection=self.connection)
             result_state = await graph.ainvoke(state)
             response = result_state.get("final_response") or ""
 
