@@ -5,17 +5,23 @@
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Bot from '@lucide/svelte/icons/bot';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import Clock from '@lucide/svelte/icons/clock';
 	import Database from '@lucide/svelte/icons/database';
+	import FileText from '@lucide/svelte/icons/file-text';
+	import HistoryIcon from '@lucide/svelte/icons/history';
 	import MoreHorizontal from '@lucide/svelte/icons/more-horizontal';
 	import Save from '@lucide/svelte/icons/save';
 	import Send from '@lucide/svelte/icons/send';
-	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import ThumbsDown from '@lucide/svelte/icons/thumbs-down';
 	import ThumbsUp from '@lucide/svelte/icons/thumbs-up';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import User from '@lucide/svelte/icons/user';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import * as Resizable from '$lib/components/ui/resizable/index.js';
+	import * as Sheet from '$lib/components/ui/sheet/index.js';
+	import { collectionsApi } from '$lib/api/collections';
 	import { instancesApi } from '$lib/api/instances';
 	import { ApiError } from '$lib/api/client';
 	import { tenantBaseFromPath } from '$lib/routes/tenant';
@@ -34,6 +40,25 @@
 	let saveHandler: (() => Promise<void>) | null = $state(null);
 	let saveLabel = $state('');
 	let isSaving = $state(false);
+
+	let historyOpen = $state(false);
+	let diffVersion = $state<import('$lib/api/types').VersionEntry | null>(null);
+	let versions = $state<import('$lib/api/types').VersionEntry[]>([]);
+	let collectionMap = $state<Record<string, string>>({});
+
+	async function loadVersions() {
+		try {
+			versions = await instancesApi.getVersions(data.instance.id);
+		} catch {
+			versions = [];
+		}
+		try {
+			const collections = await collectionsApi.list();
+			collectionMap = Object.fromEntries(collections.map(c => [c.id, c.name]));
+		} catch {
+			collectionMap = {};
+		}
+	}
 
 	setContext('save-action', {
 		register: (handler: () => Promise<void>, label: string) => {
@@ -55,6 +80,29 @@
 
 	function isActive(href: string) {
 		return page.url.pathname.endsWith(`/${href}`) || page.url.pathname.includes(`/${href}/`);
+	}
+
+	function escapeHtml(s: string): string {
+		return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+	}
+
+	function formatValue(key: string, value: unknown): string {
+		if (value === null || value === undefined) return '<span class="italic text-muted-foreground">not set</span>';
+		if (key === 'temperature') return Number(value).toFixed(1);
+		if (key === 'rag_scope') {
+			const arr = Array.isArray(value) ? value : [];
+			if (arr.length === 0) return '<span class="italic text-muted-foreground">all collections</span>';
+			return arr.map((id: string) => {
+				const name = collectionMap[id];
+				return `<span class="inline-block rounded-sm px-1.5 py-0.5 text-[10px]" style="background:var(--surface);border:1px solid var(--ds-border)">${name ? escapeHtml(name) : `<span class="italic text-muted-foreground">deleted (${id.slice(0,8)})</span>`}</span>`;
+			}).join(' ');
+		}
+		if (key === 'core_prompt') {
+			const s = String(value);
+			return s.length > 200 ? s.slice(0, 200) + '...' : s;
+		}
+		if (key === 'status') return `<span class="capitalize">${value}</span>`;
+		return String(value);
 	}
 
 	async function deleteInstance() {
@@ -114,17 +162,10 @@
 					{saveLabel}
 				</Button>
 			{/if}
-			<button
-				class="rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-[var(--surface-hover)]"
-				style="border-color:var(--ds-border)">Publish</button
-			>
-			<button
-				class="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-[var(--surface-hover)]"
-				style="border-color:var(--ds-border)"
-			>
-				<SettingsIcon class="size-3.5" />
-				Settings
-			</button>
+			<Button variant="outline" onclick={() => { loadVersions(); historyOpen = true; }}>
+				<HistoryIcon class="size-3.5" />
+				History
+			</Button>
 			<button
 				onclick={deleteInstance}
 				class="rounded-md p-1.5 text-red-400 transition-colors hover:bg-red-400/10"
@@ -225,7 +266,6 @@
 									<div class="mt-3 flex gap-2 text-muted-foreground">
 										<ThumbsUp class="size-4" />
 										<ThumbsDown class="size-4" />
-									</div>
 								</div>
 							</div>
 						</div>
@@ -264,3 +304,117 @@
 		{/if}
 	</Resizable.PaneGroup>
 </div>
+
+<Sheet.Root bind:open={historyOpen}>
+	<Sheet.Content side="right" class="w-80 sm:max-w-sm">
+		<Sheet.Header>
+			<Sheet.Title class="flex items-center gap-2">
+				<Clock class="size-4" />
+				Version History
+			</Sheet.Title>
+			<Sheet.Description>Saved versions of this agent instance.</Sheet.Description>
+		</Sheet.Header>
+		<div class="flex-1 overflow-y-auto px-4 py-2">
+			{#if versions.length === 0}
+				<p class="py-8 text-center text-xs text-muted-foreground">No versions yet.</p>
+			{:else}
+				<div class="space-y-1">
+					{#each versions as v (v.version)}
+						<button
+							onclick={() => { diffVersion = v; }}
+							class="flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--surface-hover)]"
+						>
+							<div
+								class={`flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${v.action.includes('updated') ? 'bg-blue-500/10 text-blue-500' : ''} ${v.action.includes('created') ? 'bg-green-500/10 text-green-500' : ''}`}
+							>
+								{v.version}
+							</div>
+							<div class="min-w-0 flex-1">
+								<div class="flex items-center justify-between gap-2">
+									<span class="truncate text-xs font-medium">
+										{v.action === 'agent_instance.created' ? 'Created' : 'Saved'}
+									</span>
+									<span class="shrink-0 text-[10px] text-muted-foreground">
+										{v.created_at ? new Date(v.created_at).toLocaleString('pt-BR') : '-'}
+									</span>
+								</div>
+								<p class="mt-0.5 truncate text-[10px] text-muted-foreground">
+									<User class="mr-1 inline size-3" />
+									{v.changed_by}
+								</p>
+							</div>
+						</button>
+						{#if v !== versions[versions.length - 1]}
+							<div class="ml-[22px] border-l" style="border-color:var(--ds-border);height:8px"></div>
+						{/if}
+					{/each}
+				</div>
+			{/if}
+		</div>
+	</Sheet.Content>
+</Sheet.Root>
+
+<Dialog.Root open={diffVersion !== null} onOpenChange={(o) => { if (!o) diffVersion = null; }}>
+	<Dialog.Content class="max-w-3xl">
+		<Dialog.Header>
+			<Dialog.Title class="flex items-center gap-2">
+				<FileText class="size-4" />
+				Version {diffVersion?.version} — {diffVersion?.action === 'agent_instance.created' ? 'Created' : 'Saved'}
+			</Dialog.Title>
+			<Dialog.Description>
+				{diffVersion?.changed_by ?? 'Unknown'} — {diffVersion?.created_at ? new Date(diffVersion.created_at).toLocaleString('pt-BR') : ''}
+			</Dialog.Description>
+		</Dialog.Header>
+		{#if diffVersion}
+			{@const internalFields = new Set(['id', 'tenant_id', 'created_by'])}
+			{@const fieldLabels: Record<string, string> = {
+				name: 'Name', description: 'Description', core_prompt: 'Core Prompt',
+				model: 'Model', temperature: 'Temperature', status: 'Status', rag_scope: 'Knowledge Scope'
+			}}
+			{@const compareFields = Object.keys(diffVersion.snapshot).filter(k => !internalFields.has(k))}
+			{@const hasChanges = compareFields.some(k => {
+				const oldVal = diffVersion!.snapshot[k];
+				const curVal = data.instance[k as keyof typeof data.instance];
+				return JSON.stringify(oldVal) !== JSON.stringify(curVal);
+			})}
+			<div class="max-h-[28rem] overflow-y-auto px-4 py-2">
+				{#if !hasChanges}
+					<div class="flex items-center gap-2 rounded-md bg-green-500/5 p-3 text-xs text-green-400">
+						No differences — this version matches the current state.
+					</div>
+				{/if}
+				<div class="space-y-1">
+					{#each compareFields as key}
+						{@const oldVal = diffVersion.snapshot[key]}
+						{@const curVal = data.instance[key as keyof typeof data.instance]}
+						{@const changed = JSON.stringify(oldVal) !== JSON.stringify(curVal)}
+						{@const label = fieldLabels[key] ?? key}
+						{#if changed}
+							<div class="overflow-hidden rounded-md border border-amber-500/30">
+								<div class="flex items-center justify-between gap-2 bg-amber-500/5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider">
+									<span>{label}</span>
+									<span class="inline-flex items-center gap-1 rounded-sm bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-400">Modified</span>
+								</div>
+								<div class="grid grid-cols-2 divide-x" style="border-color:var(--ds-border)">
+									<div class="bg-red-500/[0.03] p-3 font-mono text-xs leading-relaxed">
+										<span class="mb-1.5 block text-[9px] font-semibold tracking-wider text-red-400">Version {diffVersion.version}</span>
+										<div class="line-through decoration-red-400/40">{@html formatValue(key, oldVal)}</div>
+									</div>
+									<div class="bg-green-500/[0.03] p-3 font-mono text-xs leading-relaxed">
+										<span class="mb-1.5 block text-[9px] font-semibold tracking-wider text-green-400">Current</span>
+										{@html formatValue(key, curVal)}
+									</div>
+								</div>
+							</div>
+						{:else}
+							<div class="flex items-center justify-between gap-2 rounded-md px-3 py-2 text-xs" style="background:var(--surface)">
+								<span class="text-[10px] font-semibold uppercase tracking-wider" style="color:var(--text-muted)">{label}</span>
+								<span class="font-mono text-right">{@html formatValue(key, curVal)}</span>
+							</div>
+						{/if}
+					{/each}
+				</div>
+			</div>
+		{/if}
+	</Dialog.Content>
+</Dialog.Root>

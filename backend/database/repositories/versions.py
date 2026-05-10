@@ -24,6 +24,49 @@ class ResourceVersionRepository:
     def __init__(self, connection: AsyncConnection) -> None:
         self.connection = connection
 
+    async def list_versions(
+        self,
+        *,
+        tenant_id: UUID,
+        resource: str,
+        resource_id: str,
+    ) -> list[dict]:
+        result = await self.connection.execute(
+            text(
+                """
+                SELECT rv.id, rv.version_no, rv.action, rv.changed_by, rv.actor_type, rv.actor_role,
+                       rv.snapshot, rv.metadata, rv.created_at,
+                       u.email AS changed_by_email
+                FROM resource_versions rv
+                LEFT JOIN users u ON u.id = rv.changed_by
+                WHERE rv.tenant_id = :tenant_id
+                  AND rv.resource = :resource
+                  AND rv.resource_id = :resource_id
+                ORDER BY rv.version_no DESC
+                """
+            ),
+            {
+                "tenant_id": tenant_id,
+                "resource": resource,
+                "resource_id": resource_id,
+            },
+        )
+        rows = result.fetchall()
+        return [
+            {
+                "id": str(row.id),
+                "version": row.version_no,
+                "action": row.action,
+                "changed_by": row.changed_by_email or (str(row.changed_by) if row.changed_by else None),
+                "actor_type": row.actor_type,
+                "actor_role": row.actor_role,
+                "snapshot": row.snapshot if row.snapshot else {},
+                "metadata": row.metadata if row.metadata else {},
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in rows
+        ]
+
     async def record(
         self,
         *,

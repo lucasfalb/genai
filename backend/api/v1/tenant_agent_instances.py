@@ -16,10 +16,12 @@ from app.schemas import (
     AgentPromptConfigResponse,
     ApiResponse,
     MessageResponse,
+    VersionEntryResponse,
 )
 from app.workflow_audit import record_tenant_mutation
 from database.connection import TenantContext
 from database.repositories.agent_instances import AgentInstanceRecord, AgentInstanceRepository
+from database.repositories.versions import ResourceVersionRepository
 from dependencies.auth import get_connection, require_permission
 
 
@@ -92,6 +94,26 @@ async def get_instance(
     if instance is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Agent instance not found")
     return api_success(_instance_response(instance))
+
+
+@router.get(
+    "/{instance_id}/versions",
+    response_model=ApiResponse[list[VersionEntryResponse]],
+    summary="List agent instance versions",
+    description="Returns all saved versions for an agent instance, ordered by version number descending.",
+)
+async def list_instance_versions(
+    instance_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_AGENT_INSTANCES)),
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[list[VersionEntryResponse]]:
+    await _set_tenant(connection, context)
+    versions = await ResourceVersionRepository(connection).list_versions(
+        tenant_id=context.tenant_id,
+        resource="agent_instances",
+        resource_id=str(instance_id),
+    )
+    return api_success([VersionEntryResponse(**v) for v in versions])
 
 
 @router.get(

@@ -496,6 +496,18 @@ class ProviderModelsResponse(BaseModel):
     models: list[ProviderModelInfo]
 
 
+class VersionEntryResponse(BaseModel):
+    id: str
+    version: int
+    action: str
+    changed_by: str | None = None
+    actor_type: str
+    actor_role: str | None = None
+    snapshot: dict = Field(default_factory=dict)
+    metadata: dict = Field(default_factory=dict)
+    created_at: str | None = None
+
+
 class AgentInstanceCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     description: str | None = None

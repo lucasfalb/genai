@@ -4,7 +4,8 @@ import type {
 	AgentInstanceCreateRequest,
 	AgentInstanceUpdateRequest,
 	AgentPromptConfigResponse,
-	AgentPromptConfigRequest
+	AgentPromptConfigRequest,
+	VersionEntry
 } from '$lib/api/types';
 
 export const instancesApi = {
@@ -24,5 +25,8 @@ export const instancesApi = {
 		api.get<AgentPromptConfigResponse>(`/tenant/instances/${id}/prompt-config`),
 
 	savePromptConfig: (id: string, body: AgentPromptConfigRequest) =>
-		api.put<AgentPromptConfigResponse>(`/tenant/instances/${id}/prompt-config`, body)
+		api.put<AgentPromptConfigResponse>(`/tenant/instances/${id}/prompt-config`, body),
+
+	getVersions: (id: string) =>
+		api.get<VersionEntry[]>(`/tenant/instances/${id}/versions`)
 };

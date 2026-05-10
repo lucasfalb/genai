@@ -458,6 +458,20 @@ export interface DocumentResponse {
 	indexed_at: string | null;
 }
 
+// ─── Versions ──────────────────────────────────────────────────
+
+export interface VersionEntry {
+	id: string;
+	version: number;
+	action: string;
+	changed_by: string | null;
+	actor_type: string;
+	actor_role: string | null;
+	snapshot: Record<string, unknown>;
+	metadata: Record<string, unknown>;
+	created_at: string | null;
+}
+
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 
 export interface ChatRequest {

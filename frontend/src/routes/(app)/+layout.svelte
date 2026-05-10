@@ -205,7 +205,7 @@
 		</Sidebar.Header>
 
 		<!-- Tenant selector -->
-		<Sidebar.Header class="shrink-0 border-b px-2 py-2" style="border-color:var(--ds-border)">
+		<Sidebar.Header class="shrink-0 border-b" style="border-color:var(--ds-border)">
 			<TenantSelector memberships={data.memberships} activeTenant={data.activeTenant} />
 		</Sidebar.Header>
 
