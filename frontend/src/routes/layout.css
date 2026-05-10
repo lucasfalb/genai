@@ -18,10 +18,10 @@
 	--text-muted: #475569;
 	--glow-opacity: 0.05;
 
-	/* shadcn component tokens (light) — blue-tinted, matches design system */
+	/* shadcn component tokens (light) — aligned with design system */
 	--background: oklch(0.982 0.005 252);
 	--foreground: oklch(0.14 0.015 252);
-	--card: oklch(1 0 0);
+	--card: var(--surface);
 	--card-foreground: oklch(0.14 0.015 252);
 	--popover: oklch(1 0 0);
 	--popover-foreground: oklch(0.14 0.015 252);
@@ -34,8 +34,8 @@
 	--accent: oklch(0.623 0.214 259.815 / 0.1);
 	--accent-foreground: oklch(0.623 0.214 259.815);
 	--destructive: oklch(0.577 0.245 27.325);
-	--border: oklch(0.9 0.012 252);
-	--input: oklch(0.9 0.012 252);
+	--border: var(--ds-border);
+	--input: var(--ds-border);
 	--ring: oklch(0.623 0.214 259.815 / 0.35);
 	--chart-1: oklch(0.646 0.222 41.116);
 	--chart-2: oklch(0.6 0.118 184.704);
@@ -80,24 +80,24 @@ a {
 	--text-muted: #94a3b8;
 	--glow-opacity: 0.15;
 
-	/* shadcn component tokens (dark) — blue-tinted dark glass palette */
-	--background: oklch(0.03 0.005 252);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.1 0.01 252);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.14 0.012 252);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.922 0 0);
-	--primary-foreground: oklch(0.205 0 0);
-	--secondary: oklch(0.14 0.01 252);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.12 0.01 252);
-	--muted-foreground: oklch(0.62 0.02 252);
-	--accent: oklch(0.14 0.01 252);
-	--accent-foreground: oklch(0.985 0 0);
+	/* shadcn component tokens (dark) — glass palette aligned with design system */
+	--background: var(--canvas);
+	--foreground: var(--text-main);
+	--card: var(--surface);
+	--card-foreground: var(--text-main);
+	--popover: oklch(0.14 0 0);
+	--popover-foreground: var(--text-main);
+	--primary: var(--text-main);
+	--primary-foreground: var(--canvas);
+	--secondary: rgba(255, 255, 255, 0.04);
+	--secondary-foreground: var(--text-main);
+	--muted: rgba(255, 255, 255, 0.03);
+	--muted-foreground: var(--text-muted);
+	--accent: rgba(255, 255, 255, 0.06);
+	--accent-foreground: var(--text-main);
 	--destructive: oklch(0.704 0.191 22.216);
-	--border: oklch(0.22 0.012 252);
-	--input: oklch(0.16 0.012 252);
+	--border: var(--ds-border);
+	--input: var(--ds-border);
 	--ring: oklch(0.623 0.214 259.815 / 0.5);
 	--chart-1: oklch(0.488 0.243 264.376);
 	--chart-2: oklch(0.696 0.17 162.48);
