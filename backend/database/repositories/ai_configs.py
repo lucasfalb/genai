@@ -70,13 +70,19 @@ class SystemSettingsRecord:
 
 
 @dataclass(frozen=True)
-class TenantAIConfigRecord:
-    tenant_id: UUID
-    provider: str | None
-    default_model: str | None
+class ProviderConfig:
+    name: str
     enabled: bool
     has_api_key: bool
-    configured_by: UUID | None
+    api_key_hint: str | None
+    configured_at: str | None
+    configured_by: str | None
+
+
+@dataclass(frozen=True)
+class TenantProvidersRecord:
+    tenant_id: UUID
+    providers: list[ProviderConfig]
 
 
 class AIConfigRepository:
@@ -179,14 +185,11 @@ class AIConfigRepository:
         )
         return _settings_from_row(result.one())
 
-    async def get_tenant_config(self, *, tenant_id: UUID) -> TenantAIConfigRecord | None:
+    async def get_tenant_providers(self, *, tenant_id: UUID) -> TenantProvidersRecord | None:
         result = await self.connection.execute(
             text(
                 """
-                SELECT id AS tenant_id, ai_provider AS provider,
-                       ai_default_model AS default_model, ai_enabled AS enabled,
-                       ai_api_key_encrypted IS NOT NULL AS has_api_key,
-                       ai_configured_by AS configured_by
+                SELECT id AS tenant_id, providers_config
                 FROM tenants
                 WHERE id = :tenant_id
                 """
@@ -194,72 +197,146 @@ class AIConfigRepository:
             {"tenant_id": tenant_id},
         )
         row = result.one_or_none()
-        return _tenant_from_row(row) if row else None
+        return _tenant_providers_from_row(row) if row else None
 
-    async def upsert_tenant_config(
+    async def upsert_provider(
         self,
         *,
         tenant_id: UUID,
         configured_by: UUID,
-        provider: str,
-        api_key_encrypted: str,
-        default_model: str | None = None,
-        enabled: bool = True,
-    ) -> TenantAIConfigRecord | None:
-        result = await self.connection.execute(
-            text(
-                """
-                UPDATE tenants
-                SET ai_provider = :provider,
-                    ai_api_key_encrypted = :api_key_encrypted,
-                    ai_default_model = :default_model,
-                    ai_enabled = :enabled,
-                    ai_configured_at = now(),
-                    ai_configured_by = :configured_by,
-                    updated_at = now()
-                WHERE id = :tenant_id
-                RETURNING id AS tenant_id, ai_provider AS provider,
-                          ai_default_model AS default_model, ai_enabled AS enabled,
-                          ai_api_key_encrypted IS NOT NULL AS has_api_key,
-                          ai_configured_by AS configured_by
-                """
-            ),
-            {
-                "tenant_id": tenant_id,
-                "configured_by": configured_by,
-                "provider": provider,
-                "api_key_encrypted": api_key_encrypted,
-                "default_model": default_model,
-                "enabled": enabled,
-            },
-        )
+        provider_name: str,
+        api_key_encrypted: str | None = None,
+        api_key_hint: str | None = None,
+        enabled: bool | None = None,
+    ) -> TenantProvidersRecord | None:
+        if api_key_encrypted is not None:
+            result = await self.connection.execute(
+                text(
+                    """
+                    UPDATE tenants
+                    SET providers_config = jsonb_set(
+                          COALESCE(providers_config, '{"providers": []}'::jsonb),
+                          '{providers}',
+                          COALESCE(
+                            (
+                              SELECT jsonb_agg(
+                                CASE
+                                  WHEN elem->>'name' = :provider_name THEN
+                                    jsonb_build_object(
+                                      'name', :provider_name,
+                                      'api_key_encrypted', CAST(:api_key_encrypted AS text),
+                                      'api_key_hint', CAST(:api_key_hint AS text),
+                                      'enabled', true,
+                                      'configured_at', to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                                      'configured_by', CAST(:configured_by AS text)
+                                    )
+                                  ELSE elem
+                                END
+                              )
+                              FROM jsonb_array_elements(providers_config->'providers') AS elem
+                              WHERE elem->>'name' != :provider_name
+                            ),
+                            '[]'::jsonb
+                          ) || jsonb_build_array(
+                            jsonb_build_object(
+                              'name', :provider_name,
+                              'api_key_encrypted', CAST(:api_key_encrypted AS text),
+                              'api_key_hint', CAST(:api_key_hint AS text),
+                              'enabled', true,
+                              'configured_at', to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                              'configured_by', CAST(:configured_by AS text)
+                            )
+                          )
+                        ),
+                        updated_at = now()
+                    WHERE id = :tenant_id
+                    RETURNING id AS tenant_id, providers_config
+                    """
+                ),
+                {
+                    "tenant_id": tenant_id,
+                    "configured_by": str(configured_by),
+                    "provider_name": provider_name,
+                    "api_key_encrypted": api_key_encrypted,
+                    "api_key_hint": api_key_hint,
+                },
+            )
+        else:
+            result = await self.connection.execute(
+                text(
+                    """
+                    UPDATE tenants
+                    SET providers_config = jsonb_set(
+                          providers_config,
+                          '{providers}',
+                          (
+                            SELECT jsonb_agg(
+                              CASE
+                                WHEN elem->>'name' = :provider_name THEN
+                                  elem || jsonb_build_object('enabled', CAST(:enabled AS boolean))
+                                ELSE elem
+                              END
+                            )
+                            FROM jsonb_array_elements(providers_config->'providers') AS elem
+                          )
+                        ),
+                        updated_at = now()
+                    WHERE id = :tenant_id
+                      AND providers_config->'providers' @> jsonb_build_array(jsonb_build_object('name', CAST(:provider_name AS text)))
+                    RETURNING id AS tenant_id, providers_config
+                    """
+                ),
+                {
+                    "tenant_id": tenant_id,
+                    "provider_name": provider_name,
+                    "enabled": enabled,
+                },
+            )
         row = result.one_or_none()
-        return _tenant_from_row(row) if row else None
+        return _tenant_providers_from_row(row) if row else None
 
-    async def delete_tenant_config(self, *, tenant_id: UUID, configured_by: UUID) -> TenantAIConfigRecord | None:
+    async def delete_provider(
+        self, *, tenant_id: UUID, provider_name: str
+    ) -> TenantProvidersRecord | None:
         result = await self.connection.execute(
             text(
                 """
                 UPDATE tenants
-                SET ai_provider = NULL,
-                    ai_api_key_encrypted = NULL,
-                    ai_default_model = NULL,
-                    ai_enabled = false,
-                    ai_configured_at = now(),
-                    ai_configured_by = :configured_by,
+                SET providers_config = jsonb_set(
+                      providers_config,
+                      '{providers}',
+                      COALESCE(
+                        (
+                          SELECT jsonb_agg(elem)
+                          FROM jsonb_array_elements(providers_config->'providers') AS elem
+                          WHERE elem->>'name' != :provider_name
+                        ),
+                        '[]'::jsonb
+                      )
+                    ),
                     updated_at = now()
                 WHERE id = :tenant_id
-                  AND (ai_api_key_encrypted IS NOT NULL OR ai_enabled = true)
-                RETURNING id AS tenant_id, ai_provider AS provider,
-                          ai_default_model AS default_model, ai_enabled AS enabled,
-                          ai_api_key_encrypted IS NOT NULL AS has_api_key,
-                          ai_configured_by AS configured_by
+                RETURNING id AS tenant_id, providers_config
                 """
             ),
-            {"tenant_id": tenant_id, "configured_by": configured_by},
+            {"tenant_id": tenant_id, "provider_name": provider_name},
         )
         row = result.one_or_none()
-        return _tenant_from_row(row) if row else None
+        return _tenant_providers_from_row(row) if row else None
+
+    async def get_provider_encrypted_key(self, *, tenant_id: UUID, provider_name: str) -> str | None:
+        result = await self.connection.execute(
+            text("SELECT providers_config FROM tenants WHERE id = :tenant_id"),
+            {"tenant_id": tenant_id},
+        )
+        row = result.one_or_none()
+        if row is None:
+            return None
+        config = row.providers_config if isinstance(row.providers_config, dict) else json.loads(row.providers_config)
+        for p in config.get("providers", []):
+            if p.get("name") == provider_name:
+                return p.get("api_key_encrypted")
+        return None
 
     async def _ensure_system_settings(self) -> None:
         await self.connection.execute(
@@ -305,12 +382,24 @@ def _settings_from_row(row) -> SystemSettingsRecord:
     )
 
 
-def _tenant_from_row(row) -> TenantAIConfigRecord:
-    return TenantAIConfigRecord(
+def _tenant_providers_from_row(row) -> TenantProvidersRecord:
+    config = row.providers_config if isinstance(row.providers_config, dict) else json.loads(row.providers_config)
+    providers_list = config.get("providers", [])
+
+    providers = []
+    for p in providers_list:
+        providers.append(
+            ProviderConfig(
+                name=p.get("name", ""),
+                enabled=p.get("enabled", False),
+                has_api_key=bool(p.get("api_key_encrypted")),
+                api_key_hint=p.get("api_key_hint"),
+                configured_at=p.get("configured_at"),
+                configured_by=p.get("configured_by"),
+            )
+        )
+
+    return TenantProvidersRecord(
         tenant_id=row.tenant_id,
-        provider=row.provider,
-        default_model=row.default_model,
-        enabled=row.enabled,
-        has_api_key=row.has_api_key,
-        configured_by=row.configured_by,
+        providers=providers,
     )

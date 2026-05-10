@@ -467,20 +467,33 @@ class PublicSystemSettingsResponse(BaseModel):
     public_settings: dict[str, Any]
 
 
-class TenantAIConfigRequest(BaseModel):
-    provider: str = Field(default="openai", pattern=r"^[a-z0-9_-]+$", max_length=80)
-    api_key: str = Field(min_length=1, max_length=512)
-    default_model: str | None = Field(default=None, max_length=120)
-    enabled: bool = True
+class ProviderConfigRequest(BaseModel):
+    name: str = Field(pattern=r"^[a-z0-9_-]+$", max_length=80)
+    api_key: str | None = Field(default=None, min_length=1, max_length=512)
+    enabled: bool | None = None
 
 
-class TenantAIConfigResponse(BaseModel):
-    tenant_id: UUID
-    provider: str | None
-    default_model: str | None
+class ProviderInfo(BaseModel):
+    name: str
     enabled: bool
     has_api_key: bool
-    configured_by: UUID | None
+    api_key_hint: str | None = None
+    configured_at: datetime | None
+    configured_by: str | None
+
+
+class TenantProvidersResponse(BaseModel):
+    tenant_id: str
+    providers: list[ProviderInfo]
+
+
+class ProviderModelInfo(BaseModel):
+    id: str
+
+
+class ProviderModelsResponse(BaseModel):
+    provider: str
+    models: list[ProviderModelInfo]
 
 
 class AgentInstanceCreateRequest(BaseModel):

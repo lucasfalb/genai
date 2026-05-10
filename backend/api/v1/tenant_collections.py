@@ -496,8 +496,8 @@ async def get_document_content(
     "/{collection_id}/documents/create",
     status_code=status.HTTP_201_CREATED,
     response_model=ApiResponse[DocumentResponse],
-    summary="Create markdown document",
-    description="Creates a new markdown document (.md) with the provided filename and content, stores it in object storage, and enqueues an indexing job.",
+    summary="Create text document",
+    description="Creates a new text document (.md or .txt) with the provided filename and content, stores it in object storage, and enqueues an indexing job.",
 )
 async def create_text_document(
     collection_id: UUID,
@@ -513,14 +513,14 @@ async def create_text_document(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Collection not found")
 
     filename = payload.filename
-    if not filename.endswith(".md"):
+    if not (filename.endswith(".md") or filename.endswith(".txt")):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            "Filename must end with .md",
+            "Filename must end with .md or .txt",
         )
 
     content_bytes = payload.content.encode("utf-8")
-    content_type = "text/markdown"
+    content_type = "text/markdown" if filename.endswith(".md") else "text/plain"
 
     if len(content_bytes) > settings.upload_max_bytes:
         raise HTTPException(
@@ -602,8 +602,8 @@ async def create_text_document(
 @router.put(
     "/{collection_id}/documents/{document_id}/content",
     response_model=ApiResponse[DocumentResponse],
-    summary="Update markdown document content",
-    description="Updates the content of a markdown document (.md), stores the new content in object storage, and triggers reindexing.",
+    summary="Update text document content",
+    description="Updates the content of a text document (.md or .txt), stores the new content in object storage, and triggers reindexing.",
 )
 async def update_document_content(
     collection_id: UUID,
@@ -618,10 +618,10 @@ async def update_document_content(
     if document is None or document.collection_id != collection_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
 
-    if not document.content_type or document.content_type != "text/markdown":
+    if not document.content_type or document.content_type not in ("text/markdown", "text/plain"):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            "Only markdown documents can be updated",
+            "Only markdown and text documents can be updated",
         )
 
     content_bytes = payload.content.encode("utf-8")

@@ -388,20 +388,33 @@ export interface TenantInvitationAcceptResponse {
 
 // ─── AI settings ─────────────────────────────────────────────────────────────
 
-export interface TenantAIConfigResponse {
-	tenant_id: string;
-	provider: string | null;
-	default_model: string | null;
+export interface ProviderInfo {
+	name: string;
 	enabled: boolean;
 	has_api_key: boolean;
+	api_key_hint: string | null;
+	configured_at: string | null;
 	configured_by: string | null;
 }
 
-export interface TenantAIConfigRequest {
+export interface TenantProvidersResponse {
+	tenant_id: string;
+	providers: ProviderInfo[];
+}
+
+export interface ProviderConfigRequest {
+	name: string;
+	api_key?: string;
+	enabled?: boolean;
+}
+
+export interface ProviderModelInfo {
+	id: string;
+}
+
+export interface ProviderModelsResponse {
 	provider: string;
-	api_key: string;
-	default_model: string | null;
-	enabled: boolean;
+	models: ProviderModelInfo[];
 }
 
 // ─── Collections ─────────────────────────────────────────────────────────────

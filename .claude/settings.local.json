@@ -15,7 +15,8 @@
       "Bash(python -c ' *)",
       "Bash(mkdir -p \"c:/Users/lucas/Documents/genai/frontend/src/routes/\\(app\\)/app/[tenant]/settings/ai\")",
       "Bash(cd /mnt/c/Users/lucas/Documents/genai/frontend && npx shadcn@latest info 2>&1 | head -100)",
-      "Read(//mnt/c/Users/lucas/Documents/genai/**)"
+      "Read(//mnt/c/Users/lucas/Documents/genai/**)",
+      "Bash(.venv/Scripts/python.exe -c \"from app.config import settings; print\\(f''Backend URL: {settings.cors_origins}''\\)\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\lucas\\Documents\\genai\\frontend\\src\\routes\\(app)\\app\\[tenant]\\settings"

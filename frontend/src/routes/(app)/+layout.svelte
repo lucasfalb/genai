@@ -78,7 +78,7 @@
 					description: 'Logs, traces and execution health'
 				},
 				{
-					href: '/settings/ai',
+					href: '/settings',
 					label: 'Configuration',
 					icon: Settings,
 					description: 'Tenant AI and credentials settings'

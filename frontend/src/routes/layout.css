@@ -42,7 +42,7 @@
 	--chart-3: oklch(0.398 0.07 227.392);
 	--chart-4: oklch(0.828 0.189 84.429);
 	--chart-5: oklch(0.769 0.188 70.08);
-	--radius: 0.5rem;
+	--radius: 0.375rem;
 	--sidebar: oklch(0.975 0.008 252);
 	--sidebar-foreground: oklch(0.14 0.015 252);
 	--sidebar-primary: oklch(0.623 0.214 259.815);
@@ -55,6 +55,19 @@
 button,
 a {
 	cursor: pointer;
+}
+/* Classe para esconder a barra de rolagem */
+.scrollbar-none {
+	/* Para Firefox */
+	scrollbar-width: none;
+
+	/* Para Internet Explorer e Edge antigo */
+	-ms-overflow-style: none;
+}
+
+/* Para Chrome, Safari e novas versões do Edge */
+.scrollbar-none::-webkit-scrollbar {
+	display: none;
 }
 .dark {
 	/* Design system dark tokens */

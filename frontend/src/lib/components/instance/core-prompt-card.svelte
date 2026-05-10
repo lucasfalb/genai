@@ -4,7 +4,7 @@
 	let { core_prompt = $bindable() }: { core_prompt: string } = $props();
 </script>
 
-<div class="rounded-xl p-6 space-y-3" style="background:var(--surface);border:1px solid var(--ds-border)">
+<div class="rounded-lg p-6 space-y-3" style="background:var(--surface);border:1px solid var(--ds-border)">
 	<div>
 		<h2 class="font-display text-sm font-semibold" style="color:var(--text-main)">Instructions</h2>
 		<p class="mt-1 text-xs text-muted-foreground">Base behavior for this agent. Topic-specific blocks live in the Instructions tab.</p>

@@ -146,7 +146,7 @@
 </script>
 
 <div
-	class="space-y-4 rounded-xl p-6"
+	class="space-y-4 rounded-lg p-6"
 	style="background:var(--surface);border:1px solid var(--ds-border)"
 >
 	<div class="flex items-center justify-between gap-4">

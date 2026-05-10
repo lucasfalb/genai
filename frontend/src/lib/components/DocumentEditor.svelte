@@ -36,6 +36,10 @@
 	let activeTab = $state<'write' | 'preview'>('write');
 	const isEdit = $derived(document !== null);
 
+	const isMarkdown = $derived(
+		!isEdit || document?.content_type === 'text/markdown'
+	);
+
 	// Configure marked
 	marked.setOptions({
 		breaks: true,
@@ -49,10 +53,10 @@
 	$effect(() => {
 		if (open) {
 			if (document) {
-				filename = document.filename.replace(/\.md$/, '');
+				filename = document.filename;
 				loadContent();
 			} else {
-				filename = '';
+				filename = 'untitled.md';
 				content = '';
 			}
 			activeTab = 'write';
@@ -84,13 +88,14 @@
 
 		saving = true;
 		try {
-			const fullFilename = `${filename.trim()}.md`;
 			let saved: DocumentResponse;
 
 			if (isEdit && document) {
 				saved = await collectionsApi.updateDocumentContent(collectionId, document.id, content);
 			} else {
-				saved = await collectionsApi.createDocument(collectionId, fullFilename, content);
+				const name = filename.trim();
+				const safeName = name.endsWith('.md') || name.endsWith('.txt') ? name : `${name}.md`;
+				saved = await collectionsApi.createDocument(collectionId, safeName, content);
 			}
 
 			toast.success(isEdit ? 'Document updated.' : 'Document created.');
@@ -155,10 +160,10 @@
 		<!-- Header -->
 		<div class="border-b px-8 py-5" style="border-color:var(--ds-border)">
 			<Dialog.Title class="text-xl font-semibold">
-				{isEdit ? 'Edit' : 'Create New'} Markdown Document
+				{isEdit ? 'Edit' : 'Create New'} Text Document
 			</Dialog.Title>
 			<Dialog.Description class="mt-1.5 text-sm">
-				{isEdit ? 'Update the content of your markdown document' : 'Create a new markdown document with full preview support'}
+				{isEdit ? `Editing ${document?.filename ?? ''}` : 'Create a new .md or .txt document with full preview support'}
 			</Dialog.Description>
 		</div>
 
@@ -178,8 +183,8 @@
 				</div>
 				<div class="flex h-11 items-center gap-2 rounded-md border bg-muted px-4" style="border-color:var(--ds-border)">
 					<FileCode class="size-4 text-muted-foreground" />
-					<span class="font-mono text-sm">.md</span>
-					<span class="text-xs text-muted-foreground">Markdown</span>
+					<span class="font-mono text-sm">{isEdit && document ? (document.filename.endsWith('.txt') ? '.txt' : '.md') : filename.endsWith('.txt') ? '.txt' : '.md'}</span>
+					<span class="text-xs text-muted-foreground">{isMarkdown ? 'Markdown' : 'Plain text'}</span>
 				</div>
 			</div>
 

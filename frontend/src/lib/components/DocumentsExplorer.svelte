@@ -156,8 +156,8 @@
 		handleFiles(e.dataTransfer?.files ?? null);
 	}
 
-	function isMarkdownDocument(doc: DocumentResponse): boolean {
-		return doc.content_type === 'text/markdown';
+	function isTextDocument(doc: DocumentResponse): boolean {
+		return doc.content_type === 'text/markdown' || doc.content_type === 'text/plain';
 	}
 
 	function handleDocumentSaved(doc: DocumentResponse) {
@@ -248,7 +248,7 @@
 	<div
 		role="region"
 		aria-label="Upload area"
-		class="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 text-center transition-colors {dragOver
+		class="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed p-8 text-center transition-colors {dragOver
 			? 'border-blue-500 bg-blue-500/5'
 			: ''}"
 		style="border-color:{dragOver ? '' : 'var(--ds-border)'};background:{dragOver
@@ -287,7 +287,7 @@
 	</div>
 
 	<!-- Documents list -->
-	<div class="rounded-xl" style="background:var(--surface);border:1px solid var(--ds-border)">
+	<div class="rounded-lg" style="background:var(--surface);border:1px solid var(--ds-border)">
 		<div
 			class="flex items-center justify-between border-b px-4 py-3"
 			style="border-color:var(--ds-border)"
@@ -391,7 +391,7 @@
 							>
 							<Table.Cell>
 								<div class="flex gap-1">
-									{#if isMarkdownDocument(doc)}
+									{#if isTextDocument(doc)}
 										<Button variant="ghost" size="icon-sm" onclick={() => openEditDialog(doc)}>
 											<Pencil />
 										</Button>
