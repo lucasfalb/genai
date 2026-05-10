@@ -194,7 +194,7 @@
 	>
 		<!-- Logo -->
 		<Sidebar.Header
-			class="h-16 shrink-0 flex-row items-center gap-2 border-b px-4"
+			class="h-14 shrink-0 flex-row items-center gap-2 border-b px-4"
 			style="border-color:var(--ds-border)"
 		>
 			<Bot class="size-5 shrink-0 text-blue-500" />
@@ -292,7 +292,7 @@
 	<Sidebar.Inset class="flex min-w-0 flex-col overflow-hidden bg-transparent">
 		{#if !currentNav.hideHeader}
 			<header
-				class="flex h-16 shrink-0 items-center justify-between border-b px-6 backdrop-blur-md"
+				class="flex h-14 shrink-0 items-center justify-between border-b px-2 backdrop-blur-md"
 				style="border-color:var(--ds-border);background:color-mix(in srgb,var(--surface) 100%,transparent)"
 			>
 				<div class="flex items-center gap-3">

@@ -44,18 +44,54 @@
 		{
 			label: 'Platform Control',
 			items: [
-				{ href: '/admin', label: 'Overview', icon: LayoutGrid, description: 'Global platform summary', hideHeader: true },
-				{ href: '/admin/tenants', label: 'Tenants', icon: Building2, description: 'Tenant administration' },
-				{ href: '/admin/users', label: 'Users', icon: Users, description: 'Global user administration' }
+				{
+					href: '/admin',
+					label: 'Overview',
+					icon: LayoutGrid,
+					description: 'Global platform summary',
+					hideHeader: true
+				},
+				{
+					href: '/admin/tenants',
+					label: 'Tenants',
+					icon: Building2,
+					description: 'Tenant administration'
+				},
+				{
+					href: '/admin/users',
+					label: 'Users',
+					icon: Users,
+					description: 'Global user administration'
+				}
 			]
 		},
 		{
 			label: 'Operations',
 			items: [
-				{ href: '/admin/registry/skills', label: 'Skills', icon: Cpu, description: 'Skill registry definitions' },
-				{ href: '/admin/registry/tools', label: 'Tools', icon: Wrench, description: 'Tool registry definitions' },
-				{ href: '/admin/email-templates', label: 'Email Templates', icon: Mail, description: 'Transactional communication templates' },
-				{ href: '/admin/settings', label: 'Settings', icon: Settings, description: 'System-wide settings' }
+				{
+					href: '/admin/registry/skills',
+					label: 'Skills',
+					icon: Cpu,
+					description: 'Skill registry definitions'
+				},
+				{
+					href: '/admin/registry/tools',
+					label: 'Tools',
+					icon: Wrench,
+					description: 'Tool registry definitions'
+				},
+				{
+					href: '/admin/email-templates',
+					label: 'Email Templates',
+					icon: Mail,
+					description: 'Transactional communication templates'
+				},
+				{
+					href: '/admin/settings',
+					label: 'Settings',
+					icon: Settings,
+					description: 'System-wide settings'
+				}
 			]
 		}
 	];
@@ -93,16 +129,34 @@
 	<title>Superadmin - GENAI</title>
 </svelte:head>
 
-<div class="pointer-events-none fixed top-[-20%] left-[-10%] h-[600px] w-[600px] rounded-full bg-blue-600/10 blur-[150px]" style="z-index:0"></div>
-<div class="pointer-events-none fixed right-[-5%] bottom-[-10%] h-[500px] w-[500px] rounded-full bg-cyan-600/5 blur-[120px]" style="z-index:0"></div>
+<div
+	class="pointer-events-none fixed top-[-20%] left-[-10%] h-[600px] w-[600px] rounded-full bg-blue-600/10 blur-[150px]"
+	style="z-index:0"
+></div>
+<div
+	class="pointer-events-none fixed right-[-5%] bottom-[-10%] h-[500px] w-[500px] rounded-full bg-cyan-600/5 blur-[120px]"
+	style="z-index:0"
+></div>
 
-<Sidebar.Provider class="h-screen overflow-hidden selection:bg-blue-500/30" style="position:relative;z-index:1">
-	<Sidebar.Root collapsible="icon" class="glass-panel border-r" style="border-color:var(--ds-border)">
-		<Sidebar.Header class="h-16 shrink-0 flex-row items-center gap-2 border-b px-4" style="border-color:var(--ds-border)">
+<Sidebar.Provider
+	class="h-screen overflow-hidden selection:bg-blue-500/30"
+	style="position:relative;z-index:1"
+>
+	<Sidebar.Root
+		collapsible="icon"
+		class="glass-panel border-r"
+		style="border-color:var(--ds-border)"
+	>
+		<Sidebar.Header
+			class="h-16 shrink-0 flex-row items-center gap-2 border-b px-4"
+			style="border-color:var(--ds-border)"
+		>
 			<ShieldAlert class="size-5 shrink-0 text-amber-400" />
 			<div class="group-data-[collapsible=icon]:hidden">
-				<p class="font-display text-lg font-semibold tracking-tight" style="color:var(--text-main)">Superadmin</p>
-				<p class="text-[10px] uppercase tracking-widest text-muted-foreground">Platform Control</p>
+				<p class="font-display text-lg font-semibold tracking-tight" style="color:var(--text-main)">
+					Superadmin
+				</p>
+				<p class="text-[10px] tracking-widest text-muted-foreground uppercase">Platform Control</p>
 			</div>
 		</Sidebar.Header>
 
@@ -110,7 +164,9 @@
 			{#each navGroups as group, groupIndex}
 				{#if groupIndex > 0}<Sidebar.Separator />{/if}
 				<Sidebar.Group>
-					<Sidebar.GroupLabel class="font-display text-[10px] font-semibold tracking-widest uppercase">
+					<Sidebar.GroupLabel
+						class="font-display text-[10px] font-semibold tracking-widest uppercase"
+					>
 						{group.label}
 					</Sidebar.GroupLabel>
 					<Sidebar.GroupContent>
@@ -139,21 +195,31 @@
 			{/each}
 		</Sidebar.Content>
 
-		<Sidebar.Footer class="shrink-0 border-t px-2 py-2" style="border-color:var(--ds-border);background:color-mix(in srgb,var(--surface) 80%,transparent)">
+		<Sidebar.Footer
+			class="shrink-0 border-t px-2 py-2"
+			style="border-color:var(--ds-border);background:color-mix(in srgb,var(--surface) 80%,transparent)"
+		>
 			<a
 				href="/app"
-				class="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground group-data-[collapsible=icon]:justify-center"
+				class="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground transition-colors group-data-[collapsible=icon]:justify-center hover:text-foreground"
 			>
 				<ArrowLeft class="h-4 w-4" />
 				<span class="group-data-[collapsible=icon]:hidden">Back to App</span>
 			</a>
 			<div class="flex items-center gap-1 px-1">
 				<div class="flex flex-1 flex-col truncate px-1 group-data-[collapsible=icon]:hidden">
-					<span class="truncate text-sm font-medium" style="color:var(--text-main)">{data.user.name || data.user.email}</span>
+					<span class="truncate text-sm font-medium" style="color:var(--text-main)"
+						>{data.user.name || data.user.email}</span
+					>
 					<span class="truncate text-[10px] text-muted-foreground">{data.user.email}</span>
 				</div>
 				<ModeToggle />
-				<Button onclick={logout} variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground hover:text-red-500">
+				<Button
+					onclick={logout}
+					variant="ghost"
+					size="icon"
+					class="h-8 w-8 text-muted-foreground hover:text-red-500"
+				>
 					<LogOut class="h-4 w-4" />
 				</Button>
 			</div>
@@ -164,11 +230,17 @@
 
 	<Sidebar.Inset class="flex min-w-0 flex-col overflow-hidden bg-transparent">
 		{#if !currentNav.hideHeader}
-			<header class="flex h-16 shrink-0 items-center justify-between border-b px-6 backdrop-blur-md" style="border-color:var(--ds-border);background:color-mix(in srgb,var(--surface) 100%,transparent)">
+			<header
+				class="flex h-14 shrink-0 items-center justify-between border-b px-2 backdrop-blur-md"
+				style="border-color:var(--ds-border);background:color-mix(in srgb,var(--surface) 100%,transparent)"
+			>
 				<div class="flex items-center gap-3">
 					<Sidebar.Trigger class="-ml-1 text-muted-foreground" />
 					<div class="hidden h-4 w-px sm:block" style="background:var(--ds-border)"></div>
-					<h1 class="font-display text-base font-semibold tracking-tight" style="color:var(--text-main)">
+					<h1
+						class="font-display text-base font-semibold tracking-tight"
+						style="color:var(--text-main)"
+					>
 						{currentNav.label}
 					</h1>
 					<div class="hidden h-4 w-px md:block" style="background:var(--ds-border)"></div>

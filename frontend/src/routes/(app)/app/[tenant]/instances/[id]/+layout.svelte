@@ -54,7 +54,7 @@
 		}
 		try {
 			const collections = await collectionsApi.list();
-			collectionMap = Object.fromEntries(collections.map(c => [c.id, c.name]));
+			collectionMap = Object.fromEntries(collections.map((c) => [c.id, c.name]));
 		} catch {
 			collectionMap = {};
 		}
@@ -68,7 +68,9 @@
 		unregister: () => {
 			saveHandler = null;
 		},
-		setSaving: (v: boolean) => { isSaving = v; }
+		setSaving: (v: boolean) => {
+			isSaving = v;
+		}
 	});
 
 	const tabs = [
@@ -83,19 +85,23 @@
 	}
 
 	function escapeHtml(s: string): string {
-		return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+		return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 	}
 
 	function formatValue(key: string, value: unknown): string {
-		if (value === null || value === undefined) return '<span class="italic text-muted-foreground">not set</span>';
+		if (value === null || value === undefined)
+			return '<span class="italic text-muted-foreground">not set</span>';
 		if (key === 'temperature') return Number(value).toFixed(1);
 		if (key === 'rag_scope') {
 			const arr = Array.isArray(value) ? value : [];
-			if (arr.length === 0) return '<span class="italic text-muted-foreground">all collections</span>';
-			return arr.map((id: string) => {
-				const name = collectionMap[id];
-				return `<span class="inline-block rounded-sm px-1.5 py-0.5 text-[10px]" style="background:var(--surface);border:1px solid var(--ds-border)">${name ? escapeHtml(name) : `<span class="italic text-muted-foreground">deleted (${id.slice(0,8)})</span>`}</span>`;
-			}).join(' ');
+			if (arr.length === 0)
+				return '<span class="italic text-muted-foreground">all collections</span>';
+			return arr
+				.map((id: string) => {
+					const name = collectionMap[id];
+					return `<span class="inline-block rounded-sm px-1.5 py-0.5 text-[10px]" style="background:var(--surface);border:1px solid var(--ds-border)">${name ? escapeHtml(name) : `<span class="italic text-muted-foreground">deleted (${id.slice(0, 8)})</span>`}</span>`;
+				})
+				.join(' ');
 		}
 		if (key === 'core_prompt') {
 			const s = String(value);
@@ -130,7 +136,7 @@
 
 	<!-- Header -->
 	<header
-		class="flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-[var(--surface)] px-5"
+		class="flex h-[49px] shrink-0 items-center justify-between gap-4 border-b bg-[var(--surface)] px-2"
 		style="border-color:var(--ds-border)"
 	>
 		<div class="flex min-w-0 items-center gap-3">
@@ -158,11 +164,19 @@
 		<div class="flex shrink-0 items-center gap-2">
 			{#if saveHandler}
 				<Button onclick={saveHandler} disabled={isSaving}>
-					{#if isSaving}<Spinner data-icon="inline-start" />{:else}<Save data-icon="inline-start" />{/if}
+					{#if isSaving}<Spinner data-icon="inline-start" />{:else}<Save
+							data-icon="inline-start"
+						/>{/if}
 					{saveLabel}
 				</Button>
 			{/if}
-			<Button variant="outline" onclick={() => { loadVersions(); historyOpen = true; }}>
+			<Button
+				variant="outline"
+				onclick={() => {
+					loadVersions();
+					historyOpen = true;
+				}}
+			>
 				<HistoryIcon class="size-3.5" />
 				History
 			</Button>
@@ -266,36 +280,37 @@
 									<div class="mt-3 flex gap-2 text-muted-foreground">
 										<ThumbsUp class="size-4" />
 										<ThumbsDown class="size-4" />
+									</div>
 								</div>
 							</div>
 						</div>
-					</div>
 
-					<!-- Message input -->
-					<div class="shrink-0 border-t p-4" style="border-color:var(--ds-border)">
-						<div
-							class="rounded-xl border bg-[var(--canvas)] p-3 shadow-sm"
-							style="border-color:var(--ds-border)"
-						>
-							<textarea
-								bind:value={testMessage}
-								rows="3"
-								maxlength="2000"
-								placeholder="Faca uma pergunta ou descreva o que precisa"
-								class="w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-							></textarea>
-							<div class="mt-2 flex items-center justify-between">
-								<span class="font-mono text-[10px] text-muted-foreground"
-									>{testMessage.length}/2000</span
-								>
-								<button
-									type="button"
-									disabled={!testMessage.trim()}
-									class="inline-flex size-8 items-center justify-center rounded-md bg-blue-600 text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
-									aria-label="Send test message"
-								>
-									<Send class="size-4" />
-								</button>
+						<!-- Message input -->
+						<div class="shrink-0 border-t p-4" style="border-color:var(--ds-border)">
+							<div
+								class="rounded-xl border bg-[var(--canvas)] p-3 shadow-sm"
+								style="border-color:var(--ds-border)"
+							>
+								<textarea
+									bind:value={testMessage}
+									rows="3"
+									maxlength="2000"
+									placeholder="Faca uma pergunta ou descreva o que precisa"
+									class="w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+								></textarea>
+								<div class="mt-2 flex items-center justify-between">
+									<span class="font-mono text-[10px] text-muted-foreground"
+										>{testMessage.length}/2000</span
+									>
+									<button
+										type="button"
+										disabled={!testMessage.trim()}
+										class="inline-flex size-8 items-center justify-center rounded-md bg-blue-600 text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+										aria-label="Send test message"
+									>
+										<Send class="size-4" />
+									</button>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -321,7 +336,9 @@
 				<div class="space-y-1">
 					{#each versions as v (v.version)}
 						<button
-							onclick={() => { diffVersion = v; }}
+							onclick={() => {
+								diffVersion = v;
+							}}
 							class="flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-[var(--surface-hover)]"
 						>
 							<div
@@ -345,7 +362,10 @@
 							</div>
 						</button>
 						{#if v !== versions[versions.length - 1]}
-							<div class="ml-[22px] border-l" style="border-color:var(--ds-border);height:8px"></div>
+							<div
+								class="ml-[22px] border-l"
+								style="border-color:var(--ds-border);height:8px"
+							></div>
 						{/if}
 					{/each}
 				</div>
@@ -354,15 +374,24 @@
 	</Sheet.Content>
 </Sheet.Root>
 
-<Dialog.Root open={diffVersion !== null} onOpenChange={(o) => { if (!o) diffVersion = null; }}>
+<Dialog.Root
+	open={diffVersion !== null}
+	onOpenChange={(o) => {
+		if (!o) diffVersion = null;
+	}}
+>
 	<Dialog.Content class="max-w-3xl">
 		<Dialog.Header>
 			<Dialog.Title class="flex items-center gap-2">
 				<FileText class="size-4" />
-				Version {diffVersion?.version} — {diffVersion?.action === 'agent_instance.created' ? 'Created' : 'Saved'}
+				Version {diffVersion?.version} — {diffVersion?.action === 'agent_instance.created'
+					? 'Created'
+					: 'Saved'}
 			</Dialog.Title>
 			<Dialog.Description>
-				{diffVersion?.changed_by ?? 'Unknown'} — {diffVersion?.created_at ? new Date(diffVersion.created_at).toLocaleString('pt-BR') : ''}
+				{diffVersion?.changed_by ?? 'Unknown'} — {diffVersion?.created_at
+					? new Date(diffVersion.created_at).toLocaleString('pt-BR')
+					: ''}
 			</Dialog.Description>
 		</Dialog.Header>
 		{#if diffVersion}
@@ -371,8 +400,10 @@
 				name: 'Name', description: 'Description', core_prompt: 'Core Prompt',
 				model: 'Model', temperature: 'Temperature', status: 'Status', rag_scope: 'Knowledge Scope'
 			}}
-			{@const compareFields = Object.keys(diffVersion.snapshot).filter(k => !internalFields.has(k))}
-			{@const hasChanges = compareFields.some(k => {
+			{@const compareFields = Object.keys(diffVersion.snapshot).filter(
+				(k) => !internalFields.has(k)
+			)}
+			{@const hasChanges = compareFields.some((k) => {
 				const oldVal = diffVersion!.snapshot[k];
 				const curVal = data.instance[k as keyof typeof data.instance];
 				return JSON.stringify(oldVal) !== JSON.stringify(curVal);
@@ -391,25 +422,43 @@
 						{@const label = fieldLabels[key] ?? key}
 						{#if changed}
 							<div class="overflow-hidden rounded-md border border-amber-500/30">
-								<div class="flex items-center justify-between gap-2 bg-amber-500/5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider">
+								<div
+									class="flex items-center justify-between gap-2 bg-amber-500/5 px-3 py-1.5 text-[10px] font-semibold tracking-wider uppercase"
+								>
 									<span>{label}</span>
-									<span class="inline-flex items-center gap-1 rounded-sm bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-400">Modified</span>
+									<span
+										class="inline-flex items-center gap-1 rounded-sm bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-400"
+										>Modified</span
+									>
 								</div>
 								<div class="grid grid-cols-2 divide-x" style="border-color:var(--ds-border)">
 									<div class="bg-red-500/[0.03] p-3 font-mono text-xs leading-relaxed">
-										<span class="mb-1.5 block text-[9px] font-semibold tracking-wider text-red-400">Version {diffVersion.version}</span>
-										<div class="line-through decoration-red-400/40">{@html formatValue(key, oldVal)}</div>
+										<span class="mb-1.5 block text-[9px] font-semibold tracking-wider text-red-400"
+											>Version {diffVersion.version}</span
+										>
+										<div class="line-through decoration-red-400/40">
+											{@html formatValue(key, oldVal)}
+										</div>
 									</div>
 									<div class="bg-green-500/[0.03] p-3 font-mono text-xs leading-relaxed">
-										<span class="mb-1.5 block text-[9px] font-semibold tracking-wider text-green-400">Current</span>
+										<span
+											class="mb-1.5 block text-[9px] font-semibold tracking-wider text-green-400"
+											>Current</span
+										>
 										{@html formatValue(key, curVal)}
 									</div>
 								</div>
 							</div>
 						{:else}
-							<div class="flex items-center justify-between gap-2 rounded-md px-3 py-2 text-xs" style="background:var(--surface)">
-								<span class="text-[10px] font-semibold uppercase tracking-wider" style="color:var(--text-muted)">{label}</span>
-								<span class="font-mono text-right">{@html formatValue(key, curVal)}</span>
+							<div
+								class="flex items-center justify-between gap-2 rounded-md px-3 py-2 text-xs"
+								style="background:var(--surface)"
+							>
+								<span
+									class="text-[10px] font-semibold tracking-wider uppercase"
+									style="color:var(--text-muted)">{label}</span
+								>
+								<span class="text-right font-mono">{@html formatValue(key, curVal)}</span>
 							</div>
 						{/if}
 					{/each}
