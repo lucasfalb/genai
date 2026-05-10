@@ -12,3 +12,4 @@ qdrant_data/
 data/
 .env
 .codegraph/
+backend/build/
