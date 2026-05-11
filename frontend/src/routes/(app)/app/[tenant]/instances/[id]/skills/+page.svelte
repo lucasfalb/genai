@@ -7,7 +7,6 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
-	import JsonConfigPanel from '$lib/components/JsonConfigPanel.svelte';
 	import RegistryAddDialog from '$lib/components/instance/registry-add-dialog.svelte';
 	import { registryApi } from '$lib/api/registry';
 	import { getErrorMessage } from '$lib/api/client';
@@ -109,9 +108,6 @@
 		}
 	}
 
-	function parseJsonConfig(json: string): Record<string, unknown> {
-		return JSON.parse(json || '{}') as Record<string, unknown>;
-	}
 </script>
 
 <div class="mx-auto max-w-3xl space-y-6 px-6 py-5">
@@ -177,11 +173,20 @@
 							</div>
 						</div>
 						{#if expanded}
-							<div class="mt-4">
-								<JsonConfigPanel
-									value={JSON.stringify(skill.config ?? {}, null, 2)}
-									onSave={(json) => configureSkill(skill, parseJsonConfig(json))}
-								/>
+							<div class="mt-4 rounded-lg border bg-[var(--canvas)] p-4 text-sm text-muted-foreground" style="border-color:var(--ds-border)">
+								{#if Object.keys(skill.config ?? {}).length > 0}
+									<p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Configuration</p>
+									{#each Object.entries(skill.config!) as [key, value]}
+										<div class="mb-2 grid grid-cols-[140px_1fr] gap-2 text-xs">
+											<span class="font-mono text-foreground/70">{key}</span>
+											<span class="text-foreground/80">{typeof value === 'string' ? value : JSON.stringify(value)}</span>
+										</div>
+									{/each}
+								{:else if skill.requires_credential}
+									<p>This skill requires a credential (API key). Configure it in the Credentials section.</p>
+								{:else}
+									<p>No configuration needed.</p>
+								{/if}
 							</div>
 						{/if}
 					</div>
@@ -251,11 +256,52 @@
 							</div>
 						</div>
 						{#if expanded}
-							<div class="mt-4">
-								<JsonConfigPanel
-									value={JSON.stringify(tool.config ?? {}, null, 2)}
-									onSave={(json) => configureTool(tool, parseJsonConfig(json))}
-								/>
+							<div class="mt-4 rounded-lg border bg-[var(--canvas)] p-4 text-sm text-muted-foreground" style="border-color:var(--ds-border)">
+								{#if Object.keys(tool.config ?? {}).length > 0}
+									<p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Configuration</p>
+									{#each Object.entries(tool.config!) as [key, value]}
+										<div class="mb-2 grid grid-cols-[140px_1fr] gap-2 text-xs">
+											<span class="font-mono text-foreground/70">{key}</span>
+											<span class="text-foreground/80">{typeof value === 'string' ? value : JSON.stringify(value)}</span>
+										</div>
+									{/each}
+								{:else if tool.slug === 'web_fetch'}
+									<div class="space-y-3">
+										<p class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Endpoints disponiveis</p>
+										<div class="space-y-2 text-xs">
+											<div class="rounded-md border bg-[var(--surface)] p-2.5" style="border-color:var(--ds-border)">
+												<p class="font-semibold text-foreground">wttr.in</p>
+												<p class="text-muted-foreground">Clima atual em formato JSON. Ex: <code class="font-mono bg-zinc-500/10 px-1 rounded">?format=j1</code></p>
+											</div>
+											<div class="rounded-md border bg-[var(--surface)] p-2.5" style="border-color:var(--ds-border)">
+												<p class="font-semibold text-foreground">ip-api.com</p>
+												<p class="text-muted-foreground">Geolocalizacao por IP. GET <code class="font-mono bg-zinc-500/10 px-1 rounded">http://ip-api.com/json/</code></p>
+											</div>
+											<div class="rounded-md border bg-[var(--surface)] p-2.5" style="border-color:var(--ds-border)">
+												<p class="font-semibold text-foreground">REST Countries</p>
+												<p class="text-muted-foreground">Dados de paises. Ex: <code class="font-mono bg-zinc-500/10 px-1 rounded">/v3.1/name/brazil</code></p>
+											</div>
+											<div class="rounded-md border bg-[var(--surface)] p-2.5" style="border-color:var(--ds-border)">
+												<p class="font-semibold text-foreground">Open Library</p>
+												<p class="text-muted-foreground">Busca de livros. Ex: <code class="font-mono bg-zinc-500/10 px-1 rounded">/search.json?q=</code></p>
+											</div>
+											<div class="rounded-md border bg-[var(--surface)] p-2.5" style="border-color:var(--ds-border)">
+												<p class="font-semibold text-foreground">Universities API</p>
+												<p class="text-muted-foreground">Lista universidades por pais. Ex: <code class="font-mono bg-zinc-500/10 px-1 rounded">?country=Brazil</code></p>
+											</div>
+											<div class="rounded-md border bg-[var(--surface)] p-2.5" style="border-color:var(--ds-border)">
+												<p class="font-semibold text-foreground">JSONPlaceholder</p>
+												<p class="text-muted-foreground">API de teste. Ex: <code class="font-mono bg-zinc-500/10 px-1 rounded">/posts/1</code>, <code class="font-mono bg-zinc-500/10 px-1 rounded">/users</code></p>
+											</div>
+											<div class="rounded-md border bg-[var(--surface)] p-2.5" style="border-color:var(--ds-border)">
+												<p class="font-semibold text-foreground">PokeAPI</p>
+												<p class="text-muted-foreground">Dados de Pokemon. Ex: <code class="font-mono bg-zinc-500/10 px-1 rounded">/pokemon/ditto</code></p>
+											</div>
+										</div>
+									</div>
+								{:else}
+									<p>No configuration needed.</p>
+								{/if}
 							</div>
 						{/if}
 					</div>

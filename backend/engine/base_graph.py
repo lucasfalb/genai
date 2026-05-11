@@ -1,7 +1,9 @@
 import asyncio
+import json
 import time
-from typing import Callable
+from typing import Any, Callable
 
+import httpx
 from langgraph.graph import END, StateGraph
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -41,8 +43,66 @@ async def llm_node(state: AgentState) -> AgentState:
     return {"final_response": completion.final_response or ""}
 
 
-def dispatch_node(state: AgentState) -> AgentState:
-    return {"tool_results": state.get("tool_results") or []}
+async def _execute_web_fetch(call: dict) -> dict:
+    args = call.get("arguments") or {}
+    url = args.get("url", "")
+    if not url:
+        return {"name": "web_fetch", "output": json.dumps({"error": "No URL provided"}), "id": call.get("id")}
+
+    method = (args.get("method") or "GET").upper()
+    headers = args.get("headers") or {}
+    body = args.get("body")
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            if method == "POST":
+                resp = await client.post(url, headers=headers, content=body)
+            else:
+                resp = await client.get(url, headers=headers)
+
+            content_type = resp.headers.get("content-type", "")
+            if "application/json" in content_type:
+                try:
+                    output = resp.json()
+                except Exception:
+                    output = resp.text
+            else:
+                output = resp.text
+
+            return {
+                "name": "web_fetch",
+                "output": json.dumps({"status": resp.status_code, "data": output}, ensure_ascii=False),
+                "id": call.get("id"),
+            }
+    except Exception as e:
+        return {
+            "name": "web_fetch",
+            "output": json.dumps({"error": str(e)}, ensure_ascii=False),
+            "id": call.get("id"),
+        }
+
+
+TOOL_EXECUTORS: dict[str, Any] = {
+    "web_fetch": _execute_web_fetch,
+}
+
+
+async def dispatch_node(state: AgentState) -> AgentState:
+    calls = state.get("pending_tool_calls") or []
+    results: list[dict] = []
+    for call in calls:
+        name = call.get("name", "")
+        executor = TOOL_EXECUTORS.get(name)
+        if executor:
+            result = await executor(call)
+            results.append(result)
+        else:
+            results.append({
+                "name": name,
+                "output": json.dumps({"error": f"No executor for tool: {name}"}),
+                "id": call.get("id"),
+            })
+    return {"tool_results": results}
 
 
 def handoff_node(state: AgentState) -> AgentState:
