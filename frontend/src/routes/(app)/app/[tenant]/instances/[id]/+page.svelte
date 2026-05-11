@@ -166,7 +166,8 @@
 				}));
 			const cfg = await instancesApi.savePromptConfig(id, {
 				instruction_blocks: normalizedBlocks,
-				guardrails: normalizedGuardrails
+				guardrails: normalizedGuardrails,
+				constraints: [...(promptConfig?.constraints ?? [])]
 			});
 			promptConfig = cfg;
 			blocks = [...(cfg.instruction_blocks ?? [])];

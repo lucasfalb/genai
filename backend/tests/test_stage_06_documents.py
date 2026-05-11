@@ -15,13 +15,35 @@ from conftest import api_data
 class FakeObjectStorage:
     def __init__(self) -> None:
         self.objects: dict[tuple[str, str], bytes] = {}
+        self.metadata: dict[tuple[str, str], dict[str, str]] = {}
 
-    async def put_object(self, *, key: str, body: bytes, content_type: str) -> StoredObject:
+    async def put_object(
+        self,
+        *,
+        key: str,
+        body: bytes,
+        content_type: str,
+        metadata: dict[str, str] | None = None,
+    ) -> StoredObject:
         self.objects[("test-bucket", key)] = body
+        self.metadata[("test-bucket", key)] = metadata or {}
         return StoredObject(bucket="test-bucket", key=key, etag="etag")
 
     async def delete_object(self, *, bucket: str, key: str) -> None:
         self.objects.pop((bucket, key), None)
+        self.metadata.pop((bucket, key), None)
+
+    def presign_url(
+        self,
+        *,
+        bucket: str,
+        key: str,
+        expires: int = 900,
+        method: str = "GET",
+        response_content_type: str | None = None,
+        response_content_disposition: str | None = None,
+    ) -> str:
+        return f"https://signed.example/{bucket}/{key}?X-Amz-Expires={expires}"
 
 
 class FakeRedis:
@@ -69,7 +91,16 @@ async def test_upload_document_stores_object_and_enqueues_job(
     assert "storage_path" not in document
     assert len(storage.objects) == 1
     object_key = next(iter(storage.objects))[1]
-    assert object_key.startswith(f"tenants/{setup['tenant_id']}/{document['id']}/")
+    expected_prefix = f"tenants/{setup['tenant_id']}/collections/{collection_id}/"
+    assert object_key.startswith(expected_prefix)
+    assert object_key.endswith(f"{document['id']}_contract.pdf")
+    assert storage.metadata[("test-bucket", object_key)] == {
+        "tenant-id": str(setup["tenant_id"]),
+        "collection-id": collection_id,
+        "document-id": document["id"],
+        "filename": "contract.pdf",
+        "source-type": "upload",
+    }
 
     assert len(redis.items) == 1
     assert redis.items[0][0] == "rag:indexing_queue"

@@ -155,6 +155,7 @@ async def update_prompt_config(
         instance_id=instance_id,
         instruction_blocks=[item.model_dump(mode="json") for item in payload.instruction_blocks],
         guardrails=[item.model_dump(mode="json") for item in payload.guardrails],
+        constraints=[item.model_dump(mode="json") for item in payload.constraints],
     )
     if record is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Agent instance not found")
@@ -166,7 +167,7 @@ async def update_prompt_config(
         resource="agent_instances",
         resource_id=str(instance_id),
         snapshot=_prompt_config_response(record).model_dump(mode="json"),
-        metadata={"updated_fields": ["instruction_blocks", "guardrails"]},
+        metadata={"updated_fields": ["instruction_blocks", "guardrails", "constraints"]},
     )
     return api_success(_prompt_config_response(record), message="Agent prompt configuration updated.")
 
@@ -285,4 +286,5 @@ def _prompt_config_response(record) -> AgentPromptConfigResponse:
         instance_id=record.instance_id,
         instruction_blocks=record.instruction_blocks,
         guardrails=record.guardrails,
+        constraints=record.constraints,
     )

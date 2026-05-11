@@ -1,3 +1,7 @@
+import asyncio
+import time
+from typing import Callable
+
 from langgraph.graph import END, StateGraph
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -18,7 +22,7 @@ async def llm_node(state: AgentState) -> AgentState:
     messages = state.get("messages") or []
     tool_schemas = state.get("tool_schemas") or []
     provider = state.get("ai_provider") or "openai"
-    model = state.get("model") or "gpt-4.1-mini"
+    model = state.get("model") or "gpt-5-mini"
     temperature = state.get("temperature", 0.2)
     api_key = state.get("ai_api_key") or ""
 
@@ -64,13 +68,43 @@ def route_after_llm(state: AgentState) -> str:
     return "tool_call"
 
 
-def create_base_graph(*, connection: AsyncConnection | None = None):
+def _instrument(name: str, fn: Callable, timings: list[dict] | None):
+    if timings is None:
+        return fn
+
+    if asyncio.iscoroutinefunction(fn):
+        async def inner_async(state):
+            t0 = time.perf_counter()
+            try:
+                return await fn(state)
+            finally:
+                timings.append(
+                    {"name": name, "duration_ms": int((time.perf_counter() - t0) * 1000)}
+                )
+        return inner_async
+
+    def inner_sync(state):
+        t0 = time.perf_counter()
+        try:
+            return fn(state)
+        finally:
+            timings.append(
+                {"name": name, "duration_ms": int((time.perf_counter() - t0) * 1000)}
+            )
+    return inner_sync
+
+
+def create_base_graph(
+    *,
+    connection: AsyncConnection | None = None,
+    node_timings: list[dict] | None = None,
+):
     graph = StateGraph(AgentState)
     rag_node = create_rag_node(connection) if connection else _noop_rag_node
-    graph.add_node("rag", rag_node)
-    graph.add_node("llm", llm_node)
-    graph.add_node("dispatch", dispatch_node)
-    graph.add_node("handoff", handoff_node)
+    graph.add_node("rag", _instrument("rag", rag_node, node_timings))
+    graph.add_node("llm", _instrument("llm", llm_node, node_timings))
+    graph.add_node("dispatch", _instrument("dispatch", dispatch_node, node_timings))
+    graph.add_node("handoff", _instrument("handoff", handoff_node, node_timings))
 
     graph.set_entry_point("rag")
     graph.add_edge("rag", "llm")

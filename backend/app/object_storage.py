@@ -38,17 +38,86 @@ class S3ObjectStorage:
         parsed = urlparse(self.endpoint_url)
         self._host = parsed.netloc
 
-    async def put_object(self, *, key: str, body: bytes, content_type: str) -> StoredObject:
+    async def put_object(
+        self,
+        *,
+        key: str,
+        body: bytes,
+        content_type: str,
+        metadata: dict[str, str] | None = None,
+    ) -> StoredObject:
         await self._ensure_bucket()
         response = await self._request(
             "PUT",
             f"/{self.bucket_name}/{key}",
             body=body,
             content_type=content_type,
+            metadata=metadata,
         )
         if response.status_code not in (200, 201):
             raise ObjectStorageError(f"Object upload failed with status {response.status_code}")
         return StoredObject(bucket=self.bucket_name, key=key, etag=response.headers.get("etag"))
+
+    def presign_url(
+        self,
+        *,
+        bucket: str,
+        key: str,
+        expires: int = 900,
+        method: str = "GET",
+        response_content_type: str | None = None,
+        response_content_disposition: str | None = None,
+    ) -> str:
+        safe_path = "/" + "/".join(
+            quote(part, safe="") for part in f"{bucket}/{key}".strip("/").split("/")
+        )
+        now = datetime.now(timezone.utc)
+        amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+        date_stamp = now.strftime("%Y%m%d")
+        credential_scope = f"{date_stamp}/{self.region}/s3/aws4_request"
+        credential = f"{self.access_key_id}/{credential_scope}"
+
+        query_params: dict[str, str] = {
+            "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
+            "X-Amz-Credential": credential,
+            "X-Amz-Date": amz_date,
+            "X-Amz-Expires": str(expires),
+            "X-Amz-SignedHeaders": "host",
+        }
+        if response_content_type:
+            query_params["response-content-type"] = response_content_type
+        if response_content_disposition:
+            query_params["response-content-disposition"] = response_content_disposition
+
+        canonical_query = "&".join(
+            f"{quote(k, safe='-_.~')}={quote(v, safe='-_.~')}"
+            for k, v in sorted(query_params.items())
+        )
+        canonical_headers = f"host:{self._host}\n"
+        canonical_request = "\n".join(
+            [
+                method,
+                safe_path,
+                canonical_query,
+                canonical_headers,
+                "host",
+                "UNSIGNED-PAYLOAD",
+            ]
+        )
+        string_to_sign = "\n".join(
+            [
+                "AWS4-HMAC-SHA256",
+                amz_date,
+                credential_scope,
+                hashlib.sha256(canonical_request.encode("utf-8")).hexdigest(),
+            ]
+        )
+        signature = hmac.new(
+            self._signing_key(date_stamp),
+            string_to_sign.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        return f"{self.endpoint_url}{safe_path}?{canonical_query}&X-Amz-Signature={signature}"
 
     async def get_object(self, *, bucket: str, key: str) -> bytes:
         response = await self._request("GET", f"/{bucket}/{key}", body=b"")
@@ -78,6 +147,7 @@ class S3ObjectStorage:
         *,
         body: bytes,
         content_type: str | None = None,
+        metadata: dict[str, str] | None = None,
     ) -> httpx.Response:
         safe_path = "/" + "/".join(quote(part, safe="") for part in path.strip("/").split("/"))
         url = f"{self.endpoint_url}{safe_path}"
@@ -92,6 +162,9 @@ class S3ObjectStorage:
         }
         if content_type:
             headers["content-type"] = content_type
+        if metadata:
+            for mk, mv in metadata.items():
+                headers[f"x-amz-meta-{mk.lower()}"] = quote(str(mv), safe="-_.~")
 
         signed_headers = ";".join(sorted(headers))
         canonical_headers = "".join(f"{name}:{headers[name]}\n" for name in sorted(headers))

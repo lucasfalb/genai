@@ -2,7 +2,6 @@ import json
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
-from fastapi.responses import Response
 from redis.exceptions import RedisError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
@@ -17,6 +16,7 @@ from app.schemas import (
     CollectionCreateRequest,
     CollectionResponse,
     CollectionUpdateRequest,
+    DocumentContentURLResponse,
     DocumentCreateRequest,
     DocumentContentUpdateRequest,
     DocumentResponse,
@@ -294,12 +294,19 @@ async def upload_document(
 
     document_id = uuid4()
     safe_filename = _safe_filename(file.filename)
-    object_key = f"tenants/{context.tenant_id}/{document_id}/{safe_filename}"
+    object_key = _build_object_key(context.tenant_id, collection_id, document_id, safe_filename)
     try:
         stored_object = await object_storage.put_object(
             key=object_key,
             body=payload,
             content_type=file.content_type or "application/octet-stream",
+            metadata=_object_metadata(
+                tenant_id=context.tenant_id,
+                collection_id=collection_id,
+                document_id=document_id,
+                filename=safe_filename,
+                source_type="upload",
+            ),
         )
     except ObjectStorageError as exc:
         raise HTTPException(
@@ -331,6 +338,7 @@ async def upload_document(
         tenant_id=context.tenant_id,
         collection_id=collection_id,
         indexing_status="indexing",
+        indexing_progress=_compute_progress(stats),
         document_count=stats["document_count"],
         indexed_count=stats["indexed_count"],
         failed_count=stats["failed_count"],
@@ -437,6 +445,7 @@ async def delete_document(
         tenant_id=context.tenant_id,
         collection_id=collection_id,
         indexing_status=new_status,
+        indexing_progress=_compute_progress(stats),
         document_count=stats["document_count"],
         indexed_count=stats["indexed_count"],
         failed_count=stats["failed_count"],
@@ -472,15 +481,16 @@ async def delete_document(
 
 @router.get(
     "/{collection_id}/documents/{document_id}/content",
-    summary="Get document file content",
-    description="Returns the raw file content from object storage for the specified document.",
+    response_model=ApiResponse[DocumentContentURLResponse],
+    summary="Get presigned URL for document content",
+    description="Returns a short-lived presigned S3 URL the client can use to download the document directly from object storage. The URL is signed (SigV4) and never exposes the underlying storage path or credentials.",
 )
 async def get_document_content(
     collection_id: UUID,
     document_id: UUID,
     context: TenantContext = Depends(require_permission(Permission.MANAGE_AGENT_INSTANCES)),
     connection: AsyncConnection = Depends(get_connection),
-) -> Response:
+) -> ApiResponse[DocumentContentURLResponse]:
     await _set_tenant(connection, context)
     repo = DocumentRepository(connection)
     document = await repo.get(tenant_id=context.tenant_id, document_id=document_id)
@@ -488,8 +498,24 @@ async def get_document_content(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
     if not document.storage_bucket or not document.storage_key:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Document content not available")
-    data = await object_storage.get_object(bucket=document.storage_bucket, key=document.storage_key)
-    return Response(content=data, media_type=document.content_type or "application/octet-stream")
+
+    expires_in = 900
+    content_type = document.content_type or "application/octet-stream"
+    url = object_storage.presign_url(
+        bucket=document.storage_bucket,
+        key=document.storage_key,
+        expires=expires_in,
+        method="GET",
+        response_content_type=content_type,
+        response_content_disposition=f'inline; filename="{document.filename}"',
+    )
+    return api_success(
+        DocumentContentURLResponse(
+            url=url,
+            content_type=content_type,
+            expires_in=expires_in,
+        )
+    )
 
 
 @router.post(
@@ -530,12 +556,19 @@ async def create_text_document(
 
     document_id = uuid4()
     safe_filename = _safe_filename(filename)
-    object_key = f"tenants/{context.tenant_id}/{document_id}/{safe_filename}"
+    object_key = _build_object_key(context.tenant_id, collection_id, document_id, safe_filename)
     try:
         stored_object = await object_storage.put_object(
             key=object_key,
             body=content_bytes,
             content_type=content_type,
+            metadata=_object_metadata(
+                tenant_id=context.tenant_id,
+                collection_id=collection_id,
+                document_id=document_id,
+                filename=safe_filename,
+                source_type="created",
+            ),
         )
     except ObjectStorageError as exc:
         raise HTTPException(
@@ -567,6 +600,7 @@ async def create_text_document(
         tenant_id=context.tenant_id,
         collection_id=collection_id,
         indexing_status="indexing",
+        indexing_progress=_compute_progress(stats),
         document_count=stats["document_count"],
         indexed_count=stats["indexed_count"],
         failed_count=stats["failed_count"],
@@ -639,6 +673,13 @@ async def update_document_content(
             key=document.storage_key,
             body=content_bytes,
             content_type=document.content_type,
+            metadata=_object_metadata(
+                tenant_id=context.tenant_id,
+                collection_id=collection_id,
+                document_id=document_id,
+                filename=document.filename,
+                source_type=document.source_type,
+            ),
         )
     except ObjectStorageError as exc:
         raise HTTPException(
@@ -662,6 +703,7 @@ async def update_document_content(
         tenant_id=context.tenant_id,
         collection_id=collection_id,
         indexing_status="indexing",
+        indexing_progress=_compute_progress(stats),
         document_count=stats["document_count"],
         indexed_count=stats["indexed_count"],
         failed_count=stats["failed_count"],
@@ -725,6 +767,42 @@ def _safe_filename(filename: str | None) -> str:
     raw = filename or "document"
     safe = raw.replace("\\", "/").split("/")[-1].strip()
     return safe or "document"
+
+
+def _compute_progress(stats: dict) -> float:
+    total = stats["document_count"]
+    if total <= 0:
+        return 0.0
+    completed = stats["indexed_count"] + stats["failed_count"]
+    return completed / total
+
+
+def _build_object_key(
+    tenant_id: UUID,
+    collection_id: UUID,
+    document_id: UUID,
+    safe_filename: str,
+) -> str:
+    return (
+        f"tenants/{tenant_id}/collections/{collection_id}/{document_id}_{safe_filename}"
+    )
+
+
+def _object_metadata(
+    *,
+    tenant_id: UUID,
+    collection_id: UUID,
+    document_id: UUID,
+    filename: str,
+    source_type: str,
+) -> dict[str, str]:
+    return {
+        "tenant-id": str(tenant_id),
+        "collection-id": str(collection_id),
+        "document-id": str(document_id),
+        "filename": filename,
+        "source-type": source_type,
+    }
 
 
 async def _delete_stored_object(bucket: str, key: str) -> None:

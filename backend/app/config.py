@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     embedding_dimension: int = 1536
     rag_chunk_tokens: int = 512
     rag_chunk_overlap_tokens: int = 64
+    rag_top_k: int = 5
+    rag_score_threshold: float = 0.6
     ai_config_encryption_key: str = ""  # Fernet key (base64 32-byte) — required in production
     s3_endpoint_url: str = "http://localhost:9000"
     s3_access_key_id: str = "genai"

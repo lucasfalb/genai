@@ -1,0 +1,113 @@
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+from engine.state import AgentState
+
+SENSITIVE_KEYS = {"ai_api_key", "api_key", "api_key_encrypted", "authorization", "password", "secret", "token"}
+
+
+def build_run_trace(
+    *,
+    run_id: str,
+    tenant_id: UUID,
+    instance_id: UUID,
+    session_id: UUID,
+    channel: str,
+    bootstrap_state: AgentState,
+    result_state: dict,
+    user_message: str,
+    final_response: str,
+    started_at: datetime,
+    completed_at: datetime,
+    node_timings: list[dict] | None = None,
+) -> dict[str, Any]:
+    sections = bootstrap_state.get("system_prompt_sections") or {}
+    chunks = result_state.get("retrieved_chunks") or []
+    pending = result_state.get("pending_tool_calls") or []
+    tool_results = result_state.get("tool_results") or []
+    duration_ms = max(0, int((completed_at - started_at).total_seconds() * 1000))
+
+    return _redact({
+        "run_id": run_id,
+        "tenant_id": str(tenant_id),
+        "instance_id": str(instance_id),
+        "session_id": str(session_id),
+        "channel": channel,
+        "user_message": user_message,
+        "final_response": final_response,
+        "model": bootstrap_state.get("model"),
+        "temperature": bootstrap_state.get("temperature"),
+        "ai_provider": bootstrap_state.get("ai_provider"),
+        "system_prompt": bootstrap_state.get("system_prompt"),
+        "system_prompt_sections": [
+            {"label": "core", "content": sections.get("core", "")},
+            {"label": "instruction_blocks", "content": sections.get("instruction_blocks", "")},
+            {"label": "tool_instructions", "content": sections.get("tool_instructions", "")},
+            {"label": "guardrails", "content": sections.get("guardrails", "")},
+            {"label": "constraints", "content": sections.get("constraints", "")},
+        ],
+        "available_tools": list(bootstrap_state.get("available_tools") or []),
+        "available_skills": list(bootstrap_state.get("available_skills") or []),
+        "tool_schemas": list(bootstrap_state.get("tool_schemas") or []),
+        "linked_agents": list(bootstrap_state.get("linked_agents") or []),
+        "rag_scope": list(bootstrap_state.get("rag_scope") or []),
+        "retrieved_chunks": [_normalize_chunk(c) for c in chunks],
+        "pending_tool_calls": [_normalize_tool_call(c) for c in pending],
+        "tool_results": [_normalize_tool_result(r) for r in tool_results],
+        "handoff_target": result_state.get("handoff_target"),
+        "handoff_summary": result_state.get("handoff_summary"),
+        "citations": list(result_state.get("citations") or []),
+        "node_timings": list(node_timings or []),
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "duration_ms": duration_ms,
+    })
+
+
+def _normalize_chunk(chunk: Any) -> dict:
+    if not isinstance(chunk, dict):
+        return {"text": str(chunk)}
+    return {
+        "text": chunk.get("text", ""),
+        "source": chunk.get("source"),
+        "score": chunk.get("score"),
+        "collection_id": chunk.get("collection_id"),
+        "document_id": chunk.get("document_id"),
+        "filename": chunk.get("filename"),
+    }
+
+
+def _normalize_tool_call(call: Any) -> dict:
+    if not isinstance(call, dict):
+        return {"name": str(call)}
+    return {
+        "id": call.get("id"),
+        "name": call.get("name") or call.get("tool"),
+        "arguments": call.get("arguments") or call.get("args"),
+    }
+
+
+def _normalize_tool_result(result: Any) -> dict:
+    if not isinstance(result, dict):
+        return {"output": str(result)}
+    return {
+        "id": result.get("id"),
+        "name": result.get("name") or result.get("tool"),
+        "output": result.get("output") or result.get("result"),
+        "error": result.get("error"),
+    }
+
+
+def _redact(value: Any) -> Any:
+    if isinstance(value, dict):
+        cleaned: dict = {}
+        for key, val in value.items():
+            if key.lower() in SENSITIVE_KEYS:
+                cleaned[key] = "***" if val else None
+                continue
+            cleaned[key] = _redact(val)
+        return cleaned
+    if isinstance(value, list):
+        return [_redact(item) for item in value]
+    return value

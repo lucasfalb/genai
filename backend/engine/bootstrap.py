@@ -66,6 +66,13 @@ class RunBootstrap:
             ai_provider=ai_config.provider,
             ai_api_key=ai_config.api_key,
             system_prompt=system_prompt_obj.full,
+            system_prompt_sections={
+                "core": system_prompt_obj.core,
+                "instruction_blocks": system_prompt_obj.instruction_blocks,
+                "tool_instructions": system_prompt_obj.tool_instructions,
+                "guardrails": system_prompt_obj.guardrails,
+                "constraints": system_prompt_obj.constraints,
+            },
             available_tools=[tool.slug for tool in metadata.tools],
             available_skills=[skill.slug for skill in metadata.skills],
             tool_schemas=[skill.tool_schema for skill in metadata.skills]

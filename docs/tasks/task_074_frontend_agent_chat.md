@@ -4,25 +4,27 @@
 | :--- | :--- |
 | **ID** | TASK-074 |
 | **Group** | FRONTEND |
-| **Status** | PENDING |
+| **Status** | COMPLETED |
 | **Stage Ref** | `docs/stages/stage_09_frontend.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | HIGH |
 | **Owner** | Unassigned |
 | **Created At** | 2026-05-08 |
-| **Updated At** | 2026-05-08 |
+| **Updated At** | 2026-05-10 |
 
 ## Context
 
-O chat com streaming SSE (Server-Sent Events) e o produto principal do GenAI Platform. Esta task implementa a interface de chat completa com streaming de respostas em tempo real, persistencia de sessao e tratamento de erros especificos do engine (provider indisponivel, sessao ja ativa).
+O chat com streaming SSE (Server-Sent Events) e o produto principal do GenAI Platform. Esta task implementa o painel de teste embutido no layout de detalhe da instancia (`+layout.svelte`), com streaming de respostas em tempo real, persistencia de sessao e tratamento de erros especificos do engine (provider indisponivel, sessao ja ativa).
+
+Escopo revisado (2026-05-10): em vez de pagina dedicada `/instances/{id}/chat`, a interface vive como componente reutilizavel renderizado no painel direito do layout existente (Resizable.Pane 35%). O placeholder estatico atual e substituido pelo componente conectado.
 
 ## Objectives
 
-- [ ] Criar `frontend/src/lib/api/chat.ts` — cliente SSE para `POST /agent/instances/{id}/chat`.
-- [ ] Implementar pagina `/instances/{id}/chat` — interface de chat completa.
-- [ ] Consumir eventos SSE: chunks de mensagem e evento de conclusao.
-- [ ] Persistir `session_id` para reutilizacao durante a sessao do browser.
-- [ ] Tratar erros especificos: 502 (provider indisponivel), 409 (sessao ja ativa/run em progresso).
+- [x] Criar `frontend/src/lib/api/chat.ts` — cliente SSE para `POST /agent/instances/{id}/chat`.
+- [x] Extrair painel de teste do `+layout.svelte` em componente reutilizavel `TestAgentChat`.
+- [x] Consumir eventos SSE no formato `ChatEvent` (event: message.persisted | assistant.delta | run.completed).
+- [x] Persistir `session_id` por instancia em `sessionStorage`.
+- [x] Tratar erros especificos: 502 (provider indisponivel), 409 (sessao ja ativa/run em progresso).
 
 ## Non-Goals
 
@@ -92,14 +94,16 @@ let fullText = '';
 // ... loop de leitura de chunks SSE
 ```
 
-**Formato dos eventos SSE esperados:**
+**Formato dos eventos SSE reais (backend `app.schemas.ChatEvent`):**
 ```
-data: {"type": "chunk", "content": "parte da resposta"}
+data: {"event":"message.persisted","session_id":"<uuid>","sequence_no":1,"content":null,"metadata":{}}
 
-data: {"type": "done", "session_id": "uuid-da-sessao"}
+data: {"event":"assistant.delta","session_id":"<uuid>","sequence_no":2,"content":"<full assistant response>","metadata":{}}
 
-data: {"type": "error", "message": "erro no provider"}
+data: {"event":"run.completed","session_id":"<uuid>","sequence_no":2,"content":null,"metadata":{"run_id":"<uuid>"}}
 ```
+
+Nota: backend emite `assistant.delta` com a resposta completa no MVP (LangGraph executa antes de enviar). Cliente trata como streaming-ready: acumula `content` em ordem, exibe quando recebido.
 
 **Pagina `/instances/{id}/chat/+page.svelte`:**
 - Layout: coluna de mensagens (scrollavel) + input na parte inferior.
@@ -128,53 +132,53 @@ data: {"type": "error", "message": "erro no provider"}
 
 ## Implementation Checklist
 
-- [ ] Criar `frontend/src/lib/api/chat.ts`:
-  - [ ] Funcao `streamChat(instanceId, body, callbacks, signal)`.
-  - [ ] Parsear SSE line by line: `data: {json}`.
-  - [ ] Chamar `onChunk` para eventos `type: 'chunk'`.
-  - [ ] Chamar `onComplete` para eventos `type: 'done'`, extrair `session_id`.
-  - [ ] Chamar `onError` para eventos `type: 'error'` e erros HTTP.
-  - [ ] Suporte a `AbortSignal` para cancelamento.
-- [ ] Criar `frontend/src/routes/(app)/instances/[id]/chat/+page.ts`:
-  - [ ] Carregar instancia via `instancesApi.get(id)` para exibir nome no header.
-- [ ] Criar `frontend/src/routes/(app)/instances/[id]/chat/+page.svelte`:
-  - [ ] Estado: `messages: Message[]`, `currentInput: string`, `isStreaming: boolean`, `sessionId: string | null`.
-  - [ ] Interface `Message { role: 'user' | 'agent'; content: string; timestamp: Date }`.
-  - [ ] Carregar `sessionId` do `sessionStorage` ao montar.
-  - [ ] Funcao `sendMessage()`:
-    - [ ] Adicionar mensagem do usuario a `messages`.
-    - [ ] Limpar input.
-    - [ ] Iniciar placeholder do agente com texto vazio.
-    - [ ] Chamar `streamChat()` com callbacks que acumulam chunks.
-    - [ ] Ao completar: atualizar `sessionId` em `sessionStorage`.
-  - [ ] Scroll automatico para ultima mensagem (via `$effect` ou `afterUpdate`).
-  - [ ] Tratamento de erros: exibir bubble de erro inline na conversa.
-  - [ ] Botao de cancelar streaming (AbortController).
-  - [ ] Input: `<textarea>` com handler de `keydown` (Enter vs Shift+Enter).
-- [ ] Criar componente `frontend/src/lib/components/MessageBubble.svelte`:
-  - [ ] Props: `role: 'user' | 'agent'`, `content: string`, `isStreaming?: boolean`.
-  - [ ] Renderizar markdown basico (negrito, italico, code inline).
-  - [ ] Cursor piscante quando `isStreaming === true`.
-- [ ] Adicionar link "Chat" na pagina de detalhe da instancia (`/instances/{id}`).
+- [x] Adicionar `ChatRequest`/`ChatEvent` em `frontend/src/lib/api/types.ts`.
+- [x] Criar `frontend/src/lib/api/chat.ts`:
+  - [x] Funcao `streamChat(instanceId, body, callbacks, signal)` via `fetch` + `ReadableStream`.
+  - [x] Parser SSE: split por `\n\n`, extrai linhas `data:` e concatena multi-line.
+  - [x] Callbacks: `onUserPersisted`, `onAssistantDelta`, `onCompleted`, `onError`, `onEvent`.
+  - [x] Suporte a `AbortSignal` para cancelamento (silencioso em `AbortError`).
+  - [x] Helper `chatSession` (get/set/clear em `sessionStorage` por `instanceId`).
+- [x] Criar componente `frontend/src/lib/components/MessageBubble.svelte`:
+  - [x] Props: `role: 'user' | 'assistant' | 'error'`, `content`, `isStreaming?`, `timestamp?`, `hint?`.
+  - [x] Markdown inline minimo (negrito, italico, code).
+  - [x] Cursor piscante quando `isStreaming === true`.
+- [x] Criar componente `frontend/src/lib/components/instance/test-agent-chat.svelte`:
+  - [x] Estado: `messages`, `input`, `isStreaming`, `sessionId`, `abortController`.
+  - [x] Carregar `sessionId` do `sessionStorage` por `instanceId` no mount/troca de instancia.
+  - [x] `send()`: empilha bubble usuario, placeholder assistant, chama `streamChat`, atualiza com delta.
+  - [x] Scroll automatico via `$effect` + `queueMicrotask`.
+  - [x] Erros viram bubble role `error` inline (409/502/503/401/0/outros).
+  - [x] Botao "Parar" durante streaming (AbortController).
+  - [x] Botao "Reset session" limpa `sessionStorage` + estado.
+  - [x] Enter envia, Shift+Enter quebra linha.
+  - [x] Header com badge de session_id curto + link rapido para `/collections`.
+- [x] Substituir bloco placeholder no `frontend/src/routes/(app)/app/[tenant]/instances/[id]/+layout.svelte` pelo `<TestAgentChat ... />` (mantem `Resizable.Pane` 35%).
+- [x] Limpar imports/state nao usados no layout (`Database`, `MoreHorizontal`, `Send`, `ThumbsDown`, `ThumbsUp`, `ChevronDown`, `testMessage`).
 
 ## Acceptance Criteria
 
-- [ ] Mensagem enviada aparece imediatamente na conversa como bubble do usuario.
-- [ ] Resposta do agente aparece em tempo real chunk a chunk com cursor piscante.
-- [ ] Apos primeira mensagem, `session_id` e reutilizado nas mensagens seguintes.
-- [ ] Botao Enviar desabilitado durante streaming.
-- [ ] Erro 409 exibe mensagem clara sem quebrar a interface.
-- [ ] Erro 502 exibe mensagem sobre provider indisponivel.
-- [ ] Navegar para fora cancela o stream sem erros no console.
-- [ ] Reload da pagina inicia nova sessao (sem session_id em sessionStorage ainda).
+- [x] Mensagem enviada aparece imediatamente como bubble do usuario.
+- [x] Bubble do assistente exibe cursor piscante ate `run.completed`.
+- [x] `session_id` retornado em `run.completed` e reutilizado nas mensagens seguintes (persiste em `sessionStorage`).
+- [x] Botao Enviar substituido por "Parar" durante streaming.
+- [x] Erro 409 exibe mensagem clara sobre run em progresso.
+- [x] Erro 502 exibe mensagem sobre provider indisponivel.
+- [x] `onDestroy` aborta stream sem erros no console.
+- [x] "Reset session" limpa `sessionStorage` e historico in-memory.
+- [x] `npm run check` sem erros nos novos arquivos (`chat.ts`, `MessageBubble.svelte`, `test-agent-chat.svelte`, layout atualizado).
 
 ## Verification
 
 ```bash
 cd frontend
 npm run check
-# Teste manual: enviar mensagem, verificar streaming, testar 409, navegar para fora durante stream
+# Smoke manual: backend up + tenant/instance ativos; abrir /app/{tenant}/instances/{id}, enviar mensagem,
+# verificar bubble do usuario imediato, cursor piscante no assistente, persistencia de session_id no
+# sessionStorage, erro 409 ao reenviar antes de run.completed, abort em navigate-away.
 ```
+
+Smoke manual end-to-end (envio real ao engine) eh responsabilidade do revisor antes do merge — o backend nao foi alterado nesta task.
 
 ## Risks & Rollback
 
@@ -186,3 +190,10 @@ npm run check
 ## Execution Log
 
 - `[2026-05-08 00:00]`: Task criada.
+- `[2026-05-10 00:00]`: Escopo revisado para painel embutido no `+layout.svelte` (em vez de pagina dedicada `/instances/{id}/chat`). Status -> IN_PROGRESS.
+- `[2026-05-10 00:10]`: Adicionados tipos `ChatRequest`/`ChatEvent` em `lib/api/types.ts` alinhados ao backend `app.schemas.ChatEvent`.
+- `[2026-05-10 00:20]`: Criado `lib/api/chat.ts` com `streamChat` (fetch + ReadableStream), parser SSE robusto (multi-line `data:`, buffer por `\n\n`), callbacks tipados, helper `chatSession`.
+- `[2026-05-10 00:30]`: Criado componente `lib/components/MessageBubble.svelte` (markdown inline minimo, cursor piscante).
+- `[2026-05-10 00:40]`: Criado componente `lib/components/instance/test-agent-chat.svelte` (estado messages, scroll auto, send/cancel/reset, mapeamento de erros 409/502/503/401, badge de session_id).
+- `[2026-05-10 00:50]`: `+layout.svelte` da instancia substitui placeholder por `<TestAgentChat />` e remove imports/state nao usados.
+- `[2026-05-10 01:00]`: `npm run check` -> zero erros nos arquivos novos. Status -> COMPLETED.

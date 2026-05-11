@@ -50,7 +50,7 @@ class AIProviderResolver:
             return ResolvedAIConfig(
                 provider="openai",
                 api_key=settings.openai_api_key,
-                default_model="gpt-4.1-mini",
+                default_model="gpt-5-mini",
             )
 
         raise AIProviderNotConfigured(
@@ -62,13 +62,16 @@ class AIProviderResolver:
         result = await self.connection.execute(
             text(
                 """
-                SELECT ai_provider AS provider,
-                       ai_api_key_encrypted AS api_key_encrypted,
-                       ai_default_model AS default_model
-                FROM tenants
+                SELECT provider->>'name' AS provider,
+                       provider->>'api_key_encrypted' AS api_key_encrypted
+                FROM tenants,
+                     LATERAL jsonb_array_elements(
+                       COALESCE(providers_config->'providers', '[]'::jsonb)
+                     ) AS provider
                 WHERE id = :tenant_id
-                  AND ai_enabled = true
-                  AND ai_api_key_encrypted IS NOT NULL
+                  AND COALESCE((provider->>'enabled')::boolean, false) = true
+                  AND provider->>'api_key_encrypted' IS NOT NULL
+                ORDER BY provider->>'configured_at' DESC NULLS LAST
                 LIMIT 1
                 """
             ),
@@ -77,11 +80,19 @@ class AIProviderResolver:
         row = result.one_or_none()
         if row is None:
             return None
+        default_model = await self._get_system_default_model() or "gpt-5-mini"
         return ResolvedAIConfig(
             provider=row.provider,
             api_key=decrypt_api_key(row.api_key_encrypted),
-            default_model=row.default_model or "gpt-4.1-mini",
+            default_model=default_model,
         )
+
+    async def _get_system_default_model(self) -> str | None:
+        result = await self.connection.execute(
+            text("SELECT ai_default_model FROM system_settings WHERE id = 1 LIMIT 1")
+        )
+        row = result.one_or_none()
+        return row.ai_default_model if row else None
 
     async def _get_system_settings(self) -> ResolvedAIConfig | None:
         result = await self.connection.execute(

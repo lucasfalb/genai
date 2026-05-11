@@ -79,9 +79,9 @@ class QdrantRagClient:
         top_k: int = 5,
     ) -> list[dict]:
         await self.ensure_collection()
-        results = await self.client.search(
+        response = await self.client.query_points(
             collection_name=self.collection_name,
-            query_vector=query_vector,
+            query=query_vector,
             query_filter=models.Filter(
                 must=[
                     models.FieldCondition(key="tenant_id", match=models.MatchValue(value=tenant_id)),
@@ -90,10 +90,16 @@ class QdrantRagClient:
                 ]
             ),
             limit=top_k,
+            with_payload=True,
         )
+        points = getattr(response, "points", response)
         return [
-            {"text": r.payload.get("text", ""), "source": r.payload.get("source"), "score": r.score}
-            for r in results
+            {
+                "text": (r.payload or {}).get("text", ""),
+                "source": (r.payload or {}).get("source"),
+                "score": r.score,
+            }
+            for r in points
         ]
 
     async def delete_document(self, *, document_id: str) -> None:

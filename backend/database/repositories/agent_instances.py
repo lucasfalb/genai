@@ -26,6 +26,7 @@ class AgentPromptConfigRecord:
     instance_id: UUID
     instruction_blocks: list
     guardrails: list
+    constraints: list
 
 
 class AgentInstanceRepository:
@@ -68,7 +69,7 @@ class AgentInstanceRepository:
         core_prompt: str,
         created_by: UUID,
         description: str | None = None,
-        model: str = "gpt-4.1-mini",
+        model: str = "gpt-5-mini",
         temperature: float = 0.2,
         rag_scope: list | None = None,
     ) -> AgentInstanceRecord:
@@ -160,7 +161,7 @@ class AgentInstanceRepository:
         result = await self.connection.execute(
             text(
                 """
-                SELECT tenant_id, id AS instance_id, instruction_blocks, guardrails
+                SELECT tenant_id, id AS instance_id, instruction_blocks, guardrails, constraints
                 FROM agent_instances
                 WHERE tenant_id = :tenant_id AND id = :instance_id
                 """
@@ -177,6 +178,7 @@ class AgentInstanceRepository:
         instance_id: UUID,
         instruction_blocks: list,
         guardrails: list,
+        constraints: list,
     ) -> AgentPromptConfigRecord | None:
         result = await self.connection.execute(
             text(
@@ -184,9 +186,10 @@ class AgentInstanceRepository:
                 UPDATE agent_instances
                 SET instruction_blocks = CAST(:instruction_blocks AS jsonb),
                     guardrails = CAST(:guardrails AS jsonb),
+                    constraints = CAST(:constraints AS jsonb),
                     updated_at = now()
                 WHERE tenant_id = :tenant_id AND id = :instance_id
-                RETURNING tenant_id, id AS instance_id, instruction_blocks, guardrails
+                RETURNING tenant_id, id AS instance_id, instruction_blocks, guardrails, constraints
                 """
             ),
             {
@@ -194,6 +197,7 @@ class AgentInstanceRepository:
                 "instance_id": instance_id,
                 "instruction_blocks": json.dumps(instruction_blocks),
                 "guardrails": json.dumps(guardrails),
+                "constraints": json.dumps(constraints),
             },
         )
         row = result.one_or_none()
@@ -221,4 +225,5 @@ def _prompt_config_from_row(row) -> AgentPromptConfigRecord:
         instance_id=row.instance_id,
         instruction_blocks=row.instruction_blocks or [],
         guardrails=row.guardrails or [],
+        constraints=getattr(row, "constraints", None) or [],
     )

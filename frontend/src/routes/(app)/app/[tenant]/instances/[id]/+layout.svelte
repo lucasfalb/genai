@@ -4,23 +4,18 @@
 	import { setContext } from 'svelte';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Bot from '@lucide/svelte/icons/bot';
-	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import Clock from '@lucide/svelte/icons/clock';
-	import Database from '@lucide/svelte/icons/database';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import HistoryIcon from '@lucide/svelte/icons/history';
-	import MoreHorizontal from '@lucide/svelte/icons/more-horizontal';
 	import Save from '@lucide/svelte/icons/save';
-	import Send from '@lucide/svelte/icons/send';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
-	import ThumbsDown from '@lucide/svelte/icons/thumbs-down';
-	import ThumbsUp from '@lucide/svelte/icons/thumbs-up';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import User from '@lucide/svelte/icons/user';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import * as Resizable from '$lib/components/ui/resizable/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
+	import TestAgentChat from '$lib/components/instance/test-agent-chat.svelte';
 	import { collectionsApi } from '$lib/api/collections';
 	import { instancesApi } from '$lib/api/instances';
 	import { ApiError } from '$lib/api/client';
@@ -33,9 +28,9 @@
 	const appBase = $derived(tenantBaseFromPath(page.url.pathname));
 	const instanceBase = $derived(`${appBase}/instances/${data.instance.id}`);
 	const agentUi = getAgentUiSettings(data.publicSettings);
+	const evaluationSessionId = $derived(page.params.sessionId ?? null);
 
 	let error = $state('');
-	let testMessage = $state('');
 
 	let saveHandler: (() => Promise<void>) | null = $state(null);
 	let saveLabel = $state('');
@@ -77,7 +72,9 @@
 		{ href: 'overview', label: 'Overview' },
 		{ href: 'instructions', label: 'Instructions' },
 		{ href: 'skills', label: 'Tools' },
-		{ href: 'channels', label: 'Channels' }
+		{ href: 'channels', label: 'Channels' },
+		{ href: 'debug', label: 'Debug' },
+		{ href: 'evaluations', label: 'Evaluations' }
 	];
 
 	function isActive(href: string) {
@@ -222,99 +219,12 @@
 		<Resizable.Handle withHandle />
 		{#if agentUi.test_panel_enabled}
 			<Resizable.Pane defaultSize={35} minSize={20}>
-				<aside class="flex h-full flex-col overflow-hidden bg-[var(--surface)]">
-					<!-- Aside header -->
-					<div
-						class="flex h-14 shrink-0 items-center justify-between border-b px-5"
-						style="border-color:var(--ds-border)"
-					>
-						<div class="flex items-center gap-2">
-							<Bot class="size-4 text-muted-foreground" />
-							<h2 class="text-sm font-semibold" style="color:var(--text-main)">Test agent</h2>
-						</div>
-						<div class="flex items-center gap-1">
-							<a
-								href="{appBase}/collections"
-								class="rounded p-1.5 text-muted-foreground transition-colors hover:bg-[var(--surface-hover)] hover:text-foreground"
-								title="Collections & Knowledge"
-							>
-								<Database class="size-4" />
-							</a>
-							<button
-								class="rounded p-1.5 text-muted-foreground transition-colors hover:bg-[var(--surface-hover)] hover:text-foreground"
-								aria-label="More actions"
-							>
-								<MoreHorizontal class="size-4" />
-							</button>
-						</div>
-					</div>
-
-					<!-- Chat messages area -->
-					<div class="flex flex-1 flex-col justify-end gap-4 overflow-y-auto p-4">
-						<div
-							class="rounded-xl border bg-[var(--canvas)] p-4"
-							style="border-color:var(--ds-border)"
-						>
-							<div class="flex items-start gap-3">
-								<div
-									class="flex size-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-500"
-								>
-									<Bot class="size-4" />
-								</div>
-								<div class="min-w-0 text-sm leading-relaxed">
-									<p class="font-semibold" style="color:var(--text-main)">
-										{data.instance.name} pronto.
-									</p>
-									<p class="mt-1 text-muted-foreground">
-										Use este painel para validar instrucoes, guardrails e conhecimento antes de
-										publicar.
-									</p>
-									<ol class="mt-3 list-decimal space-y-1 pl-4 text-xs text-muted-foreground">
-										<li>Teste perguntas comuns do tenant.</li>
-										<li>Valide respostas com documentos e colecoes.</li>
-										<li>Confirme limites definidos nos guardrails.</li>
-									</ol>
-									<p class="mt-3 text-xs font-semibold" style="color:var(--text-main)">
-										O que voce gostaria de investigar primeiro?
-									</p>
-									<div class="mt-3 flex gap-2 text-muted-foreground">
-										<ThumbsUp class="size-4" />
-										<ThumbsDown class="size-4" />
-									</div>
-								</div>
-							</div>
-						</div>
-
-						<!-- Message input -->
-						<div class="shrink-0 border-t p-4" style="border-color:var(--ds-border)">
-							<div
-								class="rounded-xl border bg-[var(--canvas)] p-3 shadow-sm"
-								style="border-color:var(--ds-border)"
-							>
-								<textarea
-									bind:value={testMessage}
-									rows="3"
-									maxlength="2000"
-									placeholder="Faca uma pergunta ou descreva o que precisa"
-									class="w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-								></textarea>
-								<div class="mt-2 flex items-center justify-between">
-									<span class="font-mono text-[10px] text-muted-foreground"
-										>{testMessage.length}/2000</span
-									>
-									<button
-										type="button"
-										disabled={!testMessage.trim()}
-										class="inline-flex size-8 items-center justify-center rounded-md bg-blue-600 text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
-										aria-label="Send test message"
-									>
-										<Send class="size-4" />
-									</button>
-								</div>
-							</div>
-						</div>
-					</div>
-				</aside>
+			<TestAgentChat
+				instanceId={data.instance.id}
+				instanceName={data.instance.name}
+				collectionsHref={`${appBase}/collections`}
+				sessionId={evaluationSessionId}
+			/>
 			</Resizable.Pane>
 		{/if}
 	</Resizable.PaneGroup>

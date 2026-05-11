@@ -20,8 +20,10 @@ SENSITIVE_CUSTOM_KEY_PARTS = {
 
 DEFAULT_PUBLIC_SETTINGS = {
     "agent_ui": {
-        "default_model": "gpt-4o-mini",
+        "default_model": "gpt-5-mini",
         "models": [
+            {"value": "gpt-5-mini", "label": "GPT-5 Mini"},
+            {"value": "gpt-5", "label": "GPT-5"},
             {"value": "gpt-4o-mini", "label": "GPT-4o Mini"},
             {"value": "gpt-4o", "label": "GPT-4o"},
             {"value": "gpt-4.1-mini", "label": "GPT-4.1 Mini"},

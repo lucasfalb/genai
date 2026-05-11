@@ -228,22 +228,6 @@
 </script>
 
 <div class="space-y-4">
-	<!-- Indexing status banner -->
-	{#if hasPendingDocs}
-		<div class="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3">
-			<div class="flex items-center gap-3">
-				<Spinner class="size-4 text-yellow-400" />
-				<div class="flex-1">
-					<p class="text-sm font-medium text-yellow-400">Indexing in progress</p>
-					<p class="mt-0.5 text-xs text-muted-foreground">
-						{documents.filter((d) => d.status === 'uploaded' || d.status === 'indexing').length} document(s)
-						being processed. Updates every 1.5s.
-					</p>
-				</div>
-			</div>
-		</div>
-	{/if}
-
 	<!-- Upload zone -->
 	<div
 		role="region"
@@ -307,7 +291,12 @@
 			</div>
 			<div class="flex gap-2">
 				{#if selectedIds.size > 0}
-					<Button variant="destructive" size="sm" onclick={() => confirmBulkDelete = true} disabled={deleting}>
+					<Button
+						variant="destructive"
+						size="sm"
+						onclick={() => (confirmBulkDelete = true)}
+						disabled={deleting}
+					>
 						{#if deleting}<Spinner data-icon="inline-start" />{:else}<Trash2
 								data-icon="inline-start"
 							/>{/if}
@@ -446,7 +435,8 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete {selectedIds.size} document(s)</AlertDialog.Title>
 			<AlertDialog.Description>
-				Delete {selectedIds.size} selected document(s)? All indexed chunks will be removed from the vector store. This action cannot be undone.
+				Delete {selectedIds.size} selected document(s)? All indexed chunks will be removed from the vector
+				store. This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>

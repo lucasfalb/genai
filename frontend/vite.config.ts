@@ -4,5 +4,5 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
-	ssr: { noExternal: ['@lucide/svelte'] }
+	ssr: { noExternal: ['@lucide/svelte', '@xyflow/svelte', '@xyflow/system'] }
 });

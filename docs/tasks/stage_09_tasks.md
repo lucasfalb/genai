@@ -10,7 +10,7 @@
 | TASK-071 | [Members & Invitations Team Management UI](task_071_frontend_members_invitations.md) | COMPLETED | MEDIUM | TASK-068 |
 | TASK-072 | [Tenant AI Settings UI](task_072_frontend_tenant_ai_settings.md) | COMPLETED | MEDIUM | TASK-068 |
 | TASK-073 | [Collections (RAG) Management UI](task_073_frontend_collections.md) | COMPLETED | MEDIUM | TASK-068 |
-| TASK-074 | [Agent Chat Interface (SSE)](task_074_frontend_agent_chat.md) | PENDING | HIGH | TASK-069 |
+| TASK-074 | [Agent Chat Interface (SSE)](task_074_frontend_agent_chat.md) | COMPLETED | HIGH | TASK-069 |
 | TASK-075 | [Superadmin Panel UI](task_075_frontend_superadmin.md) | COMPLETED | MEDIUM | TASK-067 |
 | TASK-076 | [Frontend Route Topology](task_076_frontend_route_topology.md) | COMPLETED | HIGH | TASK-067 |
 

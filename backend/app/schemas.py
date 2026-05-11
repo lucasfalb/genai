@@ -384,6 +384,12 @@ class DocumentContentUpdateRequest(BaseModel):
     content: str = Field(min_length=1)
 
 
+class DocumentContentURLResponse(BaseModel):
+    url: str
+    content_type: str
+    expires_in: int
+
+
 class CatalogSkillResponse(BaseModel):
     slug: str
     name: str
@@ -417,6 +423,34 @@ class ChatEvent(BaseModel):
     sequence_no: int | None = None
     content: str | None = None
     metadata: dict = Field(default_factory=dict)
+
+
+class RunTraceSection(BaseModel):
+    label: str
+    content: str
+
+
+class RunTraceResponse(BaseModel):
+    run_id: UUID
+    tenant_id: UUID
+    instance_id: UUID
+    session_id: UUID
+    channel: str
+    trace: dict
+    started_at: datetime
+    completed_at: datetime
+    created_at: datetime
+
+
+class RunTraceListItem(BaseModel):
+    run_id: UUID
+    instance_id: UUID
+    session_id: UUID
+    started_at: datetime
+    completed_at: datetime
+    duration_ms: int
+    user_message: str | None = None
+    final_response_preview: str | None = None
 
 
 class SystemSettingsUpdateRequest(BaseModel):
@@ -512,7 +546,7 @@ class AgentInstanceCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     description: str | None = None
     core_prompt: str = Field(min_length=1)
-    model: str = Field(default="gpt-4.1-mini", max_length=120)
+    model: str = Field(default="gpt-5-mini", max_length=120)
     temperature: float = Field(default=0.2, ge=0.0, le=2.0)
     rag_scope: list = Field(default_factory=list)
 
@@ -562,18 +596,35 @@ class AgentGuardrail(BaseModel):
         return self
 
 
+class AgentConstraint(BaseModel):
+    id: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_.-]+$")
+    rule: str = Field(min_length=1, max_length=2000)
+    priority: int = Field(default=100, ge=0, le=1000)
+    is_enabled: bool = True
+
+    @field_validator("rule")
+    @classmethod
+    def reject_sensitive_rule(cls, value: str) -> str:
+        _reject_prompt_config_secrets(value)
+        return value
+
+
 class AgentPromptConfigRequest(BaseModel):
     instruction_blocks: list[AgentInstructionBlock] = Field(default_factory=list, max_length=50)
     guardrails: list[AgentGuardrail] = Field(default_factory=list, max_length=50)
+    constraints: list[AgentConstraint] = Field(default_factory=list, max_length=50)
 
     @model_validator(mode="after")
     def reject_duplicate_ids(self):
         instruction_ids = [item.id for item in self.instruction_blocks]
         guardrail_ids = [item.id for item in self.guardrails]
+        constraint_ids = [item.id for item in self.constraints]
         if len(instruction_ids) != len(set(instruction_ids)):
             raise ValueError("Duplicate instruction block ids are not allowed")
         if len(guardrail_ids) != len(set(guardrail_ids)):
             raise ValueError("Duplicate guardrail ids are not allowed")
+        if len(constraint_ids) != len(set(constraint_ids)):
+            raise ValueError("Duplicate constraint ids are not allowed")
         return self
 
 
@@ -582,6 +633,7 @@ class AgentPromptConfigResponse(BaseModel):
     instance_id: UUID
     instruction_blocks: list[AgentInstructionBlock]
     guardrails: list[AgentGuardrail]
+    constraints: list[AgentConstraint] = Field(default_factory=list)
 
 
 class AgentInstanceResponse(BaseModel):

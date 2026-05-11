@@ -31,11 +31,14 @@
 		if (!doc) return;
 		loading = true;
 		try {
-			const { blob, contentType } = await collectionsApi.fetchDocumentContent(doc.collection_id, doc.id);
+			const meta = await collectionsApi.getDocumentContentUrl(doc.collection_id, doc.id);
+			const contentType = meta.content_type;
 			if (contentType.startsWith('text/')) {
-				textContent = await blob.text();
+				const res = await fetch(meta.url);
+				if (!res.ok) throw new Error('Failed to fetch document content');
+				textContent = await res.text();
 			} else if (contentType === 'application/pdf') {
-				pdfUrl = URL.createObjectURL(blob);
+				pdfUrl = meta.url;
 			} else {
 				error = 'Preview not available for this file type.';
 			}
@@ -47,7 +50,6 @@
 	}
 
 	function handleClose() {
-		if (pdfUrl) URL.revokeObjectURL(pdfUrl);
 		pdfUrl = null;
 		textContent = null;
 		error = '';

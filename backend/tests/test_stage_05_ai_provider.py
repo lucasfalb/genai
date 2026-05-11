@@ -116,16 +116,27 @@ def _seed_system_settings_config(db_connection: psycopg.Connection, *, api_key_e
 
 
 def _seed_tenant_config(db_connection: psycopg.Connection, *, tenant_id, api_key_encrypted: str):
+    import json
+
+    providers_config = {
+        "providers": [
+            {
+                "name": "openai",
+                "api_key_encrypted": api_key_encrypted,
+                "api_key_hint": "****",
+                "enabled": True,
+                "configured_at": "2026-05-10T00:00:00Z",
+                "configured_by": str(tenant_id),
+            }
+        ]
+    }
     with db_connection.cursor() as cursor:
         cursor.execute(
             """
             UPDATE tenants
-            SET ai_provider = 'openai',
-                ai_api_key_encrypted = %s,
-                ai_enabled = true,
-                ai_configured_at = now()
+            SET providers_config = %s::jsonb
             WHERE id = %s
             """,
-            (api_key_encrypted, tenant_id),
+            (json.dumps(providers_config), tenant_id),
         )
         db_connection.commit()

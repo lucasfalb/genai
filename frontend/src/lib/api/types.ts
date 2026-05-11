@@ -185,9 +185,17 @@ export interface AgentGuardrail {
 	metadata?: Record<string, unknown>;
 }
 
+export interface AgentConstraint {
+	id?: string;
+	rule: string;
+	priority: number;
+	is_enabled: boolean;
+}
+
 export interface AgentPromptConfigRequest {
 	instruction_blocks: AgentInstructionBlock[];
 	guardrails: AgentGuardrail[];
+	constraints: AgentConstraint[];
 }
 
 export interface AgentPromptConfigResponse {
@@ -195,6 +203,7 @@ export interface AgentPromptConfigResponse {
 	instance_id: string;
 	instruction_blocks: AgentInstructionBlock[];
 	guardrails: AgentGuardrail[];
+	constraints: AgentConstraint[];
 }
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
@@ -472,15 +481,6 @@ export interface VersionEntry {
 	created_at: string | null;
 }
 
-// ─── Chat ─────────────────────────────────────────────────────────────────────
-
-export interface ChatRequest {
-	message: string;
-	session_id?: string;
-	channel?: string;
-	metadata?: Record<string, unknown>;
-}
-
 // ─── Superadmin ───────────────────────────────────────────────────────────────
 
 export interface SuperadminTenantResponse {
@@ -565,4 +565,107 @@ export interface EmailTemplateRequest {
 
 export interface MessageResponse {
 	message: string;
+}
+
+// ─── Chat / Agent runtime ─────────────────────────────────────────────────────
+
+export interface ChatRequest {
+	message: string;
+	session_id?: string | null;
+	channel?: string;
+	metadata?: Record<string, unknown>;
+}
+
+export type ChatEventName =
+	| 'message.persisted'
+	| 'assistant.delta'
+	| 'run.trace'
+	| 'run.completed';
+
+export interface ChatEvent {
+	event: ChatEventName | string;
+	session_id: string;
+	sequence_no?: number | null;
+	content?: string | null;
+	metadata?: Record<string, unknown>;
+}
+
+export interface RunTraceSection {
+	label: string;
+	content: string;
+}
+
+export interface RunTraceChunk {
+	text: string;
+	source?: string | null;
+	score?: number | null;
+	collection_id?: string | null;
+	document_id?: string | null;
+	filename?: string | null;
+}
+
+export interface RunTraceToolCall {
+	id?: string | null;
+	name?: string | null;
+	arguments?: unknown;
+}
+
+export interface RunTraceToolResult {
+	id?: string | null;
+	name?: string | null;
+	output?: unknown;
+	error?: string | null;
+}
+
+export interface RunTracePayload {
+	run_id: string;
+	tenant_id: string;
+	instance_id: string;
+	session_id: string;
+	channel: string;
+	user_message: string;
+	final_response: string;
+	model?: string | null;
+	temperature?: number | null;
+	ai_provider?: string | null;
+	system_prompt: string;
+	system_prompt_sections: RunTraceSection[];
+	available_tools: string[];
+	available_skills: string[];
+	tool_schemas: unknown[];
+	linked_agents: unknown[];
+	rag_scope: string[];
+	retrieved_chunks: RunTraceChunk[];
+	pending_tool_calls: RunTraceToolCall[];
+	tool_results: RunTraceToolResult[];
+	handoff_target?: string | null;
+	handoff_summary?: string | null;
+	citations: unknown[];
+	node_timings: { name: string; duration_ms: number }[];
+	started_at: string;
+	completed_at: string;
+	duration_ms: number;
+}
+
+export interface RunTraceResponse {
+	run_id: string;
+	tenant_id: string;
+	instance_id: string;
+	session_id: string;
+	channel: string;
+	trace: RunTracePayload;
+	started_at: string;
+	completed_at: string;
+	created_at: string;
+}
+
+export interface RunTraceListItem {
+	run_id: string;
+	instance_id: string;
+	session_id: string;
+	started_at: string;
+	completed_at: string;
+	duration_ms: number;
+	user_message?: string | null;
+	final_response_preview?: string | null;
 }

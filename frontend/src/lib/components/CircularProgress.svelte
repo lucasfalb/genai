@@ -7,7 +7,8 @@
 		size?: number;
 	} = $props();
 
-	const radius = 8;
+	const VIEWBOX = 36;
+	const radius = 16;
 	const circumference = 2 * Math.PI * radius;
 
 	const progress = $derived(
@@ -26,57 +27,58 @@
 
 	const color = $derived(
 		status === 'indexed'
-			? '#10b981' // emerald-400
+			? '#10b981'
 			: status === 'indexing'
-				? '#fbbf24' // yellow-400
+				? '#fbbf24'
 				: status === 'uploaded'
-					? '#60a5fa' // blue-400
+					? '#60a5fa'
 					: status === 'failed'
-						? '#f87171' // red-400
-						: '#9ca3af' // gray-400
+						? '#f87171'
+						: '#9ca3af'
 	);
 </script>
 
-<svg width={size} height={size} class="circular-progress">
-	<!-- Background circle -->
+<svg
+	viewBox="0 0 {VIEWBOX} {VIEWBOX}"
+	width={size}
+	height={size}
+	class="circular-progress shrink-0"
+>
 	<circle
-		cx={size / 2}
-		cy={size / 2}
+		cx={VIEWBOX / 2}
+		cy={VIEWBOX / 2}
 		r={radius}
 		fill="none"
 		stroke="currentColor"
-		stroke-width="2"
+		stroke-width="3"
 		class="opacity-20"
 	/>
-	<!-- Progress circle -->
 	<circle
-		cx={size / 2}
-		cy={size / 2}
+		cx={VIEWBOX / 2}
+		cy={VIEWBOX / 2}
 		r={radius}
 		fill="none"
 		stroke={color}
-		stroke-width="2"
+		stroke-width="3"
 		stroke-dasharray={circumference}
 		stroke-dashoffset={strokeDashoffset}
 		stroke-linecap="round"
 		class="progress-ring"
-		style="transform: rotate(-90deg); transform-origin: 50% 50%;"
+		transform="rotate(-90 {VIEWBOX / 2} {VIEWBOX / 2})"
 	/>
 	{#if status === 'indexed'}
-		<!-- Checkmark for completed -->
-		<path
-			d="M {size * 0.3} {size * 0.5} L {size * 0.45} {size * 0.65} L {size * 0.7} {size * 0.35}"
-			stroke={color}
-			stroke-width="2"
+		<polyline
+			points="12,18 16,22 24,14"
 			fill="none"
+			stroke={color}
+			stroke-width="3"
 			stroke-linecap="round"
 			stroke-linejoin="round"
 		/>
 	{:else if status === 'failed'}
-		<!-- X for failed -->
-		<g stroke={color} stroke-width="2" stroke-linecap="round">
-			<line x1={size * 0.35} y1={size * 0.35} x2={size * 0.65} y2={size * 0.65} />
-			<line x1={size * 0.65} y1={size * 0.35} x2={size * 0.35} y2={size * 0.65} />
+		<g stroke={color} stroke-width="3" stroke-linecap="round">
+			<line x1="13" y1="13" x2="23" y2="23" />
+			<line x1="23" y1="13" x2="13" y2="23" />
 		</g>
 	{/if}
 </svg>
@@ -84,6 +86,7 @@
 <style>
 	.circular-progress {
 		display: inline-block;
+		vertical-align: middle;
 	}
 
 	.progress-ring {

@@ -15,24 +15,27 @@
 	const r = 14;
 	const circ = $derived(2 * Math.PI * r);
 	const offset = $derived(circ - (pct / 100) * circ);
-	const isWorking = $derived(status === 'uploaded' || status === 'indexing');
-	const indeterminateOffset = circ * 0.75;
-	const dashArray = isWorking ? `${circ * 0.6} ${circ * 0.4}` : circ;
+	const isIndeterminate = $derived(
+		(status === 'uploaded' || status === 'indexing') && pct === 0
+	);
+	const dashArray = isIndeterminate ? `${circ * 0.6} ${circ * 0.4}` : circ;
 </script>
 
 <svg viewBox="0 0 36 36" width={size} height={size} class="shrink-0">
 	<circle cx="18" cy="18" r={r} fill="none" class="stroke-white/10" stroke-width="3" />
 	<circle
-		cx="18" cy="18" r={r}
+		cx="18"
+		cy="18"
+		r={r}
 		fill="none"
 		class={strokeColor[status] ?? 'stroke-zinc-400'}
+		class:animate-spin-circle={isIndeterminate}
 		stroke-width="3"
 		stroke-linecap="round"
 		stroke-dasharray={dashArray}
-		stroke-dashoffset={isWorking ? indeterminateOffset : offset}
+		stroke-dashoffset={isIndeterminate ? circ * 0.75 : offset}
 		transform="rotate(-90 18 18)"
-		style={isWorking ? '--circ: ' + circ : ''}
-		class:animate-spin-circle={isWorking}
+		style={isIndeterminate ? `--circ:${circ}` : 'transition: stroke-dashoffset 0.5s ease-in-out'}
 	/>
 	{#if status === 'indexed' || status === 'ready'}
 		<polyline points="12,18 16,22 24,14" fill="none" class="stroke-emerald-400" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />

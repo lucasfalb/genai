@@ -13,6 +13,7 @@ class AgentState(TypedDict, total=False):
     ai_provider: str
     ai_api_key: str
     system_prompt: str
+    system_prompt_sections: dict
     available_tools: list[str]
     available_skills: list[str]
     tool_schemas: list[dict]
