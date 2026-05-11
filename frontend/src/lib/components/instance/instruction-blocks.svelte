@@ -18,11 +18,15 @@
 	let adding = $state(false);
 	let openItem = $state<string | undefined>(undefined);
 
+	function genId(): string {
+		return `ib_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+	}
+
 	function add() {
 		if (!newBlock.topic.trim() || !newBlock.content.trim()) return;
 		blocks = [
 			...blocks,
-			{ ...newBlock, topic: newBlock.topic.trim(), title: newBlock.title.trim(), content: newBlock.content.trim() }
+			{ id: genId(), ...newBlock, topic: newBlock.topic.trim(), title: newBlock.title.trim(), content: newBlock.content.trim() }
 		];
 		newBlock = { topic: '', title: '', content: '', priority: 10, is_enabled: true };
 		adding = false;

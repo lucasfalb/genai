@@ -13,23 +13,26 @@
 
 	let { guardrails = $bindable() }: { guardrails: AgentGuardrail[] } = $props();
 
-	let newGuardrail = $state({ category: 'safety', rule: '', severity: 'medium', is_enabled: true });
+	let newGuardrail = $state({ category: 'safety', rule: '', severity: 'warning', is_enabled: true });
 	let adding = $state(false);
 	let openItem = $state<string | undefined>(undefined);
 
-	const SEVERITY = ['low', 'medium', 'high', 'critical'];
+	const SEVERITY = ['info', 'warning', 'critical', 'blocking'];
+
+	function genId(): string {
+		return `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+	}
 
 	function severityVariant(s: string): 'default' | 'secondary' | 'outline' | 'destructive' {
-		if (s === 'critical') return 'destructive';
-		if (s === 'high') return 'destructive';
-		if (s === 'medium') return 'default';
+		if (s === 'critical' || s === 'blocking') return 'destructive';
+		if (s === 'warning') return 'default';
 		return 'outline';
 	}
 
 	function add() {
 		if (!newGuardrail.rule.trim()) return;
-		guardrails = [...guardrails, { ...newGuardrail, rule: newGuardrail.rule.trim() }];
-		newGuardrail = { category: 'safety', rule: '', severity: 'medium', is_enabled: true };
+		guardrails = [...guardrails, { id: genId(), ...newGuardrail, rule: newGuardrail.rule.trim() }];
+		newGuardrail = { category: 'safety', rule: '', severity: 'warning', is_enabled: true };
 		adding = false;
 	}
 
