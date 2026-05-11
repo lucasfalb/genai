@@ -17,11 +17,16 @@ class AgentState(TypedDict, total=False):
     available_tools: list[str]
     available_skills: list[str]
     tool_schemas: list[dict]
+    tool_configs: dict
     linked_agents: list[dict]
     rag_scope: list[str]
     retrieved_chunks: list[dict]
     pending_tool_calls: list[dict] | None
     tool_results: list[dict] | None
+    executed_tool_calls: list[dict]
+    tool_call_iterations: int
     handoff_target: str | None
     final_response: str | None
     citations: list[dict] | None
+    token_usage: dict
+    rag_error: str | None

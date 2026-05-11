@@ -169,6 +169,7 @@ def _trace_list_item(record: RunTraceRecord) -> RunTraceListItem:
     duration = record.trace.get("duration_ms")
     if not isinstance(duration, int):
         duration = max(0, int((record.completed_at - record.started_at).total_seconds() * 1000))
+    usage = record.trace.get("token_usage") or {}
     return RunTraceListItem(
         run_id=record.run_id,
         instance_id=record.instance_id,
@@ -178,4 +179,7 @@ def _trace_list_item(record: RunTraceRecord) -> RunTraceListItem:
         duration_ms=duration,
         user_message=user_msg,
         final_response_preview=preview,
+        total_tokens=usage.get("total_tokens"),
+        prompt_tokens=usage.get("prompt_tokens"),
+        completion_tokens=usage.get("completion_tokens"),
     )

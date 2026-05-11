@@ -44,6 +44,7 @@ class QdrantRagClient:
         chunks: list[str],
         embeddings: list[list[float]],
         embedding_model: str,
+        source: str | None = None,
     ) -> None:
         await self.ensure_collection()
         points = [
@@ -58,6 +59,7 @@ class QdrantRagClient:
                     "chunk_index": index,
                     "embedding_model": embedding_model,
                     "text": chunk,
+                    "source": source,
                 },
             )
             for index, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=True))
@@ -97,6 +99,8 @@ class QdrantRagClient:
             {
                 "text": (r.payload or {}).get("text", ""),
                 "source": (r.payload or {}).get("source"),
+                "document_id": (r.payload or {}).get("document_id"),
+                "chunk_index": (r.payload or {}).get("chunk_index"),
                 "score": r.score,
             }
             for r in points

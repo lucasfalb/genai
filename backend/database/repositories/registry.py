@@ -34,6 +34,11 @@ class ToolDefinitionRecord:
     schema: dict
     executor: str
     is_builtin: bool
+    method: str
+    endpoint: str | None
+    headers_template: dict
+    body_template: str | None
+    variables_schema: list
 
 
 @dataclass(frozen=True)
@@ -128,7 +133,8 @@ class RegistryRepository:
         result = await self.connection.execute(
             text(
                 """
-                SELECT id, slug, name, description, category, prompt_block, schema, executor, is_builtin
+                SELECT id, slug, name, description, category, prompt_block, schema, executor,
+                       is_builtin, method, endpoint, headers_template, body_template, variables_schema
                 FROM tool_definitions
                 ORDER BY slug
                 """
@@ -141,10 +147,13 @@ class RegistryRepository:
             text(
                 """
                 INSERT INTO tool_definitions
-                  (slug, name, description, category, prompt_block, schema, executor, is_builtin)
+                  (slug, name, description, category, prompt_block, schema, executor, is_builtin,
+                   method, endpoint, headers_template, body_template, variables_schema)
                 VALUES
                   (:slug, :name, :description, :category, :prompt_block,
-                   CAST(:schema AS jsonb), :executor, :is_builtin)
+                   CAST(:schema AS jsonb), :executor, :is_builtin,
+                   :method, :endpoint, CAST(:headers_template AS jsonb),
+                   :body_template, CAST(:variables_schema AS jsonb))
                 ON CONFLICT (slug) DO UPDATE SET
                   name = EXCLUDED.name,
                   description = EXCLUDED.description,
@@ -152,11 +161,22 @@ class RegistryRepository:
                   prompt_block = EXCLUDED.prompt_block,
                   schema = EXCLUDED.schema,
                   executor = EXCLUDED.executor,
-                  is_builtin = EXCLUDED.is_builtin
-                RETURNING id, slug, name, description, category, prompt_block, schema, executor, is_builtin
+                  is_builtin = EXCLUDED.is_builtin,
+                  method = EXCLUDED.method,
+                  endpoint = EXCLUDED.endpoint,
+                  headers_template = EXCLUDED.headers_template,
+                  body_template = EXCLUDED.body_template,
+                  variables_schema = EXCLUDED.variables_schema
+                RETURNING id, slug, name, description, category, prompt_block, schema, executor,
+                          is_builtin, method, endpoint, headers_template, body_template, variables_schema
                 """
             ),
-            {**payload, "schema": json.dumps(payload["schema"])},
+            {
+                **payload,
+                "schema": json.dumps(payload["schema"]),
+                "headers_template": json.dumps(payload.get("headers_template") or {}),
+                "variables_schema": json.dumps(payload.get("variables_schema") or []),
+            },
         )
         return _tool_definition(result.one())
 
@@ -340,7 +360,7 @@ class RegistryRepository:
                 """
                 SELECT sd.slug, sd.name, sd.description, sd.category, sd.prompt_block,
                        sd.tool_schema, sd.executor, sd.input_schema, sd.output_schema,
-                       sd.requires_credential, ais.config
+                       sd.requires_credential, sd.credential_schema, ais.config
                 FROM agent_instance_skills ais
                 JOIN skill_definitions sd ON sd.id = ais.skill_id
                 JOIN agent_instances ai ON ai.id = ais.instance_id
@@ -358,7 +378,9 @@ class RegistryRepository:
             text(
                 """
                 SELECT td.slug, td.name, td.description, td.category, td.prompt_block,
-                       td.schema, td.executor, td.is_builtin, ait.config
+                       td.schema, td.executor, td.is_builtin,
+                       td.method, td.endpoint, td.headers_template, td.body_template,
+                       td.variables_schema, ait.config
                 FROM agent_instance_tools ait
                 JOIN tool_definitions td ON td.id = ait.tool_id
                 JOIN agent_instances ai ON ai.id = ait.instance_id
@@ -408,6 +430,11 @@ def _tool_definition(row) -> ToolDefinitionRecord:
         schema=row.schema,
         executor=row.executor,
         is_builtin=row.is_builtin,
+        method=row.method,
+        endpoint=row.endpoint,
+        headers_template=row.headers_template or {},
+        body_template=row.body_template,
+        variables_schema=row.variables_schema or [],
     )
 
 

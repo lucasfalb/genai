@@ -224,7 +224,18 @@ export interface SkillActivationResponse {
 	input_schema: Record<string, unknown>;
 	output_schema: Record<string, unknown>;
 	requires_credential: boolean;
+	credential_schema?: Record<string, unknown>;
 	config: Record<string, unknown>;
+}
+
+export interface ToolVariableSpec {
+	name: string;
+	label?: string;
+	description?: string;
+	type?: string;
+	required?: boolean;
+	default?: unknown;
+	secret?: boolean;
 }
 
 export interface ToolActivationResponse {
@@ -236,6 +247,11 @@ export interface ToolActivationResponse {
 	schema: Record<string, unknown>;
 	executor: string;
 	is_builtin: boolean;
+	method?: string;
+	endpoint?: string | null;
+	headers_template?: Record<string, string>;
+	body_template?: string | null;
+	variables_schema?: ToolVariableSpec[];
 	config: Record<string, unknown>;
 }
 
@@ -617,6 +633,35 @@ export interface RunTraceToolResult {
 	error?: string | null;
 }
 
+export interface RunTraceTokenCall {
+	prompt_tokens: number;
+	completion_tokens: number;
+	total_tokens: number;
+	model?: string | null;
+	phase?: string | null;
+	iteration?: number | null;
+}
+
+export interface RunTraceTokenUsage {
+	prompt_tokens: number;
+	completion_tokens: number;
+	total_tokens: number;
+	llm_calls: number;
+	embedding_tokens: number;
+	embedding_calls: number;
+	per_call: RunTraceTokenCall[];
+}
+
+export interface RunTraceExecutedCall {
+	id?: string | null;
+	name?: string | null;
+	kind: 'tool' | 'skill';
+	arguments?: unknown;
+	output?: unknown;
+	error?: string | null;
+	iteration?: number | null;
+}
+
 export interface RunTracePayload {
 	run_id: string;
 	tenant_id: string;
@@ -638,6 +683,10 @@ export interface RunTracePayload {
 	retrieved_chunks: RunTraceChunk[];
 	pending_tool_calls: RunTraceToolCall[];
 	tool_results: RunTraceToolResult[];
+	executed_tool_calls: RunTraceExecutedCall[];
+	token_usage?: RunTraceTokenUsage;
+	rag_error?: string | null;
+	run_error?: string | null;
 	handoff_target?: string | null;
 	handoff_summary?: string | null;
 	citations: unknown[];
@@ -668,4 +717,7 @@ export interface RunTraceListItem {
 	duration_ms: number;
 	user_message?: string | null;
 	final_response_preview?: string | null;
+	total_tokens?: number | null;
+	prompt_tokens?: number | null;
+	completion_tokens?: number | null;
 }

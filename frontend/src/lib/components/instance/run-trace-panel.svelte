@@ -142,6 +142,72 @@
 		}
 	}
 
+	function parseMaybeJson(value: unknown): unknown {
+		if (typeof value !== 'string') return value;
+		const trimmed = value.trim();
+		if (!trimmed) return value;
+		const first = trimmed[0];
+		if (first !== '{' && first !== '[' && first !== '"') return value;
+		try {
+			return JSON.parse(trimmed);
+		} catch {
+			return value;
+		}
+	}
+
+	function isEmptyArgs(value: unknown): boolean {
+		if (value === null || value === undefined) return true;
+		if (typeof value === 'object' && !Array.isArray(value)) {
+			return Object.keys(value as Record<string, unknown>).length === 0;
+		}
+		return false;
+	}
+
+	function extractHttpStatus(output: unknown): number | null {
+		const parsed = parseMaybeJson(output) as { status?: unknown } | null;
+		if (parsed && typeof parsed === 'object' && typeof parsed.status === 'number') {
+			return parsed.status;
+		}
+		return null;
+	}
+
+	function extractHttpData(output: unknown): unknown {
+		const parsed = parseMaybeJson(output);
+		if (parsed && typeof parsed === 'object' && parsed !== null && 'data' in parsed) {
+			return (parsed as { data: unknown }).data;
+		}
+		return parsed;
+	}
+
+	function statusBadgeClass(status: number | null): string {
+		if (status === null) return 'bg-zinc-500/10 text-muted-foreground';
+		if (status >= 200 && status < 300) return 'bg-emerald-500/10 text-emerald-400';
+		if (status >= 300 && status < 400) return 'bg-blue-500/10 text-blue-400';
+		if (status >= 400 && status < 500) return 'bg-amber-500/10 text-amber-400';
+		return 'bg-red-500/10 text-red-400';
+	}
+
+	function approxBytes(value: unknown): number {
+		if (value === null || value === undefined) return 0;
+		try {
+			return typeof value === 'string' ? value.length : JSON.stringify(value).length;
+		} catch {
+			return 0;
+		}
+	}
+
+	function fmtBytes(n: number): string {
+		if (n < 1024) return `${n} B`;
+		if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+		return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+	}
+
+	function fmtTokens(n: number | null | undefined): string {
+		if (n == null) return '—';
+		if (n < 1000) return String(n);
+		return `${(n / 1000).toFixed(1)}k`;
+	}
+
 	function fmtTime(value: string): string {
 		return new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 	}
@@ -162,6 +228,33 @@
 		duration: number | null;
 	};
 
+	const executedCalls = $derived.by(() => {
+		const t = trace;
+		if (!t) return [];
+		const list = t.executed_tool_calls ?? [];
+		if (list.length > 0) return list;
+		const availableSkills = new Set(t.available_skills ?? []);
+		const pendingByName = new Map<string, (typeof t.pending_tool_calls)[number]>();
+		for (const p of t.pending_tool_calls ?? []) {
+			if (p.name) pendingByName.set(p.name, p);
+		}
+		return (t.tool_results ?? []).map((r) => {
+			const name = r.name ?? '';
+			const pending = pendingByName.get(name);
+			return {
+				id: r.id ?? null,
+				name,
+				kind: availableSkills.has(name) ? 'skill' : 'tool',
+				arguments: pending?.arguments ?? null,
+				output: r.output,
+				error: r.error,
+				iteration: null
+			} as const;
+		});
+	});
+	const skillCalls = $derived(executedCalls.filter((c) => c.kind === 'skill'));
+	const toolCalls = $derived(executedCalls.filter((c) => c.kind === 'tool'));
+
 	const activeNodes = $derived.by(() => {
 		const t = trace;
 		if (!t) return [] as NodeDescriptor[];
@@ -179,20 +272,34 @@
 				duration: timingFor('rag')
 			});
 		}
+		const tokenSuffix = t.token_usage && t.token_usage.total_tokens > 0
+			? ` · ${fmtTokens(t.token_usage.total_tokens)} tok`
+			: '';
 		list.push({
 			id: 'llm',
-			label: `LLM · ${t.model ?? '?'}`,
+			label: `LLM · ${t.model ?? '?'}${tokenSuffix}`,
 			icon: Bot,
 			tone: 'used',
 			duration: timingFor('llm')
 		});
-		if (t.pending_tool_calls.length > 0) {
+		if (skillCalls.length > 0) {
+			const names = [...new Set(skillCalls.map((c) => c.name ?? '?'))].join(', ');
+			list.push({
+				id: 'skills',
+				label: `Skills · ${skillCalls.length} call${skillCalls.length > 1 ? 's' : ''}\n${names}`,
+				icon: MessagesSquare,
+				tone: 'ok',
+				duration: timingFor('dispatch')
+			});
+		}
+		if (toolCalls.length > 0) {
+			const names = [...new Set(toolCalls.map((c) => c.name ?? '?'))].join(', ');
 			list.push({
 				id: 'tools',
-				label: `Tools · ${t.pending_tool_calls.length} call${t.pending_tool_calls.length > 1 ? 's' : ''}`,
+				label: `Tools · ${toolCalls.length} call${toolCalls.length > 1 ? 's' : ''}\n${names}`,
 				icon: Wrench,
 				tone: 'warn',
-				duration: timingFor('dispatch')
+				duration: skillCalls.length > 0 ? null : timingFor('dispatch')
 			});
 		}
 		if (t.handoff_target) {
@@ -363,16 +470,23 @@
 								? 'bg-[var(--surface-hover)]'
 								: ''}"
 						>
-							<div class="flex items-center gap-2">
-								<span
-									class="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold"
-									style="background:color-mix(in srgb, #3b82f6 12%, transparent);color:var(--text-main)"
-								>
-									{idx + 1}
-								</span>
-								<span class="truncate font-mono text-[10px] text-muted-foreground">
-									{fmtTime(run.started_at)}
-								</span>
+							<div class="flex items-center justify-between gap-2">
+								<div class="flex items-center gap-2 min-w-0">
+									<span
+										class="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold"
+										style="background:color-mix(in srgb, #3b82f6 12%, transparent);color:var(--text-main)"
+									>
+										{idx + 1}
+									</span>
+									<span class="truncate font-mono text-[10px] text-muted-foreground">
+										{fmtTime(run.started_at)}
+									</span>
+								</div>
+								{#if run.total_tokens != null && run.total_tokens > 0}
+									<span class="shrink-0 rounded bg-purple-500/10 px-1.5 py-0.5 font-mono text-[9px] text-purple-400" title={`prompt ${run.prompt_tokens ?? 0} / completion ${run.completion_tokens ?? 0}`}>
+										{fmtTokens(run.total_tokens)} tok
+									</span>
+								{/if}
 							</div>
 							<p class="mt-1 truncate text-[11px] leading-tight text-foreground/80">
 								{run.user_message ?? run.final_response_preview ?? '—'}
@@ -449,6 +563,14 @@
 									`${trace.retrieved_chunks.length} chunks above threshold · scope ${trace.rag_scope.length}`,
 									Database
 								)}
+								{#if trace.rag_error}
+									<p
+										class="mb-3 rounded-xl border bg-red-500/5 p-4 text-xs text-red-400"
+										style="border-color:color-mix(in srgb, var(--ds-border) 50%, #ef4444 50%)"
+									>
+										<strong>Retrieval error:</strong> {trace.rag_error}
+									</p>
+								{/if}
 								{#if trace.retrieved_chunks.length === 0}
 									{#if trace.rag_scope.length === 0}
 										<p
@@ -499,6 +621,66 @@
 									Bot
 								)}
 								<div class="space-y-3">
+									{#if trace.token_usage}
+										<div
+											class="rounded-xl border bg-[var(--canvas)] p-3"
+											style="border-color:var(--ds-border)"
+										>
+											<p class="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+												Token Usage ({trace.token_usage.llm_calls} LLM call{trace.token_usage.llm_calls === 1 ? '' : 's'})
+											</p>
+											<div class="grid grid-cols-3 gap-2 text-xs">
+												<div class="rounded-md bg-blue-500/10 p-2">
+													<p class="text-[10px] text-muted-foreground uppercase tracking-wider">Prompt</p>
+													<p class="font-mono text-base font-semibold text-blue-400">{fmtTokens(trace.token_usage.prompt_tokens)}</p>
+												</div>
+												<div class="rounded-md bg-emerald-500/10 p-2">
+													<p class="text-[10px] text-muted-foreground uppercase tracking-wider">Completion</p>
+													<p class="font-mono text-base font-semibold text-emerald-400">{fmtTokens(trace.token_usage.completion_tokens)}</p>
+												</div>
+												<div class="rounded-md bg-purple-500/10 p-2">
+													<p class="text-[10px] text-muted-foreground uppercase tracking-wider">Total</p>
+													<p class="font-mono text-base font-semibold text-purple-400">{fmtTokens(trace.token_usage.total_tokens)}</p>
+												</div>
+											</div>
+											{#if trace.token_usage.embedding_tokens > 0}
+												<div class="mt-2 flex items-center gap-2 rounded-md bg-amber-500/10 p-2 text-xs">
+													<Database class="size-3 text-amber-400" />
+													<span class="text-[11px] text-muted-foreground">Embeddings ({trace.token_usage.embedding_calls} call):</span>
+													<span class="font-mono text-amber-400">{fmtTokens(trace.token_usage.embedding_tokens)} tok</span>
+												</div>
+											{/if}
+											{#if trace.token_usage.per_call.length > 1}
+												<details class="mt-2">
+													<summary class="cursor-pointer text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+														Per-call breakdown ({trace.token_usage.per_call.length})
+													</summary>
+													<table class="mt-2 w-full font-mono text-[11px]">
+														<thead>
+															<tr class="text-muted-foreground/70">
+																<th class="text-left">Iter</th>
+																<th class="text-left">Phase</th>
+																<th class="text-right">Prompt</th>
+																<th class="text-right">Compl</th>
+																<th class="text-right">Total</th>
+															</tr>
+														</thead>
+														<tbody>
+															{#each trace.token_usage.per_call as call, idx (idx)}
+																<tr class="border-t" style="border-color:var(--ds-border)">
+																	<td class="py-1">{call.iteration ?? 0}</td>
+																	<td class="py-1 text-muted-foreground/80">{call.phase ?? '—'}</td>
+																	<td class="py-1 text-right text-blue-400">{fmtTokens(call.prompt_tokens)}</td>
+																	<td class="py-1 text-right text-emerald-400">{fmtTokens(call.completion_tokens)}</td>
+																	<td class="py-1 text-right text-purple-400">{fmtTokens(call.total_tokens)}</td>
+																</tr>
+															{/each}
+														</tbody>
+													</table>
+												</details>
+											{/if}
+										</div>
+									{/if}
 									{#if trace.available_tools.length > 0}
 										<div
 											class="rounded-xl border bg-[var(--canvas)] p-3"
@@ -604,60 +786,96 @@
 										</details>
 									{/if}
 								</div>
-							{:else if selectedNode === 'tools'}
+							{:else if selectedNode === 'tools' || selectedNode === 'skills'}
+								{@const isSkill = selectedNode === 'skills'}
+								{@const items = isSkill ? skillCalls : toolCalls}
 								{@render detailHeader(
-									'Tool calls',
-									`${trace.pending_tool_calls.length} call(s) suggested by the model`,
-									Wrench
+									isSkill ? 'Skill calls' : 'Tool calls',
+									`${items.length} call${items.length === 1 ? '' : 's'} executed`,
+									isSkill ? MessagesSquare : Wrench
 								)}
-								<div class="space-y-3">
-									{#if trace.pending_tool_calls.length > 0}
-										<ol class="space-y-2">
-											{#each trace.pending_tool_calls as call, idx (idx)}
-												<li
-													class="rounded-xl border bg-[var(--canvas)] p-3"
-													style="border-color:var(--ds-border)"
-												>
-													<p class="font-mono text-xs">
-														<span class="text-blue-400">{call.name ?? '(unnamed)'}</span>
-													</p>
-													<pre
-														class="mt-1 overflow-x-auto font-mono text-[11px] text-foreground/80">{fmtJson(
-															call.arguments
-														)}</pre>
-												</li>
-											{/each}
-										</ol>
-									{/if}
-									{#if trace.tool_results.length > 0}
-										<p
-											class="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+								<ol class="space-y-3">
+									{#each items as call, idx (idx)}
+										{@const parsedArgs = parseMaybeJson(call.arguments)}
+										{@const httpStatus = extractHttpStatus(call.output)}
+										{@const httpData = extractHttpData(call.output)}
+										{@const outputBytes = approxBytes(call.output)}
+										<li
+											class="overflow-hidden rounded-xl border bg-[var(--canvas)]"
+											style="border-color:var(--ds-border)"
 										>
-											Tool Results ({trace.tool_results.length})
-										</p>
-										<ol class="space-y-2">
-											{#each trace.tool_results as result, idx (idx)}
-												<li
-													class="rounded-xl border bg-[var(--canvas)] p-3"
-													style="border-color:var(--ds-border)"
-												>
-													<p class="mb-1 font-mono text-xs">
-														<span class="text-blue-400">{result.name ?? '(unnamed)'}</span>
+											<header
+												class="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2"
+												style="border-color:var(--ds-border);background:var(--surface-hover)"
+											>
+												<div class="flex items-center gap-2 min-w-0">
+													<span
+														class="flex size-6 shrink-0 items-center justify-center rounded-md"
+														style="background:color-mix(in srgb,{isSkill ? '#10b981' : '#3b82f6'} 15%,transparent);border:1px solid color-mix(in srgb,{isSkill ? '#10b981' : '#3b82f6'} 30%,transparent)"
+													>
+														{#if isSkill}
+															<MessagesSquare class="size-3 text-emerald-400" />
+														{:else}
+															<Wrench class="size-3 text-blue-400" />
+														{/if}
+													</span>
+													<span class="font-mono text-xs font-semibold {isSkill ? 'text-emerald-400' : 'text-blue-400'} truncate">
+														{call.name ?? '(unnamed)'}
+													</span>
+												</div>
+												<div class="flex items-center gap-1.5">
+													{#if httpStatus !== null}
+														<span class="rounded px-1.5 py-0.5 font-mono text-[10px] {statusBadgeClass(httpStatus)}">
+															HTTP {httpStatus}
+														</span>
+													{/if}
+													{#if outputBytes > 0}
+														<span class="rounded bg-zinc-500/10 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+															{fmtBytes(outputBytes)}
+														</span>
+													{/if}
+													{#if call.iteration != null}
+														<span class="rounded bg-zinc-500/10 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+															iter {call.iteration}
+														</span>
+													{/if}
+												</div>
+											</header>
+
+											<div class="space-y-3 p-3">
+												<div>
+													<p class="mb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+														Arguments
 													</p>
-													{#if result.output !== undefined && result.output !== null}
+													{#if isEmptyArgs(parsedArgs)}
+														<p class="text-[11px] text-muted-foreground/60 italic">(no arguments)</p>
+													{:else}
 														<pre
-															class="overflow-x-auto font-mono text-[11px] text-foreground/80">{fmtJson(
-																result.output
-															)}</pre>
+															class="overflow-x-auto rounded-md bg-zinc-500/5 p-2 font-mono text-[11px] leading-relaxed text-foreground/80">{fmtJson(parsedArgs)}</pre>
 													{/if}
-													{#if result.error}
-														<p class="mt-1 text-[11px] text-red-400">Error: {result.error}</p>
-													{/if}
-												</li>
-											{/each}
-										</ol>
-									{/if}
-								</div>
+												</div>
+
+												{#if call.error}
+													<div>
+														<p class="mb-1 text-[10px] font-semibold tracking-wider text-red-400 uppercase">
+															Error
+														</p>
+														<p class="rounded-md bg-red-500/5 p-2 text-[11px] text-red-400">{call.error}</p>
+													</div>
+												{:else if call.output !== undefined && call.output !== null}
+													<details class="group" open={outputBytes < 2000}>
+														<summary class="mb-1 flex cursor-pointer items-center justify-between text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+															<span>Output</span>
+															<span class="text-muted-foreground/60 normal-case">click to toggle</span>
+														</summary>
+														<pre
+															class="max-h-[400px] overflow-auto rounded-md bg-zinc-500/5 p-2 font-mono text-[11px] leading-relaxed text-foreground/80">{fmtJson(httpData)}</pre>
+													</details>
+												{/if}
+											</div>
+										</li>
+									{/each}
+								</ol>
 							{:else if selectedNode === 'handoff'}
 								{@render detailHeader(
 									'Handoff',
@@ -713,6 +931,12 @@
 							<span class="font-mono text-primary">#{metadata.run_id.slice(0, 8)}</span>
 							<span class="opacity-50">·</span>
 							<span class="text-primary">{fmtMs(trace.duration_ms)}</span>
+							{#if trace.token_usage && trace.token_usage.total_tokens > 0}
+								<span class="opacity-50">·</span>
+								<span class="text-primary" title={`prompt ${trace.token_usage.prompt_tokens} / completion ${trace.token_usage.completion_tokens}`}>
+									{fmtTokens(trace.token_usage.total_tokens)} tok
+								</span>
+							{/if}
 							<span class="opacity-50">·</span>
 							<span class="text-primary">{trace.model ?? '?'}</span>
 							<span class="opacity-50">·</span>

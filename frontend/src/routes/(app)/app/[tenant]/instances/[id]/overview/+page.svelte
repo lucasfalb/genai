@@ -105,6 +105,17 @@
 		});
 	}
 
+	function inferProviderFromModel(value: string): string | null {
+		if (!value) return null;
+		const m = value.toLowerCase();
+		if (m.startsWith('gpt-') || m.startsWith('o1') || m.startsWith('o3') || m.startsWith('o4') || m.startsWith('chatgpt') || m.startsWith('text-embedding')) return 'openai';
+		if (m.startsWith('claude-')) return 'anthropic';
+		if (m.startsWith('gemini-') || m.startsWith('models/gemini')) return 'google';
+		if (m.startsWith('mistral-') || m.startsWith('open-mistral') || m.startsWith('codestral')) return 'mistral';
+		if (m.startsWith('grok-')) return 'xai';
+		return null;
+	}
+
 	$effect(() => {
 		if (model && provider) return;
 		if (!tenantProviders) return;
@@ -113,6 +124,12 @@
 		const detected = agentUi.providers.find((p) => p.models.some((m) => m.value === model));
 		if (detected && availableProviders.some((p) => p.value === detected.value)) {
 			provider = detected.value;
+			fetchModels();
+			return;
+		}
+		const inferred = inferProviderFromModel(model);
+		if (inferred && availableProviders.some((p) => p.value === inferred)) {
+			provider = inferred;
 			fetchModels();
 			return;
 		}

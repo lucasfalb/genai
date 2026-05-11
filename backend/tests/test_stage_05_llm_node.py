@@ -13,7 +13,7 @@ async def test_llm_node_populates_final_response(monkeypatch) -> None:
     class FakeCompletions:
         async def create(self, **kwargs):
             calls.append(kwargs)
-            return _response(content="Hello from LLM.")
+            return _stream_content(["Hello ", "from LLM."])
 
     monkeypatch.setattr(llm_client, "_create_openai_client", lambda **_kwargs: _client(FakeCompletions()))
 
@@ -29,9 +29,11 @@ async def test_llm_node_populates_final_response(monkeypatch) -> None:
         }
     )
 
-    assert result == {"final_response": "Hello from LLM."}
+    assert result["final_response"] == "Hello from LLM."
+    assert "token_usage" in result
     assert calls[0]["model"] == "gpt-test"
     assert calls[0]["messages"][0] == {"role": "system", "content": "You are helpful."}
+    assert calls[0]["stream"] is True
     assert "tools" not in calls[0]
 
 
@@ -41,16 +43,7 @@ async def test_llm_node_populates_pending_tool_calls(monkeypatch) -> None:
     class FakeCompletions:
         async def create(self, **kwargs):
             calls.append(kwargs)
-            return _response(
-                finish_reason="tool_calls",
-                tool_calls=[
-                    _tool_call(
-                        call_id="call-1",
-                        name="search_docs",
-                        arguments='{"query": "billing"}',
-                    )
-                ],
-            )
+            return _stream_tool_call(call_id="call-1", name="search_docs", arguments='{"query": "billing"}')
 
     monkeypatch.setattr(llm_client, "_create_openai_client", lambda **_kwargs: _client(FakeCompletions()))
 
@@ -66,9 +59,10 @@ async def test_llm_node_populates_pending_tool_calls(monkeypatch) -> None:
         }
     )
 
-    assert result == {
-        "pending_tool_calls": [{"name": "search_docs", "arguments": {"query": "billing"}, "id": "call-1"}]
-    }
+    assert result["pending_tool_calls"] == [
+        {"name": "search_docs", "arguments": {"query": "billing"}, "id": "call-1"}
+    ]
+    assert "token_usage" in result
     assert calls[0]["tool_choice"] == "auto"
     assert calls[0]["tools"][0]["function"]["name"] == "search_docs"
 
@@ -76,10 +70,7 @@ async def test_llm_node_populates_pending_tool_calls(monkeypatch) -> None:
 async def test_llm_node_rejects_invalid_tool_arguments(monkeypatch) -> None:
     class FakeCompletions:
         async def create(self, **_kwargs):
-            return _response(
-                finish_reason="tool_calls",
-                tool_calls=[_tool_call(call_id="call-1", name="search_docs", arguments="{bad-json}")],
-            )
+            return _stream_tool_call(call_id="call-1", name="search_docs", arguments="{bad-json}")
 
     monkeypatch.setattr(llm_client, "_create_openai_client", lambda **_kwargs: _client(FakeCompletions()))
 
@@ -99,7 +90,7 @@ async def test_llm_node_rejects_unsupported_provider() -> None:
     with pytest.raises(LLMProviderError, match="Unsupported AI provider"):
         await llm_node(
             {
-                "ai_provider": "anthropic",
+                "ai_provider": "cohere",
                 "ai_api_key": "sk-test",
                 "messages": [{"role": "user", "content": "hello"}],
             }
@@ -110,19 +101,28 @@ def _client(completions):
     return SimpleNamespace(chat=SimpleNamespace(completions=completions))
 
 
-def _response(*, content: str = "", finish_reason: str = "stop", tool_calls: list | None = None):
-    return SimpleNamespace(
-        choices=[
-            SimpleNamespace(
-                finish_reason=finish_reason,
-                message=SimpleNamespace(content=content, tool_calls=tool_calls),
-            )
-        ]
-    )
+def _stream_content(pieces: list[str]):
+    chunks = [
+        SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=p, tool_calls=None))])
+        for p in pieces
+    ]
+    return _async_iter(chunks)
 
 
-def _tool_call(*, call_id: str, name: str, arguments: str):
-    return SimpleNamespace(
+def _stream_tool_call(*, call_id: str, name: str, arguments: str):
+    tc = SimpleNamespace(
+        index=0,
         id=call_id,
         function=SimpleNamespace(name=name, arguments=arguments),
     )
+    chunk = SimpleNamespace(
+        choices=[SimpleNamespace(delta=SimpleNamespace(content=None, tool_calls=[tc]))]
+    )
+    return _async_iter([chunk])
+
+
+def _async_iter(items: list):
+    async def gen():
+        for item in items:
+            yield item
+    return gen()

@@ -26,6 +26,8 @@ def build_run_trace(
     chunks = result_state.get("retrieved_chunks") or []
     pending = result_state.get("pending_tool_calls") or []
     tool_results = result_state.get("tool_results") or []
+    executed = result_state.get("executed_tool_calls") or []
+    token_usage = result_state.get("token_usage") or {}
     duration_ms = max(0, int((completed_at - started_at).total_seconds() * 1000))
 
     return _redact({
@@ -55,6 +57,10 @@ def build_run_trace(
         "retrieved_chunks": [_normalize_chunk(c) for c in chunks],
         "pending_tool_calls": [_normalize_tool_call(c) for c in pending],
         "tool_results": [_normalize_tool_result(r) for r in tool_results],
+        "executed_tool_calls": [_normalize_executed_call(c) for c in executed],
+        "token_usage": _normalize_token_usage(token_usage),
+        "rag_error": result_state.get("rag_error"),
+        "run_error": result_state.get("run_error"),
         "handoff_target": result_state.get("handoff_target"),
         "handoff_summary": result_state.get("handoff_summary"),
         "citations": list(result_state.get("citations") or []),
@@ -96,6 +102,42 @@ def _normalize_tool_result(result: Any) -> dict:
         "name": result.get("name") or result.get("tool"),
         "output": result.get("output") or result.get("result"),
         "error": result.get("error"),
+    }
+
+
+def _normalize_token_usage(usage: Any) -> dict:
+    if not isinstance(usage, dict):
+        return {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "llm_calls": 0,
+            "embedding_tokens": 0,
+            "embedding_calls": 0,
+            "per_call": [],
+        }
+    return {
+        "prompt_tokens": int(usage.get("prompt_tokens", 0) or 0),
+        "completion_tokens": int(usage.get("completion_tokens", 0) or 0),
+        "total_tokens": int(usage.get("total_tokens", 0) or 0),
+        "llm_calls": int(usage.get("llm_calls", 0) or 0),
+        "embedding_tokens": int(usage.get("embedding_tokens", 0) or 0),
+        "embedding_calls": int(usage.get("embedding_calls", 0) or 0),
+        "per_call": list(usage.get("per_call") or []),
+    }
+
+
+def _normalize_executed_call(call: Any) -> dict:
+    if not isinstance(call, dict):
+        return {"name": str(call)}
+    return {
+        "id": call.get("id"),
+        "name": call.get("name") or call.get("tool"),
+        "kind": call.get("kind") or "tool",
+        "arguments": call.get("arguments") or call.get("args"),
+        "output": call.get("output"),
+        "error": call.get("error"),
+        "iteration": call.get("iteration"),
     }
 
 

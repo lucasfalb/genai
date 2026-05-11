@@ -73,10 +73,10 @@ class PromptBuilder:
         tool_parts: list[str] = []
 
         if skills:
-            blocks = "\n\n".join(s.prompt_block.strip() for s in skills)
+            blocks = "\n\n".join(_effective_prompt_block(s) for s in skills)
             tool_parts.append(f"### Habilidades Disponíveis\n{blocks}")
         if tools:
-            blocks = "\n\n".join(t.prompt_block.strip() for t in tools)
+            blocks = "\n\n".join(_effective_prompt_block(t) for t in tools)
             tool_parts.append(f"### Ferramentas Disponíveis\n{blocks}")
         if linked_agents:
             lines = [
@@ -121,6 +121,14 @@ class PromptBuilder:
             "guardrails": row.guardrails or [],
             "constraints": getattr(row, "constraints", None) or [],
         }
+
+
+def _effective_prompt_block(item) -> str:
+    config = getattr(item, "config", None) or {}
+    override = config.get("prompt_block_override")
+    if isinstance(override, str) and override.strip():
+        return override.strip()
+    return (item.prompt_block or "").strip()
 
 
 def _format_instruction_blocks(blocks: list[dict]) -> str:

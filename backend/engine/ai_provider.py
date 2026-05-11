@@ -36,6 +36,53 @@ class AIProviderResolver:
     def __init__(self, connection: AsyncConnection) -> None:
         self.connection = connection
 
+    async def resolve_embedding_api_key(self, *, tenant_id: UUID) -> str | None:
+        """Return an OpenAI API key suitable for embeddings.
+
+        Priority:
+        1. Tenant's openai provider entry (if enabled + has key)
+        2. System settings ai_api_key when ai_provider == 'openai'
+        3. settings.openai_embedding_api_key / settings.openai_api_key (env)
+        """
+        result = await self.connection.execute(
+            text(
+                """
+                SELECT provider->>'api_key_encrypted' AS api_key_encrypted
+                FROM tenants,
+                     LATERAL jsonb_array_elements(
+                       COALESCE(providers_config->'providers', '[]'::jsonb)
+                     ) AS provider
+                WHERE id = :tenant_id
+                  AND provider->>'name' = 'openai'
+                  AND COALESCE((provider->>'enabled')::boolean, false) = true
+                  AND provider->>'api_key_encrypted' IS NOT NULL
+                LIMIT 1
+                """
+            ),
+            {"tenant_id": tenant_id},
+        )
+        row = result.one_or_none()
+        if row is not None and row.api_key_encrypted:
+            return decrypt_api_key(row.api_key_encrypted)
+
+        sys_result = await self.connection.execute(
+            text(
+                """
+                SELECT ai_api_key_encrypted
+                FROM system_settings
+                WHERE id = 1
+                  AND ai_provider = 'openai'
+                  AND ai_api_key_encrypted IS NOT NULL
+                LIMIT 1
+                """
+            ),
+        )
+        sys_row = sys_result.one_or_none()
+        if sys_row is not None and sys_row.ai_api_key_encrypted:
+            return decrypt_api_key(sys_row.ai_api_key_encrypted)
+
+        return settings.openai_embedding_api_key or settings.openai_api_key or None
+
     async def resolve(self, *, tenant_id: UUID) -> ResolvedAIConfig:
         tenant_cfg = await self._get_tenant_config(tenant_id)
         if tenant_cfg is not None:

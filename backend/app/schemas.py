@@ -280,6 +280,11 @@ class ToolDefinitionRequest(BaseModel):
     schema_: dict = Field(default_factory=dict, alias="schema", serialization_alias="schema")
     executor: str = Field(min_length=1, max_length=240)
     is_builtin: bool = False
+    method: str = Field(default="GET", pattern=r"^(GET|POST|PUT|PATCH|DELETE)$")
+    endpoint: str | None = None
+    headers_template: dict = Field(default_factory=dict)
+    body_template: str | None = None
+    variables_schema: list[dict] = Field(default_factory=list)
 
 
 class ToolDefinitionResponse(ToolDefinitionRequest):
@@ -336,6 +341,7 @@ class RegistrySkillMetadata(BaseModel):
     input_schema: dict
     output_schema: dict
     requires_credential: bool
+    credential_schema: dict | None = None
     config: dict
 
 
@@ -350,6 +356,11 @@ class RegistryToolMetadata(BaseModel):
     schema_: dict = Field(alias="schema", serialization_alias="schema")
     executor: str
     is_builtin: bool
+    method: str = "GET"
+    endpoint: str | None = None
+    headers_template: dict = Field(default_factory=dict)
+    body_template: str | None = None
+    variables_schema: list[dict] = Field(default_factory=list)
     config: dict
 
 
@@ -451,6 +462,9 @@ class RunTraceListItem(BaseModel):
     duration_ms: int
     user_message: str | None = None
     final_response_preview: str | None = None
+    total_tokens: int | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
 
 
 class SystemSettingsUpdateRequest(BaseModel):

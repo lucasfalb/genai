@@ -1,4 +1,6 @@
+import asyncio
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
@@ -6,12 +8,17 @@ from uuid import UUID, uuid4
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.schemas import ChatEvent
+
+logger = logging.getLogger("engine.executor")
 from database.repositories.run_traces import RunTraceRepository
 from database.repositories.sessions import SessionRepository
-from engine.base_graph import create_base_graph
+from engine.base_graph import create_base_graph, delta_sink_var
 from engine.bootstrap import RunBootstrap
 from engine.run_trace import build_run_trace
 from engine.session_lock import SessionLock
+
+
+_STREAM_SENTINEL = object()
 
 
 @dataclass
@@ -19,36 +26,107 @@ class AgentRunStream:
     repository: SessionRepository
     lock: SessionLock
     tenant_id: UUID
+    instance_id: UUID
     session_id: UUID
     run_id: str
-    response: str
+    channel: str
     user_event: ChatEvent
-    trace: dict | None = None
+    user_message: str
+    bootstrap_state: dict
+    graph_task: asyncio.Task
+    delta_queue: asyncio.Queue
+    trace_repository: RunTraceRepository
+    started_at: datetime
     _closed: bool = field(default=False, init=False)
 
     async def events(self):
         try:
             yield self.user_event
+            buffer = ""
+            while True:
+                if self.graph_task.done() and self.delta_queue.empty():
+                    break
+                try:
+                    item = await asyncio.wait_for(self.delta_queue.get(), timeout=0.25)
+                except asyncio.TimeoutError:
+                    continue
+                if item is _STREAM_SENTINEL:
+                    break
+                buffer += str(item)
+                yield ChatEvent(
+                    event="assistant.delta",
+                    session_id=self.session_id,
+                    content=buffer,
+                )
+
+            run_error: str | None = None
+            result_state: dict = {}
+            try:
+                result_state = await self.graph_task
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                run_error = f"{type(exc).__name__}: {str(exc)[:500]}"
+                logger.exception(
+                    "Agent run failed | tenant=%s instance=%s run_id=%s",
+                    self.tenant_id, self.instance_id, self.run_id,
+                )
+
+            response = (result_state.get("final_response") if result_state else None) or buffer or ""
+            if not response and run_error:
+                response = f"[run failed] {run_error}"
+            completed_at = datetime.now(timezone.utc)
+
             assistant_message = await self.repository.append_message(
                 tenant_id=self.tenant_id,
                 session_id=self.session_id,
                 role="assistant",
-                content=self.response,
-                metadata={"engine": "llm"},
+                content=response,
+                metadata={"engine": "llm", "error": run_error} if run_error else {"engine": "llm"},
             )
-            yield ChatEvent(
-                event="assistant.delta",
-                session_id=self.session_id,
-                sequence_no=assistant_message.sequence_no,
-                content=self.response,
-            )
-            if self.trace is not None:
+
+            if buffer != response:
                 yield ChatEvent(
-                    event="run.trace",
+                    event="assistant.delta",
                     session_id=self.session_id,
                     sequence_no=assistant_message.sequence_no,
-                    metadata={"run_id": self.run_id, "trace": self.trace},
+                    content=response,
                 )
+
+            if run_error and isinstance(result_state, dict):
+                result_state.setdefault("run_error", run_error)
+
+            trace = build_run_trace(
+                run_id=self.run_id,
+                tenant_id=self.tenant_id,
+                instance_id=self.instance_id,
+                session_id=self.session_id,
+                channel=self.channel,
+                bootstrap_state=self.bootstrap_state,
+                result_state=result_state,
+                user_message=self.user_message,
+                final_response=response,
+                started_at=self.started_at,
+                completed_at=completed_at,
+                node_timings=self.bootstrap_state.get("_node_timings") or [],
+            )
+            await self.trace_repository.create(
+                run_id=UUID(self.run_id),
+                tenant_id=self.tenant_id,
+                instance_id=self.instance_id,
+                session_id=self.session_id,
+                channel=self.channel,
+                trace=trace,
+                started_at=self.started_at,
+                completed_at=completed_at,
+            )
+
+            yield ChatEvent(
+                event="run.trace",
+                session_id=self.session_id,
+                sequence_no=assistant_message.sequence_no,
+                metadata={"run_id": self.run_id, "trace": trace},
+            )
             yield ChatEvent(
                 event="run.completed",
                 session_id=self.session_id,
@@ -59,6 +137,8 @@ class AgentRunStream:
             await self.close()
 
     async def cancel(self) -> None:
+        if not self.graph_task.done():
+            self.graph_task.cancel()
         await self.close()
 
     async def close(self) -> None:
@@ -139,49 +219,43 @@ class AgentExecutor:
             state["messages"].append({"role": "user", "content": message})
 
             node_timings: list[dict] = []
-            graph = create_base_graph(connection=self.connection, node_timings=node_timings)
-            result_state = await graph.ainvoke(state)
-            response = result_state.get("final_response") or ""
-            completed_at = datetime.now(timezone.utc)
+            state["_node_timings"] = node_timings
+            delta_queue: asyncio.Queue = asyncio.Queue()
 
-            trace = build_run_trace(
-                run_id=run_id,
-                tenant_id=tenant_id,
-                instance_id=instance_id,
-                session_id=session.id,
-                channel=channel,
-                bootstrap_state=state,
-                result_state=result_state,
-                user_message=message,
-                final_response=response,
-                started_at=started_at,
-                completed_at=completed_at,
-                node_timings=node_timings,
-            )
-            await RunTraceRepository(self.connection).create(
-                run_id=UUID(run_id),
-                tenant_id=tenant_id,
-                instance_id=instance_id,
-                session_id=session.id,
-                channel=channel,
-                trace=trace,
-                started_at=started_at,
-                completed_at=completed_at,
-            )
+            def delta_sink(chunk: str) -> None:
+                delta_queue.put_nowait(chunk)
+
+            graph = create_base_graph(connection=self.connection, node_timings=node_timings)
+
+            async def run_graph():
+                token = delta_sink_var.set(delta_sink)
+                try:
+                    return await graph.ainvoke(state)
+                finally:
+                    delta_sink_var.reset(token)
+                    delta_queue.put_nowait(_STREAM_SENTINEL)
+
+            graph_task = asyncio.create_task(run_graph())
 
             return AgentRunStream(
                 repository=repository,
                 lock=self.lock,
                 tenant_id=tenant_id,
+                instance_id=instance_id,
                 session_id=session.id,
                 run_id=run_id,
-                response=response,
+                channel=channel,
                 user_event=ChatEvent(
                     event="message.persisted",
                     session_id=session.id,
                     sequence_no=user_message.sequence_no,
                 ),
-                trace=trace,
+                user_message=message,
+                bootstrap_state=state,
+                graph_task=graph_task,
+                delta_queue=delta_queue,
+                trace_repository=RunTraceRepository(self.connection),
+                started_at=started_at,
             )
         except Exception:
             await self.lock.release(tenant_id=tenant_id, session_id=session.id, run_id=run_id)

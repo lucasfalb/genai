@@ -64,7 +64,7 @@ async def test_rag_node_empty_scope_returns_empty(db_connection: psycopg.Connect
             "system_prompt": SYSTEM_PROMPT,
         })
 
-    assert result == {"retrieved_chunks": []}
+    assert result["retrieved_chunks"] == []
 
 
 async def test_rag_node_no_user_message_returns_empty(db_connection: psycopg.Connection) -> None:
@@ -79,7 +79,7 @@ async def test_rag_node_no_user_message_returns_empty(db_connection: psycopg.Con
             "system_prompt": SYSTEM_PROMPT,
         })
 
-    assert result == {"retrieved_chunks": []}
+    assert result["retrieved_chunks"] == []
 
 
 async def test_rag_node_no_chunks_does_not_modify_prompt(
@@ -96,4 +96,4 @@ async def test_rag_node_no_chunks_does_not_modify_prompt(
             "system_prompt": SYSTEM_PROMPT,
         })
 
-    assert result == {"retrieved_chunks": []}
+    assert result["retrieved_chunks"] == []

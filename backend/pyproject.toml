@@ -43,3 +43,7 @@ include = ["api*", "app*", "database*", "dependencies*", "engine*", "rag*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+filterwarnings = [
+  "ignore::langchain_core._api.deprecation.LangChainPendingDeprecationWarning",
+  "ignore::UserWarning:qdrant_client.async_qdrant_remote",
+]

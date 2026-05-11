@@ -78,6 +78,18 @@ class RunBootstrap:
             tool_schemas=[skill.tool_schema for skill in metadata.skills]
             + [tool.schema_ for tool in metadata.tools]
             + [self._build_handoff_schema(link) for link in linked_agents],
+            tool_configs={
+                tool.slug: {
+                    "executor": tool.executor,
+                    "method": tool.method,
+                    "endpoint": tool.endpoint,
+                    "headers_template": tool.headers_template or {},
+                    "body_template": tool.body_template,
+                    "variables": (tool.config or {}).get("variables") or {},
+                    "http_override": (tool.config or {}).get("http") or {},
+                }
+                for tool in metadata.tools
+            },
             linked_agents=[self._link_to_dict(link) for link in linked_agents],
             rag_scope=instance.rag_scope,
             retrieved_chunks=[],

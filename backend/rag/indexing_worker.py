@@ -161,6 +161,7 @@ class IndexingWorker:
             chunks=chunks,
             embeddings=embeddings,
             embedding_model=settings.embedding_model,
+            source=document.filename,
         )
         logger.info(
             "Upsert to Qdrant done | collection=%s points=%d",

@@ -128,4 +128,9 @@ def _tool_response(record: ToolDefinitionRecord) -> ToolDefinitionResponse:
         schema=record.schema,
         executor=record.executor,
         is_builtin=record.is_builtin,
+        method=record.method,
+        endpoint=record.endpoint,
+        headers_template=record.headers_template,
+        body_template=record.body_template,
+        variables_schema=record.variables_schema,
     )
