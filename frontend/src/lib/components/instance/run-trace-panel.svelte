@@ -209,7 +209,7 @@
 			label: 'Final response',
 			icon: MessageSquare,
 			tone: 'ok',
-			duration: null
+			duration: t.duration_ms
 		});
 		return list;
 	});
@@ -463,8 +463,8 @@
 											class="rounded-xl border bg-amber-500/5 p-4 text-xs text-amber-300"
 											style="border-color:color-mix(in srgb, var(--ds-border) 50%, #f59e0b 50%)"
 										>
-											No chunks above threshold (<code class="font-mono">RAG_SCORE_THRESHOLD</code
-											>). Query may not match indexed content.
+											No chunks above the similarity threshold (<code class="font-mono">RAG_SCORE_THRESHOLD</code
+											>). The query may need rewording, or the threshold may be too restrictive.
 										</p>
 									{/if}
 								{:else}
