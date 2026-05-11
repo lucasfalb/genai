@@ -566,13 +566,10 @@
 									</p>
 									{#each trace.system_prompt_sections as section (section.label)}
 										{#if section.content}
-											{@const isKeySection = /core|instru|guardrail|topic|constraint/iu.test(
-												section.label
-											)}
 											<details
 												class="rounded-xl border bg-[var(--canvas)]"
 												style="border-color:var(--ds-border)"
-												open={isKeySection}
+												open
 											>
 												<summary
 													class="cursor-pointer px-3 py-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"

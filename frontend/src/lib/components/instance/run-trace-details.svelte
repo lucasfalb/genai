@@ -273,6 +273,7 @@
 						<details
 							class="rounded-xl border bg-[var(--canvas)]"
 							style="border-color:var(--ds-border)"
+							open
 						>
 							<summary
 								class="cursor-pointer px-3 py-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
