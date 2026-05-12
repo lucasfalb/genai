@@ -10,6 +10,14 @@ import type {
 	RunTraceResponse
 } from '$lib/api/types';
 
+export interface TenantTraceListParams {
+	limit?: number;
+	started_from?: string;
+	started_to?: string;
+	instance_id?: string;
+	q?: string;
+}
+
 export interface ChatStreamError {
 	status: number;
 	message: string;
@@ -172,5 +180,14 @@ export const tracesApi = {
 		const params: Record<string, string> = { limit: String(limit) };
 		if (sessionId) params.session_id = sessionId;
 		return api.get<RunTraceListItem[]>(`/agent/instances/${instanceId}/runs`, params);
+	},
+	listTenant: (params: TenantTraceListParams | number = 100) => {
+		const resolved = typeof params === 'number' ? { limit: params } : params;
+		const query: Record<string, string> = { limit: String(resolved.limit ?? 100) };
+		if (resolved.started_from) query.started_from = resolved.started_from;
+		if (resolved.started_to) query.started_to = resolved.started_to;
+		if (resolved.instance_id) query.instance_id = resolved.instance_id;
+		if (resolved.q?.trim()) query.q = resolved.q.trim();
+		return api.get<RunTraceListItem[]>('/agent/runs', query);
 	}
 };

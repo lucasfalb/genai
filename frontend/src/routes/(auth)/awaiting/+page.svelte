@@ -32,6 +32,11 @@
 		try {
 			const apiBase = import.meta.env.PUBLIC_API_BASE_URL;
 			let token = authStore.accessToken;
+			if (!token) {
+				toast.error('Session expired. Please sign in again.');
+				await goto('/login');
+				return;
+			}
 
 			const fetchTenants = (bearer: string) =>
 				fetch(`${apiBase}/auth/me/tenants`, {
@@ -51,6 +56,11 @@
 					const refreshJson = await refreshRes.json();
 					authStore.setTokens(refreshJson.data.access_token, refreshJson.data.refresh_token);
 					token = authStore.accessToken;
+					if (!token) {
+						toast.error('Session expired. Please sign in again.');
+						await goto('/login');
+						return;
+					}
 					res = await fetchTenants(token);
 				}
 			}

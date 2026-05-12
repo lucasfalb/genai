@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -82,6 +83,32 @@ async def chat(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.get(
+    "/runs",
+    response_model=ApiResponse[list[RunTraceListItem]],
+    summary="List tenant run traces",
+    description="Lists recent run traces across all agent instances in the selected tenant for the tenant observability dashboard.",
+)
+async def list_tenant_traces(
+    limit: int = Query(default=100, ge=1, le=250),
+    started_from: datetime | None = Query(default=None),
+    started_to: datetime | None = Query(default=None),
+    instance_id: UUID | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=240),
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_AGENT_INSTANCES)),
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[list[RunTraceListItem]]:
+    records = await RunTraceRepository(connection).list_by_tenant(
+        tenant_id=context.tenant_id,
+        limit=limit,
+        started_from=started_from,
+        started_to=started_to,
+        instance_id=instance_id,
+        query=q.strip() if q else None,
+    )
+    return api_success([_trace_list_item(r) for r in records])
 
 
 @router.get(
@@ -179,7 +206,9 @@ def _trace_list_item(record: RunTraceRecord) -> RunTraceListItem:
         duration_ms=duration,
         user_message=user_msg,
         final_response_preview=preview,
-        total_tokens=usage.get("total_tokens"),
-        prompt_tokens=usage.get("prompt_tokens"),
-        completion_tokens=usage.get("completion_tokens"),
+        total_tokens=usage.get("total_tokens") or 0,
+        prompt_tokens=usage.get("prompt_tokens") or 0,
+        completion_tokens=usage.get("completion_tokens") or 0,
+        embedding_tokens=usage.get("embedding_tokens") or 0,
+        embedding_calls=usage.get("embedding_calls") or 0,
     )

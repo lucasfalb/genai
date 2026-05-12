@@ -1,0 +1,23 @@
+meta {
+  name: List Tenant Runs
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/api/v1/agent/runs?limit=100
+  body: none
+  auth: bearer
+}
+
+headers {
+  X-Tenant-ID: {{tenant_id}}
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+settings {
+  encodeUrl: false
+}

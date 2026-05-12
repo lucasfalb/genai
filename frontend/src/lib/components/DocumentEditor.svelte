@@ -116,7 +116,7 @@
 	}
 
 	function insertMarkdown(syntax: string, placeholder = '') {
-		const textarea = document.querySelector('.markdown-textarea') as HTMLTextAreaElement;
+		const textarea = globalThis.document?.querySelector('.markdown-textarea') as HTMLTextAreaElement | null;
 		if (!textarea) return;
 
 		const start = textarea.selectionStart;

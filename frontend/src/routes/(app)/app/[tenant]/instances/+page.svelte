@@ -1,8 +1,15 @@
 <script lang="ts">
 	import Bot from '@lucide/svelte/icons/bot';
 	import Plus from '@lucide/svelte/icons/plus';
+	import Search from '@lucide/svelte/icons/search';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
-	import Sparkles from '@lucide/svelte/icons/sparkles';
+
+	import * as Table from '$lib/components/ui/table';
+	import * as Select from '$lib/components/ui/select';
+	import { Button } from '$lib/components/ui/button';
+	import { Badge } from '$lib/components/ui/badge';
+	import { Input } from '$lib/components/ui/input';
+
 	import { page } from '$app/state';
 	import { tenantBaseFromPath } from '$lib/routes/tenant';
 
@@ -10,74 +17,145 @@
 	const instances = $derived(data.instances);
 	const appBase = $derived(tenantBaseFromPath(page.url.pathname));
 
-	const STATUS_COLOR: Record<string, string> = {
-		active: 'text-emerald-400 bg-emerald-400/10',
-		inactive: 'text-zinc-400 bg-zinc-400/10',
-		draft: 'text-amber-400 bg-amber-400/10'
+	// Estados de Filtro
+	let searchQuery = $state('');
+	let statusFilter = $state('all');
+
+	const statusOptions = [
+		{ value: 'all', label: 'All Status' },
+		{ value: 'active', label: 'Active' },
+		{ value: 'inactive', label: 'Inactive' },
+		{ value: 'draft', label: 'Draft' }
+	];
+
+	// Lógica de filtragem reativa
+	const filteredInstances = $derived(
+		instances.filter((inst) => {
+			const matchesSearch = inst.name.toLowerCase().includes(searchQuery.toLowerCase());
+			const matchesStatus = statusFilter === 'all' || inst.status === statusFilter;
+			return matchesSearch && matchesStatus;
+		})
+	);
+
+	const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
+		active: 'default',
+		inactive: 'secondary',
+		draft: 'outline'
 	};
 </script>
 
-<div class="border-b px-6 py-5" style="border-color:var(--ds-border);background:color-mix(in srgb,var(--surface) 70%,transparent)">
-	<div class="flex items-center justify-between gap-4">
-		<div>
-			<h1 class="font-display text-2xl font-semibold tracking-tight" style="color:var(--text-main)">Agents</h1>
-			<p class="mt-1 text-sm text-muted-foreground">Create, test and operate tenant AI agents.</p>
+<div class="flex flex-col gap-4 p-4">
+	<div class="flex flex-wrap items-center justify-between gap-3">
+		<div class="flex max-w-2xl min-w-[300px] flex-1 items-center gap-2">
+			<div class="relative w-full max-w-xs">
+				<Search class="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
+				<Input placeholder="Search agents..." bind:value={searchQuery} class="h-9 pl-9" />
+			</div>
+
+			<Select.Root type="single" bind:value={statusFilter}>
+				<Select.Trigger class="min-h-9 w-[140px] bg-card">
+					{statusOptions.find((o) => o.value === statusFilter)?.label}
+				</Select.Trigger>
+				<Select.Content>
+					{#each statusOptions as option}
+						<Select.Item value={option.value}>{option.label}</Select.Item>
+					{/each}
+				</Select.Content>
+			</Select.Root>
 		</div>
-		<a href="{appBase}/instances/new" class="inline-flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-500">
+
+		<Button href="{appBase}/instances/new" size="sm" class="h-9 gap-2 shadow-sm">
 			<Plus class="h-4 w-4" />
 			New Agent
-		</a>
+		</Button>
+	</div>
+
+	<div class="overflow-hidden rounded-none border bg-card shadow-sm">
+		<Table.Root class="w-full table-fixed">
+			<Table.Header class="bg-muted/40">
+				<Table.Row class="hover:bg-transparent">
+					<Table.Head class="w-[40%] py-2 text-[11px] font-bold tracking-wider uppercase"
+						>Agent</Table.Head
+					>
+					<Table.Head
+						class="hidden py-2 text-[11px] font-bold tracking-wider uppercase md:table-cell"
+						>Configuration</Table.Head
+					>
+					<Table.Head class="w-[120px] py-2 text-[11px] font-bold tracking-wider uppercase"
+						>Status</Table.Head
+					>
+					<Table.Head class="w-[50px] py-2"></Table.Head>
+				</Table.Row>
+			</Table.Header>
+
+			<Table.Body>
+				{#if filteredInstances.length === 0}
+					<Table.Row>
+						<Table.Cell colspan={4} class="h-32 text-center text-muted-foreground">
+							<div class="flex flex-col items-center gap-1">
+								<span class="text-sm font-medium text-foreground">No agents found</span>
+								<span class="text-xs">Try adjusting your filters or search query.</span>
+							</div>
+						</Table.Cell>
+					</Table.Row>
+				{:else}
+					{#each filteredInstances as inst (inst.id)}
+						<Table.Row class="group transition-colors hover:bg-muted/30">
+							<Table.Cell class="py-3">
+								<a
+									href="{appBase}/instances/{inst.id}"
+									class="flex items-center gap-3 overflow-hidden"
+								>
+									<div
+										class="flex h-8 w-8 shrink-0 items-center justify-center rounded border bg-background transition-all group-hover:border-primary/40"
+									>
+										<Bot class="h-4 w-4 text-muted-foreground group-hover:text-primary" />
+									</div>
+									<span class="truncate text-sm font-semibold">{inst.name}</span>
+								</a>
+							</Table.Cell>
+
+							<Table.Cell class="hidden py-3 md:table-cell">
+								<span class="block truncate text-xs text-muted-foreground">
+									{inst.description || inst.model || '—'}
+								</span>
+							</Table.Cell>
+
+							<Table.Cell class="py-3">
+								<Badge
+									variant={STATUS_VARIANT[inst.status] ?? 'secondary'}
+									class="px-2 py-0 text-[10px] font-bold tracking-tight uppercase"
+								>
+									{inst.status}
+								</Badge>
+							</Table.Cell>
+
+							<Table.Cell class="py-3 text-right">
+								<Button
+									variant="ghost"
+									size="icon"
+									href="{appBase}/instances/{inst.id}"
+									class="h-7 w-7 text-muted-foreground/30 group-hover:text-foreground"
+								>
+									<ChevronRight class="h-4 w-4" />
+								</Button>
+							</Table.Cell>
+						</Table.Row>
+					{/each}
+				{/if}
+			</Table.Body>
+		</Table.Root>
+
+		<div class="border-t bg-muted/20 px-4 py-2">
+			<p class="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+				Showing {filteredInstances.length} of {instances.length} agents
+			</p>
+		</div>
 	</div>
 </div>
 
-<div class="p-6">
-	{#if instances.length === 0}
-		<div
-			class="flex min-h-[420px] flex-col items-center justify-center gap-4 rounded-xl py-16 text-center"
-			style="background:var(--surface);border:1px solid var(--ds-border)"
-		>
-			<div class="flex h-16 w-16 items-center justify-center rounded-2xl" style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2)">
-				<Sparkles class="h-8 w-8 text-blue-400" />
-			</div>
-			<div>
-				<p class="font-display text-lg font-semibold" style="color:var(--text-main)">No agents yet</p>
-				<p class="mt-1 max-w-md text-sm text-muted-foreground">Start with a template or create a blank agent connected to your tenant settings.</p>
-			</div>
-			<a
-				href="{appBase}/instances/new"
-				class="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
-			>
-				<Plus class="h-4 w-4" />
-				Create Agent
-			</a>
-		</div>
-
-	{:else}
-		<div class="overflow-hidden rounded-xl" style="background:var(--surface);border:1px solid var(--ds-border)">
-			{#each instances as inst (inst.id)}
-				<a
-					href="{appBase}/instances/{inst.id}"
-					class="group flex items-center gap-4 border-b px-5 py-4 transition-colors last:border-b-0 hover:bg-white/[0.03]"
-					style="border-color:var(--ds-border)"
-				>
-					<div
-						class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-						style="background:linear-gradient(135deg,rgba(59,130,246,0.2),rgba(139,92,246,0.15));border:1px solid rgba(59,130,246,0.2)"
-					>
-						<Bot class="h-5 w-5 text-blue-400" />
-					</div>
-					<div class="min-w-0 flex-1">
-						<p class="truncate text-base font-semibold" style="color:var(--text-main)">{inst.name}</p>
-						<p class="truncate text-xs text-muted-foreground">{inst.description || inst.model}</p>
-					</div>
-					<span
-						class="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider {STATUS_COLOR[inst.status] ?? STATUS_COLOR.inactive}"
-					>
-						{inst.status}
-					</span>
-					<ChevronRight class="h-4 w-4 shrink-0 text-muted-foreground/40 transition-transform group-hover:translate-x-0.5" />
-				</a>
-			{/each}
-		</div>
-	{/if}
-</div>
+<style>
+	:global(td) {
+		white-space: nowrap;
+	}
+</style>

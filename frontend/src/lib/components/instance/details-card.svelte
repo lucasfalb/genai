@@ -22,7 +22,7 @@
 		providers: AgentProviderOption[];
 	} = $props();
 
-	const availableModels = $derived(() => {
+	const availableModels = $derived.by(() => {
 		const selectedProvider = providers.find(p => p.value === provider);
 		return selectedProvider ? selectedProvider.models : [];
 	});

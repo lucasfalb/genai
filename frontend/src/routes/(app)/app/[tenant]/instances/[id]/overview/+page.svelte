@@ -16,7 +16,7 @@
 	import { instancesApi } from '$lib/api/instances';
 	import { aiSettingsApi } from '$lib/api/aiSettings';
 	import { getErrorMessage } from '$lib/api/client';
-	import { getAgentUiSettings } from '$lib/settings/agent-ui';
+	import { getAgentUiSettings, inferProviderFromModel } from '$lib/settings/agent-ui';
 	import type { AgentInstanceResponse, TenantProvidersResponse } from '$lib/api/types';
 
 	let { data } = $props();
@@ -103,17 +103,6 @@
 		tick().then(() => {
 			ref?.focus();
 		});
-	}
-
-	function inferProviderFromModel(value: string): string | null {
-		if (!value) return null;
-		const m = value.toLowerCase();
-		if (m.startsWith('gpt-') || m.startsWith('o1') || m.startsWith('o3') || m.startsWith('o4') || m.startsWith('chatgpt') || m.startsWith('text-embedding')) return 'openai';
-		if (m.startsWith('claude-')) return 'anthropic';
-		if (m.startsWith('gemini-') || m.startsWith('models/gemini')) return 'google';
-		if (m.startsWith('mistral-') || m.startsWith('open-mistral') || m.startsWith('codestral')) return 'mistral';
-		if (m.startsWith('grok-')) return 'xai';
-		return null;
 	}
 
 	$effect(() => {

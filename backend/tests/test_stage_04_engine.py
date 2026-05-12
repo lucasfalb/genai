@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import psycopg
@@ -252,6 +253,100 @@ async def test_chat_endpoint_cancels_stream_on_disconnect(db_connection: psycopg
     assert chunks == []
     assert run.cancelled is True
     assert run.closed is True
+
+
+async def test_list_tenant_traces_returns_token_usage_for_all_instances(
+    db_connection: psycopg.Connection,
+) -> None:
+    setup = _seed_engine_tenant(db_connection, uuid4().hex)
+    other_setup = _seed_engine_tenant(db_connection, uuid4().hex)
+    session_id = uuid4()
+    other_session_id = uuid4()
+    foreign_session_id = uuid4()
+    older_started_at = datetime.now(timezone.utc) - timedelta(days=2)
+    recent_started_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    foreign_started_at = datetime.now(timezone.utc)
+
+    with db_connection.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO agent_run_traces (
+                run_id, tenant_id, instance_id, session_id, channel,
+                trace, started_at, completed_at
+            )
+            VALUES
+                (
+                    %s, %s, %s, %s, 'api',
+                    '{"duration_ms": 1200, "user_message": "one", "final_response": "first", "token_usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15, "embedding_tokens": 3, "embedding_calls": 1}}',
+                    %s, %s
+                ),
+                (
+                    %s, %s, %s, %s, 'api',
+                    '{"duration_ms": 900, "user_message": "two", "final_response": "second", "token_usage": {"prompt_tokens": 20, "completion_tokens": 8, "total_tokens": 28}}',
+                    %s, %s
+                ),
+                (
+                    %s, %s, %s, %s, 'api',
+                    '{"duration_ms": 500, "token_usage": {"prompt_tokens": 99, "completion_tokens": 99, "total_tokens": 198}}',
+                    %s, %s
+                )
+            """,
+            (
+                uuid4(),
+                setup["tenant_id"],
+                setup["instance_id"],
+                session_id,
+                older_started_at,
+                older_started_at,
+                uuid4(),
+                setup["tenant_id"],
+                setup["instance_id"],
+                other_session_id,
+                recent_started_at,
+                recent_started_at,
+                uuid4(),
+                other_setup["tenant_id"],
+                other_setup["instance_id"],
+                foreign_session_id,
+                foreign_started_at,
+                foreign_started_at,
+            ),
+        )
+        db_connection.commit()
+
+    token = create_access_token(user_id=setup["user_id"], email=setup["email"])
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            "/api/v1/agent/runs?limit=20",
+            headers={"Authorization": f"Bearer {token}", "X-Tenant-ID": str(setup["tenant_id"])},
+        )
+        search_response = await client.get(
+            "/api/v1/agent/runs?limit=20&q=two",
+            headers={"Authorization": f"Bearer {token}", "X-Tenant-ID": str(setup["tenant_id"])},
+        )
+        date_response = await client.get(
+            "/api/v1/agent/runs",
+            params={"limit": 20, "started_from": recent_started_at.isoformat()},
+            headers={"Authorization": f"Bearer {token}", "X-Tenant-ID": str(setup["tenant_id"])},
+        )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert len(data) == 2
+    assert sum(item["total_tokens"] for item in data) == 43
+    assert sum(item["embedding_tokens"] for item in data) == 3
+    assert {item["instance_id"] for item in data} == {str(setup["instance_id"])}
+
+    assert search_response.status_code == 200
+    search_data = search_response.json()["data"]
+    assert len(search_data) == 1
+    assert search_data[0]["user_message"] == "two"
+    assert search_data[0]["total_tokens"] == 28
+
+    assert date_response.status_code == 200
+    date_data = date_response.json()["data"]
+    assert len(date_data) == 1
+    assert date_data[0]["user_message"] == "two"
 
 
 def _seed_engine_tenant(db_connection: psycopg.Connection, suffix: str) -> dict:

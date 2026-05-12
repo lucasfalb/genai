@@ -465,6 +465,8 @@ class RunTraceListItem(BaseModel):
     total_tokens: int | None = None
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
+    embedding_tokens: int | None = None
+    embedding_calls: int | None = None
 
 
 class SystemSettingsUpdateRequest(BaseModel):

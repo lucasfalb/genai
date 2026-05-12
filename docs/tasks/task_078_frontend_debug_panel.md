@@ -24,6 +24,7 @@ Com TASK-077 expondo trace via SSE + REST, o tenant precisa de uma superficie vi
 - [x] Criar componente `lib/components/instance/run-trace-panel.svelte` com colapsaveis: stats, system prompt (camadas), RAG chunks, tools/skills, hand-off, raw JSON, runs recentes.
 - [x] Criar rota `/app/{tenant}/instances/{id}/debug/+page.svelte` montando o painel.
 - [x] Adicionar tab "Debug" em `+layout.svelte`.
+- [x] Implementar dashboard tenant-level em `/app/{tenant}/observability` com consumo de tokens por run e por agente.
 
 ## Non-Goals
 
@@ -47,6 +48,7 @@ Frontend-only. Reutiliza endpoints e SSE da TASK-077.
   - `tracesApi.getLatest(instanceId, sessionId?)` -> `RunTraceResponse`
   - `tracesApi.get(instanceId, runId)` -> `RunTraceResponse`
   - `tracesApi.list(instanceId, sessionId?, limit?)` -> `RunTraceListItem[]`
+  - `tracesApi.listTenant(limit?)` -> `RunTraceListItem[]`
 - **SessionStorage**:
   - `chat_session_<instanceId>` (existente)
   - `chat_last_run_<instanceId>` (novo) — persiste `run_id` do ultimo run.
@@ -72,6 +74,7 @@ Frontend-only. Reutiliza endpoints e SSE da TASK-077.
 - [x] `lib/components/instance/run-trace-panel.svelte` componente completo (stats, prompt layers, RAG, tools, handoff, raw JSON, history).
 - [x] Route `/instances/[id]/debug/+page.svelte`.
 - [x] `+layout.svelte` tabs array com entrada "Debug".
+- [x] Route `/observability/+page.svelte` com KPIs de tokens, tabela de runs e ranking por agente.
 
 ## Acceptance Criteria
 
@@ -79,6 +82,7 @@ Frontend-only. Reutiliza endpoints e SSE da TASK-077.
 - [x] Acessar `/debug` apos enviar uma mensagem renderiza trace com prompt em camadas, chunks RAG (se houver), tools/skills, hand-off (se houver).
 - [x] "Atualizar" re-fetch sem reload de pagina.
 - [x] Lista de runs recentes carrega via `tracesApi.list` e troca trace ao clicar.
+- [x] Observability mostra total, media e split prompt/completion/embedding dos ultimos run traces do tenant.
 - [x] Sem trace: estado vazio com instrucao para enviar mensagem.
 - [x] `npm run check` zero erros nos arquivos novos.
 
@@ -107,3 +111,4 @@ npm run check
 - `[2026-05-10 03:18]`: Tab "Debug" adicionada em `+layout.svelte`.
 - `[2026-05-10 03:20]`: `npm run check` -> zero erros nos arquivos novos. Status -> COMPLETED.
 - `[2026-05-11 04:30]`: Reescrita premium: integracao com `@xyflow/svelte`, grafo de execucao (User -> RAG -> LLM -> Tools/Handoff/Respond) com nos colorizados por estado, reactive auto-load via `chatSessionStore` (Svelte 5 runes), 6 stats cards no topo, secoes com hover, miniMap, controles, badge "live" quando session ativa, fallback amigavel quando nao ha trace, mensagem clara quando RAG retorna 0 chunks (sem hits vs scope vazio). Compatibilidade com TASK-079 (Constraints): grafo continua mostrando System Prompt em camadas (core/instructions/tools/guardrails/constraints).
+- `[2026-05-12 19:30]`: `/observability` substituido por dashboard de consumo de tokens usando `tracesApi.listTenant()` e nomes de agentes de `instancesApi.list()`.

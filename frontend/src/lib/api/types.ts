@@ -720,4 +720,6 @@ export interface RunTraceListItem {
 	total_tokens?: number | null;
 	prompt_tokens?: number | null;
 	completion_tokens?: number | null;
+	embedding_tokens?: number | null;
+	embedding_calls?: number | null;
 }

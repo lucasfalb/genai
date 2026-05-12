@@ -158,7 +158,7 @@
 				class="overflow-hidden rounded-xl border transition-all hover:shadow-lg"
 				style="background:var(--surface);border-color:var(--ds-border)"
 			>
-				<Accordion.Root type="single" collapsible>
+				<Accordion.Root type="single">
 					<Accordion.Item value={provider.value} class="border-0">
 						<Accordion.Trigger class="px-6 py-5 hover:no-underline">
 							<div class="flex flex-1 items-center justify-between pr-4 text-left">

@@ -134,6 +134,56 @@ class RunTraceRepository:
         )
         return [_from_row(row) for row in result.fetchall()]
 
+    async def list_by_tenant(
+        self,
+        *,
+        tenant_id: UUID,
+        limit: int = 100,
+        started_from: datetime | None = None,
+        started_to: datetime | None = None,
+        instance_id: UUID | None = None,
+        query: str | None = None,
+    ) -> list[RunTraceRecord]:
+        filters = ["tenant_id = :tenant_id"]
+        params: dict[str, object] = {"tenant_id": tenant_id, "limit": limit}
+        if started_from is not None:
+            filters.append("started_at >= :started_from")
+            params["started_from"] = started_from
+        if started_to is not None:
+            filters.append("started_at <= :started_to")
+            params["started_to"] = started_to
+        if instance_id is not None:
+            filters.append("instance_id = :instance_id")
+            params["instance_id"] = instance_id
+        if query:
+            filters.append(
+                """
+                (
+                    trace->>'user_message' ILIKE :query
+                    OR trace->>'final_response' ILIKE :query
+                    OR run_id::text ILIKE :query
+                    OR instance_id::text ILIKE :query
+                    OR session_id::text ILIKE :query
+                )
+                """
+            )
+            params["query"] = f"%{query}%"
+
+        result = await self.connection.execute(
+            text(
+                f"""
+                SELECT run_id, tenant_id, instance_id, session_id, channel,
+                       trace, started_at, completed_at, created_at
+                FROM agent_run_traces
+                WHERE {" AND ".join(filters)}
+                ORDER BY created_at DESC
+                LIMIT :limit
+                """
+            ),
+            params,
+        )
+        return [_from_row(row) for row in result.fetchall()]
+
 
 def _from_row(row) -> RunTraceRecord:
     trace = row.trace if isinstance(row.trace, dict) else json.loads(row.trace)
