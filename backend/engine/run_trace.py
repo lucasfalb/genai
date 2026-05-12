@@ -68,6 +68,7 @@ def build_run_trace(
         "started_at": started_at.isoformat(),
         "completed_at": completed_at.isoformat(),
         "duration_ms": duration_ms,
+        "otel_trace_id": result_state.get("_otel_trace_id"),
     })
 
 

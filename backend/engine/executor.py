@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
+from opentelemetry import trace as otel_trace
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.schemas import ChatEvent
@@ -16,6 +17,7 @@ from engine.base_graph import create_base_graph, delta_sink_var
 from engine.bootstrap import RunBootstrap
 from engine.run_trace import build_run_trace
 from engine.session_lock import SessionLock
+from engine.tracer import tracer
 
 
 _STREAM_SENTINEL = object()
@@ -229,11 +231,23 @@ class AgentExecutor:
 
             async def run_graph():
                 token = delta_sink_var.set(delta_sink)
-                try:
-                    return await graph.ainvoke(state)
-                finally:
-                    delta_sink_var.reset(token)
-                    delta_queue.put_nowait(_STREAM_SENTINEL)
+                with tracer.start_as_current_span(
+                    "graph.run",
+                    attributes={
+                        "instance_id": str(instance_id),
+                        "tenant_id": str(tenant_id),
+                        "model": state.get("model", ""),
+                    },
+                ) as span:
+                    try:
+                        result = await graph.ainvoke(state)
+                        span_context = span.get_span_context()
+                        if span_context.is_valid:
+                            result["_otel_trace_id"] = otel_trace.format_trace_id(span_context.trace_id)
+                        return result
+                    finally:
+                        delta_sink_var.reset(token)
+                        delta_queue.put_nowait(_STREAM_SENTINEL)
 
             graph_task = asyncio.create_task(run_graph())
 

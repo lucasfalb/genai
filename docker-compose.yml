@@ -82,6 +82,45 @@ services:
     command: >
       sh -c "cd /app && pip install --no-cache-dir . && python -m rag.indexing_worker"
 
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.119.0
+    container_name: genai-otel-collector
+    restart: unless-stopped
+    depends_on:
+      - tempo
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:13133:13133"
+    volumes:
+      - ./otel-collector-config.yml:/etc/otel-collector-config.yml:ro
+    command: ["--config", "/etc/otel-collector-config.yml"]
+    # healthcheck omitted: grpc_health_probe binary not available in distroless image
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: genai-tempo
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3200:3200"
+    volumes:
+      - ./tempo-config.yml:/etc/tempo.yml:ro
+    command: ["--config.file=/etc/tempo.yml"]
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: genai-grafana
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+      GF_INSTALL_PLUGINS: ""
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/dashboards-provisioning:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+
 volumes:
   postgres_data:
   redis_data:

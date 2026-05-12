@@ -110,7 +110,8 @@ class AIProviderResolver:
             text(
                 """
                 SELECT provider->>'name' AS provider,
-                       provider->>'api_key_encrypted' AS api_key_encrypted
+                       provider->>'api_key_encrypted' AS api_key_encrypted,
+                       provider->>'default_model' AS default_model
                 FROM tenants,
                      LATERAL jsonb_array_elements(
                        COALESCE(providers_config->'providers', '[]'::jsonb)
@@ -127,7 +128,7 @@ class AIProviderResolver:
         row = result.one_or_none()
         if row is None:
             return None
-        default_model = await self._get_system_default_model() or "gpt-5-mini"
+        default_model = row.default_model or await self._get_system_default_model() or "gpt-5-mini"
         return ResolvedAIConfig(
             provider=row.provider,
             api_key=decrypt_api_key(row.api_key_encrypted),

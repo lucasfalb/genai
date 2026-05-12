@@ -1,6 +1,7 @@
 import json
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import text
@@ -85,6 +86,16 @@ class ProviderConfig:
 class TenantProvidersRecord:
     tenant_id: UUID
     providers: list[ProviderConfig]
+
+
+@dataclass(frozen=True)
+class TenantAIConfigRecord:
+    tenant_id: UUID
+    provider: str | None
+    default_model: str | None
+    enabled: bool
+    has_api_key: bool
+    configured_by: UUID | None
 
 
 class AIConfigRepository:
@@ -200,6 +211,102 @@ class AIConfigRepository:
         )
         row = result.one_or_none()
         return _tenant_providers_from_row(row) if row else None
+
+    async def get_tenant_config(self, *, tenant_id: UUID) -> TenantAIConfigRecord | None:
+        result = await self.connection.execute(
+            text("SELECT providers_config FROM tenants WHERE id = :tenant_id"),
+            {"tenant_id": tenant_id},
+        )
+        row = result.one_or_none()
+        if row is None:
+            return None
+        config = row.providers_config if isinstance(row.providers_config, dict) else json.loads(row.providers_config)
+        providers = list(config.get("providers") or [])
+        return _tenant_ai_config_from_provider(tenant_id, providers[0] if providers else None)
+
+    async def upsert_tenant_config(
+        self,
+        *,
+        tenant_id: UUID,
+        configured_by: UUID,
+        provider: str,
+        api_key_encrypted: str,
+        default_model: str | None = None,
+        enabled: bool = True,
+    ) -> TenantAIConfigRecord | None:
+        result = await self.connection.execute(
+            text("SELECT providers_config FROM tenants WHERE id = :tenant_id"),
+            {"tenant_id": tenant_id},
+        )
+        row = result.one_or_none()
+        if row is None:
+            return None
+
+        config = row.providers_config if isinstance(row.providers_config, dict) else json.loads(row.providers_config)
+        providers = list(config.get("providers") or [])
+        current = next((p for p in providers if p.get("name") == provider), {})
+        next_provider = {
+            **current,
+            "name": provider,
+            "api_key_encrypted": api_key_encrypted,
+            "api_key_hint": _api_key_hint(api_key_encrypted),
+            "default_model": default_model,
+            "enabled": enabled,
+            "configured_at": datetime.now(timezone.utc).isoformat(),
+            "configured_by": str(configured_by),
+        }
+        providers = [p for p in providers if p.get("name") != provider]
+        providers.append(next_provider)
+        await self.connection.execute(
+            text(
+                """
+                UPDATE tenants
+                SET providers_config = CAST(:providers_config AS jsonb),
+                    updated_at = now()
+                WHERE id = :tenant_id
+                """
+            ),
+            {"tenant_id": tenant_id, "providers_config": json.dumps({"providers": providers})},
+        )
+        return _tenant_ai_config_from_provider(tenant_id, next_provider)
+
+    async def delete_tenant_config(
+        self, *, tenant_id: UUID, configured_by: UUID
+    ) -> TenantAIConfigRecord | None:
+        result = await self.connection.execute(
+            text("SELECT providers_config FROM tenants WHERE id = :tenant_id"),
+            {"tenant_id": tenant_id},
+        )
+        row = result.one_or_none()
+        if row is None:
+            return None
+
+        config = row.providers_config if isinstance(row.providers_config, dict) else json.loads(row.providers_config)
+        providers = list(config.get("providers") or [])
+        if not providers:
+            return None
+
+        removed = providers[0]
+        remaining = providers[1:]
+        await self.connection.execute(
+            text(
+                """
+                UPDATE tenants
+                SET providers_config = CAST(:providers_config AS jsonb),
+                    updated_at = now()
+                WHERE id = :tenant_id
+                """
+            ),
+            {"tenant_id": tenant_id, "providers_config": json.dumps({"providers": remaining})},
+        )
+        return TenantAIConfigRecord(
+            tenant_id=tenant_id,
+            provider=removed.get("name"),
+            default_model=removed.get("default_model"),
+            enabled=False,
+            has_api_key=False,
+            configured_by=configured_by,
+        )
 
     async def upsert_provider(
         self,
@@ -405,3 +512,30 @@ def _tenant_providers_from_row(row) -> TenantProvidersRecord:
         tenant_id=row.tenant_id,
         providers=providers,
     )
+
+
+def _tenant_ai_config_from_provider(
+    tenant_id: UUID, provider: dict | None
+) -> TenantAIConfigRecord:
+    if not provider:
+        return TenantAIConfigRecord(
+            tenant_id=tenant_id,
+            provider=None,
+            default_model=None,
+            enabled=False,
+            has_api_key=False,
+            configured_by=None,
+        )
+    configured_by = provider.get("configured_by")
+    return TenantAIConfigRecord(
+        tenant_id=tenant_id,
+        provider=provider.get("name"),
+        default_model=provider.get("default_model"),
+        enabled=bool(provider.get("enabled")),
+        has_api_key=bool(provider.get("api_key_encrypted")),
+        configured_by=UUID(configured_by) if configured_by else None,
+    )
+
+
+def _api_key_hint(api_key_encrypted: str) -> str:
+    return f"...{api_key_encrypted[-4:]}" if len(api_key_encrypted) > 4 else "..."

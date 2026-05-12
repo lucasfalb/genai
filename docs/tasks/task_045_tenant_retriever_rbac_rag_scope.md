@@ -4,7 +4,7 @@
 | :--- | :--- |
 | **ID** | TASK-045 |
 | **Group** | RAG |
-| **Status** | DONE |
+| **Status** | COMPLETED |
 | **Stage Ref** | `docs/stages/stage_06_rag.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | CRITICAL |
@@ -62,10 +62,10 @@ Apenas logica de recuperacao. Nao cria endpoints.
 
 ## Acceptance Criteria
 
-- [ ] `retrieve` com `rag_scope=[]` retorna `[]` sem chamar Qdrant.
-- [ ] `retrieve` filtra apenas collections com `indexing_status` permitido.
-- [ ] Chunks retornados tem `text`, `source` e `score`.
-- [ ] Filtro Qdrant inclui `tenant_id` correto (isolamento cross-tenant).
+- [x] `retrieve` com `rag_scope=[]` retorna `[]` sem chamar Qdrant.
+- [x] `retrieve` filtra apenas collections com `indexing_status` permitido.
+- [x] Chunks retornados tem `text`, `source` e `score`.
+- [x] Filtro Qdrant inclui `tenant_id` correto (isolamento cross-tenant).
 
 ## Verification
 

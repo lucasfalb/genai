@@ -535,6 +535,22 @@ class TenantProvidersResponse(BaseModel):
     providers: list[ProviderInfo]
 
 
+class TenantAIConfigRequest(BaseModel):
+    provider: str = Field(pattern=r"^[a-z0-9_-]+$", max_length=80)
+    api_key: str = Field(min_length=1, max_length=512)
+    default_model: str | None = Field(default=None, max_length=120)
+    enabled: bool = True
+
+
+class TenantAIConfigResponse(BaseModel):
+    tenant_id: UUID
+    provider: str | None
+    default_model: str | None
+    enabled: bool
+    has_api_key: bool
+    configured_by: UUID | None = None
+
+
 class ProviderModelInfo(BaseModel):
     id: str
 

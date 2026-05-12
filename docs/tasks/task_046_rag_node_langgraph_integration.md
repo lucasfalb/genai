@@ -4,7 +4,7 @@
 | :--- | :--- |
 | **ID** | TASK-046 |
 | **Group** | RAG |
-| **Status** | DONE |
+| **Status** | COMPLETED |
 | **Stage Ref** | `docs/stages/stage_06_rag.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | HIGH |
@@ -59,9 +59,9 @@ Apenas o node `rag` e integracao com `llm_node`. Nenhum endpoint novo.
 
 ## Acceptance Criteria
 
-- [ ] Com `rag_scope` preenchido, `retrieved_chunks` nao vazio apos `rag_node`.
-- [ ] `rag_scope = []` nao chama Qdrant.
-- [ ] Contexto RAG visivel no prompt enviado ao LLM.
+- [x] Com `rag_scope` preenchido, `retrieved_chunks` nao vazio apos `rag_node`.
+- [x] `rag_scope = []` nao chama Qdrant.
+- [x] Contexto RAG visivel no prompt enviado ao LLM.
 
 ## Verification
 

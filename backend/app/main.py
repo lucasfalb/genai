@@ -19,6 +19,7 @@ from api.v1.superadmin.system_settings import router as superadmin_system_settin
 from api.v1.tenant_invitations import public_router as tenant_invitations_public_router
 from api.v1.tenant_invitations import tenant_router as tenant_invitations_router
 from api.v1.tenant_agent_instances import router as tenant_agent_instances_router
+from api.v1.tenant_ai_config import router as tenant_ai_config_router
 from api.v1.tenant_settings import router as tenant_settings_router
 from api.v1.tenant_collections import router as tenant_collections_router
 from api.v1.tenant_members import router as tenant_members_router
@@ -48,6 +49,7 @@ app.include_router(registry_router, prefix="/api/v1")
 app.include_router(tenant_invitations_router, prefix="/api/v1")
 app.include_router(tenant_invitations_public_router, prefix="/api/v1")
 app.include_router(tenant_agent_instances_router, prefix="/api/v1")
+app.include_router(tenant_ai_config_router, prefix="/api/v1")
 app.include_router(tenant_settings_router, prefix="/api/v1")
 app.include_router(tenant_collections_router, prefix="/api/v1")
 app.include_router(tenant_members_router, prefix="/api/v1")
@@ -63,3 +65,8 @@ app.include_router(superadmin_system_settings_router, prefix="/api/v1")
 )
 async def healthz() -> ApiResponse[dict[str, str]]:
     return api_success({"status": "ok"})
+
+
+from app.otel import setup_otel
+
+setup_otel(app)

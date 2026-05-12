@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from engine.llm_client import complete_chat
 from engine.nodes.rag_node import create_rag_node
 from engine.state import AgentState
+from engine.tracer import tracer
 
 
 delta_sink_var: contextvars.ContextVar[Callable[[str], None] | None] = contextvars.ContextVar(
@@ -41,15 +42,26 @@ async def llm_node(state: AgentState) -> AgentState:
     on_delta = delta_sink_var.get()
 
     openai_messages = [{"role": "system", "content": system_prompt}] + list(messages)
-    completion = await complete_chat(
-        provider=provider,
-        api_key=api_key,
-        model=model,
-        temperature=temperature,
-        messages=openai_messages,
-        tool_schemas=[] if force_finalize else tool_schemas,
-        on_delta=on_delta,
-    )
+    with tracer.start_as_current_span(
+        "llm.call",
+        attributes={
+            "gen_ai.request.model": model,
+            "gen_ai.system": provider,
+            "temperature": temperature,
+        },
+    ) as span:
+        completion = await complete_chat(
+            provider=provider,
+            api_key=api_key,
+            model=model,
+            temperature=temperature,
+            messages=openai_messages,
+            tool_schemas=[] if force_finalize else tool_schemas,
+            on_delta=on_delta,
+        )
+        span.set_attribute("gen_ai.usage.input_tokens", completion.usage.prompt_tokens)
+        span.set_attribute("gen_ai.usage.output_tokens", completion.usage.completion_tokens)
+        span.set_attribute("gen_ai.usage.total_tokens", completion.usage.total_tokens)
 
     current_usage = state.get("token_usage") or {
         "prompt_tokens": 0,
@@ -195,8 +207,14 @@ async def dispatch_node(state: AgentState) -> AgentState:
         executor_key = tool_config.get("executor") or name
         executor = TOOL_EXECUTORS.get(executor_key) or TOOL_EXECUTORS.get("web_fetch")
         if executor:
-            result = await executor(call, tool_config)
-            results.append(result)
+            with tracer.start_as_current_span(
+                "tool.execute",
+                attributes={"tool_name": name, "executor": executor_key},
+            ) as span:
+                result = await executor(call, tool_config)
+                success = not bool(result.get("error")) if isinstance(result, dict) else True
+                span.set_attribute("success", success)
+                results.append(result)
         else:
             results.append({
                 "name": name,
@@ -257,10 +275,15 @@ def handoff_node(state: AgentState) -> AgentState:
     linked_tools = {link["transfer_tool_name"]: link for link in state.get("linked_agents") or []}
     for call in calls:
         if call.get("name") in linked_tools:
-            return {
-                "handoff_target": linked_tools[call["name"]]["target_instance_id"],
-                "handoff_summary": call.get("arguments", {}).get("reason"),
-            }
+            target = linked_tools[call["name"]]["target_instance_id"]
+            with tracer.start_as_current_span(
+                "handoff.resolve",
+                attributes={"target_instance_id": target},
+            ):
+                return {
+                    "handoff_target": target,
+                    "handoff_summary": call.get("arguments", {}).get("reason"),
+                }
     return {}
 
 

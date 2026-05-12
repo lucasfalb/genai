@@ -92,10 +92,21 @@ _Fonte canônica: [`platform_technical_spec.md`](platform_technical_spec.md). A 
 
 ### Fase 6 — Observabilidade e Analytics (semanas 14-16)
 
-- [ ] Traces por execução (skills, tools, hand-offs, RAG)
-- [ ] Métricas Prometheus + Grafana
-- [ ] Dashboard de analytics por tenant
-- [ ] Logs estruturados com redaction de dados sensíveis
+- [x] Traces por execução (skills, tools, hand-offs, RAG) — Stage 10 (TASK-077 a 079)
+- [ ] Métricas Prometheus + Grafana — Stage 10c (futuro)
+- [ ] Dashboard de analytics por tenant — Stage 10c (futuro)
+- [ ] Logs estruturados com redaction de dados sensíveis — Stage 10c (futuro)
+
+### Stage 11 - OpenTelemetry & Tempo Tracing
+
+Stage de tracing distribuido com OpenTelemetry. Ver `docs/stages/stage_10b_otel_observability.md`.
+
+| ID | Task | Status |
+| :--- | :--- | :--- |
+| TASK-080 | [OTel SDK Bootstrap](docs/tasks/task_080_otel_sdk_bootstrap.md) | IN_PROGRESS |
+| TASK-081 | [OTel Collector + Tempo](docs/tasks/task_081_otel_collector_tempo.md) | IN_PROGRESS |
+| TASK-082 | [Manual Tracing in Engine](docs/tasks/task_082_manual_tracing_engine.md) | IN_PROGRESS |
+| TASK-083 | [Grafana Dashboards & E2E](docs/tasks/task_083_grafana_dashboards.md) | IN_PROGRESS |
 
 ### Fase 7 — Polish e Enterprise (semanas 17-20)
 

@@ -46,7 +46,8 @@ async def test_public_system_settings_returns_safe_payload(db_connection: psycop
     assert response.status_code == 200
     assert data["platform_name"] == "ContentFlow"
     assert data["platform_logo_url"] == "https://app.example.com/logo.svg"
-    assert data["public_settings"] == {"theme": "light"}
+    assert data["public_settings"]["theme"] == "light"
+    assert "agent_ui" in data["public_settings"]
     assert "api_key" not in str(data).lower()
     assert "smtp_pass" not in str(data).lower()
 

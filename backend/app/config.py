@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     s3_region: str = "us-east-1"
     upload_max_bytes: int = 50 * 1024 * 1024  # 50 MB
 
+    otel_exporter_otlp_endpoint: str = "http://localhost:4317"
+    otel_service_name: str = "genai-platform"
+    genai_env: str = "development"
+    otel_resource_attributes: str = ""
+
     model_config = SettingsConfigDict(
         env_file=str(REPO_ROOT / ".env"),
         env_file_encoding="utf-8",

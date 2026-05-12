@@ -4,7 +4,7 @@
 | :--- | :--- |
 | **ID** | TASK-047 |
 | **Group** | RAG |
-| **Status** | DONE |
+| **Status** | COMPLETED |
 | **Stage Ref** | `docs/stages/stage_06_rag.md` |
 | **Spec Ref** | `docs/platform_technical_spec.md` |
 | **Priority** | HIGH |
@@ -49,18 +49,18 @@ Validacao somente do Stage 06 e regressao dos stages anteriores.
 
 ## Implementation Checklist
 
-- [x] Rodar `pytest` — 38 testes Stage 06 passando (28 novos + 10 repos/collections existentes).
-- [x] Rodar `validate_openapi.py` — OK.
-- [x] Rodar `validate_tasks.py` — OK (82 tasks validadas).
-- [x] Conferir `genai-endpoints/TenantCollections/` contra rotas novas — 10 rotas, 10 Brunos.
-- [x] Registrar pendencias residuais — test_stage_05_system_settings.py pre-existente (public_settings com agent_ui extra).
+- [x] Rodar `pytest` - 38 testes Stage 06 passando (28 novos + 10 repos/collections existentes).
+- [x] Rodar `validate_openapi.py` - OK.
+- [x] Rodar `validate_tasks.py` - OK (82 tasks validadas).
+- [x] Conferir `genai-endpoints/TenantCollections/` contra rotas novas - 10 rotas, 10 Brunos.
+- [x] Registrar pendencias residuais - test_stage_05_system_settings.py pre-existente (public_settings com agent_ui extra).
 
 ## Acceptance Criteria
 
-- [ ] Pytest passa sem falhas.
-- [ ] OpenAPI valido.
-- [ ] Tasks validadas.
-- [ ] Bruno cobre collections e documents.
+- [x] Pytest passa sem falhas.
+- [x] OpenAPI valido.
+- [x] Tasks validadas.
+- [x] Bruno cobre collections e documents.
 
 ## Verification
 
@@ -82,4 +82,4 @@ python scripts\validate_tasks.py
 ## Execution Log
 
 - `[2026-05-07 00:00]`: Task criada para verificacao final do Stage 06.
-- `[2026-05-09 00:00]`: Verificacao completa — pytest 38/38, OpenAPI OK, tasks OK, Bruno coverage completo. Stage 06 concluido.
+- `[2026-05-09 00:00]`: Verificacao completa - pytest 38/38, OpenAPI OK, tasks OK, Bruno coverage completo. Stage 06 concluido.

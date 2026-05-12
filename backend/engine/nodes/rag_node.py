@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from engine.ai_provider import AIProviderResolver
 from engine.state import AgentState
+from engine.tracer import tracer
 from rag.embedder import EmbedderError, OpenAIEmbedder
 from rag.retriever import TenantRetriever
 
@@ -50,11 +51,22 @@ def create_rag_node(connection: AsyncConnection, *, retriever: TenantRetriever |
         tenant_id = state.get("tenant_id", "")
         try:
             retr = await _get_retriever(tenant_id)
-            chunks = await retr.retrieve(
-                query=query,
-                tenant_id=tenant_id,
-                rag_scope=rag_scope,
-            )
+            with tracer.start_as_current_span(
+                "rag.retrieve",
+                attributes={
+                    "collection_count": len(rag_scope),
+                    "query_length": len(query),
+                },
+            ) as span:
+                chunks = await retr.retrieve(
+                    query=query,
+                    tenant_id=tenant_id,
+                    rag_scope=rag_scope,
+                )
+                span.set_attribute("chunk_count", len(chunks))
+                scores = [c.get("score") for c in chunks if isinstance(c, dict) and c.get("score") is not None]
+                if scores:
+                    span.set_attribute("max_score", max(scores))
         except Exception as exc:
             error_msg = f"{type(exc).__name__}: {str(exc)[:240]}"
             logger.warning(
