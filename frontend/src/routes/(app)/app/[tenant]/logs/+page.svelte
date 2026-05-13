@@ -1,10 +1,13 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { page } from '$app/state';
 	import { tick } from 'svelte';
-	import { CalendarDate } from '@internationalized/date';
 	import type { DateValue } from '@internationalized/date';
-	import type { SuperadminAuditLogResponse, AgentInstanceResponse, CollectionResponse, DocumentResponse } from '$lib/api/types';
+	import type {
+		SuperadminAuditLogResponse,
+		AgentInstanceResponse,
+		CollectionResponse,
+		DocumentResponse
+	} from '$lib/api/types';
+	import { api, getErrorMessage } from '$lib/api/client';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import * as Command from '$lib/components/ui/command/index.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
@@ -21,29 +24,29 @@
 	import X from '@lucide/svelte/icons/x';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
-
-	function parseDateParam(value: string | null): DateValue | undefined {
-		if (!value || value.length < 10) return;
-		try {
-			return new CalendarDate(
-				parseInt(value.slice(0, 4)),
-				parseInt(value.slice(5, 7)),
-				parseInt(value.slice(8, 10))
-			);
-		} catch {
-			return;
-		}
-	}
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+	import { toast } from 'svelte-sonner';
 
 	let { data } = $props();
 	let logs = $state<SuperadminAuditLogResponse[]>(data.logs);
+	let allActions = $state<string[]>(
+		[...new Set(data.logs.map((l: SuperadminAuditLogResponse) => l.action))].sort()
+	);
+	let allResources = $state<string[]>(
+		[...new Set(data.logs.map((l: SuperadminAuditLogResponse) => l.resource))].sort()
+	);
 	let instances = $state<AgentInstanceResponse[]>(data.instances);
 	let collections = $state<CollectionResponse[]>(data.collections);
 	let documents = $state<DocumentResponse[]>(data.documents);
+	let loading = $state(false);
+	let filterReloadTimer: ReturnType<typeof setTimeout> | undefined;
+	let lastResolvedQueryKey = $state('');
+	let inFlightQueryKey: string | null = null;
+	let requestSequence = 0;
 
-	let searchQuery = $state(page.url.searchParams.get('q') ?? '');
-	let actionFilter = $state(page.url.searchParams.get('action') ?? 'all');
-	let resourceFilter = $state(page.url.searchParams.get('resource') ?? 'all');
+	let searchQuery = $state('');
+	let actionFilter = $state('all');
+	let resourceFilter = $state('all');
 	let actionOpen = $state(false);
 	let resourceOpen = $state(false);
 	let dateRangeOpen = $state(false);
@@ -51,33 +54,67 @@
 	let resourceTriggerRef = $state<HTMLButtonElement>(null!);
 
 	let dateRange = $state<{ start: DateValue | undefined; end: DateValue | undefined } | undefined>(
-		(() => {
-			const s = page.url.searchParams.get('started_at');
-			const e = page.url.searchParams.get('ended_at');
-			if (s && e) return { start: parseDateParam(s), end: parseDateParam(e) };
-			return;
-		})()
+		undefined
 	);
+	lastResolvedQueryKey = queryKey(buildAuditQuery());
 
 	const instanceNames = $derived(new Map(instances.map((i) => [i.id, i.name])));
 	const collectionNames = $derived(new Map(collections.map((c) => [c.id, c.name])));
 	const documentNames = $derived(new Map(documents.map((d) => [d.id, d.filename])));
 
-	const uniqueActions = $derived([...new Set(logs.map((l) => l.action))].sort());
-	const uniqueResources = $derived([...new Set(logs.map((l) => l.resource))].sort());
+	const uniqueActions = $derived(allActions);
+	const uniqueResources = $derived(allResources);
 
 	const filteredLogs = $derived.by(() => {
 		const q = searchQuery.toLowerCase().trim();
-		if (!q) return logs;
-		return logs.filter(
-			(l) =>
+		return logs.filter((l) => {
+			if (actionFilter !== 'all' && l.action !== actionFilter) return false;
+			if (resourceFilter !== 'all' && l.resource !== resourceFilter) return false;
+			if (!q) return true;
+			return (
 				l.action.toLowerCase().includes(q) ||
 				l.resource.toLowerCase().includes(q) ||
 				(l.resource_id ?? '').toLowerCase().includes(q) ||
 				(l.user_email ?? '').toLowerCase().includes(q) ||
 				(l.user_name ?? '').toLowerCase().includes(q) ||
 				resolveResourceName(l.resource, l.resource_id).toLowerCase().includes(q)
-		);
+			);
+		});
+	});
+	const isRefetching = $derived(loading && filteredLogs.length > 0);
+	const hasPendingServerFilter = $derived(queryKey(buildAuditQuery()) !== lastResolvedQueryKey || loading);
+	const isLoadingFilteredLogs = $derived(hasPendingServerFilter && filteredLogs.length === 0);
+	const hasActiveFilters = $derived(
+		actionFilter !== 'all' ||
+			resourceFilter !== 'all' ||
+			dateRange !== undefined ||
+			searchQuery.trim() !== ''
+	);
+	const filterKey = $derived(
+		[
+			actionFilter,
+			resourceFilter,
+			dateRange?.start?.toString() ?? '',
+			dateRange?.end?.toString() ?? ''
+		].join('|')
+	);
+	const dateRangeLabel = $derived(
+		dateRange?.start && dateRange?.end
+			? `${dateRange.start.toDate('utc').toLocaleDateString('pt-BR')} - ${dateRange.end.toDate('utc').toLocaleDateString('pt-BR')}`
+			: dateRange?.start
+				? `${dateRange.start.toDate('utc').toLocaleDateString('pt-BR')} - ...`
+				: 'Date range'
+	);
+
+	$effect(() => {
+		filterKey;
+		if (filterReloadTimer) clearTimeout(filterReloadTimer);
+		filterReloadTimer = setTimeout(() => {
+			void loadLogs();
+		}, 350);
+		return () => {
+			if (filterReloadTimer) clearTimeout(filterReloadTimer);
+		};
 	});
 
 	function closeAndFocus(ref: HTMLButtonElement | undefined) {
@@ -98,40 +135,64 @@
 		return log.actor_role || log.actor_type;
 	}
 
-	function hasActiveFilters(): boolean {
-		return actionFilter !== 'all' || resourceFilter !== 'all' || dateRange !== undefined || searchQuery.trim() !== '';
-	}
-
-	function buildUrlParams(): URLSearchParams {
-		const params = new URLSearchParams();
-		if (actionFilter !== 'all') params.set('action', actionFilter);
-		if (resourceFilter !== 'all') params.set('resource', resourceFilter);
-		if (searchQuery.trim()) params.set('q', searchQuery.trim());
+	function buildAuditQuery(): Record<string, string> {
+		const params: Record<string, string> = { limit: '100' };
+		if (actionFilter !== 'all') params.action = actionFilter;
+		if (resourceFilter !== 'all') params.resource = resourceFilter;
 		if (dateRange?.start) {
 			const d = dateRange.start.toDate('utc');
 			d.setUTCHours(0, 0, 0, 0);
-			params.set('started_at', d.toISOString());
+			params.started_at = d.toISOString();
 		}
 		if (dateRange?.end) {
 			const d = dateRange.end.toDate('utc');
 			d.setUTCHours(23, 59, 59, 999);
-			params.set('ended_at', d.toISOString());
+			params.ended_at = d.toISOString();
 		}
 		return params;
 	}
 
+	async function loadLogs(options: { force?: boolean } = {}) {
+		const query = buildAuditQuery();
+		const key = queryKey(query);
+		if (!options.force && key === lastResolvedQueryKey) return;
+		if (key === inFlightQueryKey) return;
+
+		const requestId = ++requestSequence;
+		inFlightQueryKey = key;
+		loading = true;
+		try {
+			const nextLogs = await api.get<SuperadminAuditLogResponse[]>('/tenant/audit', query);
+			if (requestId !== requestSequence) return;
+			logs = nextLogs;
+			for (const log of nextLogs) {
+				if (!allActions.includes(log.action)) allActions = [...allActions, log.action].sort();
+				if (!allResources.includes(log.resource))
+					allResources = [...allResources, log.resource].sort();
+			}
+			lastResolvedQueryKey = key;
+		} catch (err) {
+			if (requestId !== requestSequence) return;
+			toast.error(getErrorMessage(err, 'Nao foi possivel carregar os logs de auditoria.'));
+		} finally {
+			if (requestId === requestSequence) {
+				loading = false;
+				inFlightQueryKey = null;
+			}
+		}
+	}
+
 	function applyFilters() {
-		const params = buildUrlParams();
-		const qs = params.toString();
-		goto(`${page.url.pathname}${qs ? `?${qs}` : ''}`, { replaceState: true, noScroll: true });
+		void loadLogs({ force: true });
 	}
 
 	function clearFilters() {
+		const hadFilters = hasActiveFilters;
 		searchQuery = '';
 		actionFilter = 'all';
 		resourceFilter = 'all';
 		dateRange = undefined;
-		goto(page.url.pathname, { replaceState: true, noScroll: true });
+		if (!hadFilters) void loadLogs({ force: true });
 	}
 
 	function applyFilterOnEnter(event: KeyboardEvent) {
@@ -145,15 +206,16 @@
 	function getActionColor(action: string): string {
 		if (action.includes('created') || action.includes('added')) return 'text-emerald-500';
 		if (action.includes('deleted') || action.includes('removed')) return 'text-red-500';
-		if (action.includes('updated') || action.includes('changed') || action.includes('toggled')) return 'text-blue-500';
+		if (action.includes('updated') || action.includes('changed') || action.includes('toggled'))
+			return 'text-blue-500';
 		return 'text-muted-foreground';
 	}
 
-	const dateRangeLabel = $derived(
-		dateRange?.start && dateRange?.end
-			? `${dateRange.start.toDate('utc').toLocaleDateString('pt-BR')} - ${dateRange.end.toDate('utc').toLocaleDateString('pt-BR')}`
-			: 'Date range'
-	);
+	function queryKey(params: Record<string, string>) {
+		const query = new URLSearchParams(params);
+		query.sort();
+		return query.toString();
+	}
 </script>
 
 <div class="flex flex-col gap-4 p-4">
@@ -232,7 +294,9 @@
 							role="combobox"
 							aria-expanded={resourceOpen}
 						>
-							<span class="truncate">{resourceFilter === 'all' ? 'All Resources' : resourceFilter}</span>
+							<span class="truncate"
+								>{resourceFilter === 'all' ? 'All Resources' : resourceFilter}</span
+							>
 							<ChevronsUpDown class="ms-2 size-4 shrink-0 opacity-50" />
 						</Button>
 					{/snippet}
@@ -301,7 +365,7 @@
 				</Popover.Content>
 			</Popover.Root>
 
-			{#if hasActiveFilters()}
+			{#if hasActiveFilters}
 				<Button
 					variant="ghost"
 					size="sm"
@@ -315,20 +379,54 @@
 		</div>
 	</div>
 
-	<div class="overflow-hidden border bg-card">
-		<Table.Root containerClass="scrollbar-none max-h-[600px] overflow-auto bg-card" class="w-full table-fixed">
+	<div class="relative overflow-hidden border bg-card">
+		{#if isRefetching}
+			<div
+				class="pointer-events-none absolute top-3 right-3 z-10 flex items-center gap-2 border bg-background/90 px-2.5 py-1.5 text-xs text-muted-foreground backdrop-blur"
+			>
+				<RefreshCw class="size-3 animate-spin" />
+				Updating
+			</div>
+		{/if}
+		<Table.Root
+			containerClass="scrollbar-none max-h-[600px] overflow-auto bg-card"
+			class="w-full table-fixed"
+		>
 			<Table.Header class="sticky top-0 z-10 bg-background">
 				<Table.Row class="bg-background hover:bg-background">
-					<Table.Head class="w-[180px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase">Date</Table.Head>
-					<Table.Head class="w-[200px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase">Actor</Table.Head>
-					<Table.Head class="bg-background py-2 text-[11px] font-bold tracking-wider uppercase">Action</Table.Head>
-					<Table.Head class="w-[200px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase">Resource</Table.Head>
-					<Table.Head class="w-[120px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase text-right">Details</Table.Head>
+					<Table.Head
+						class="w-[180px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase"
+						>Date</Table.Head
+					>
+					<Table.Head
+						class="w-[200px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase"
+						>Actor</Table.Head
+					>
+					<Table.Head class="bg-background py-2 text-[11px] font-bold tracking-wider uppercase"
+						>Action</Table.Head
+					>
+					<Table.Head
+						class="w-[200px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase"
+						>Resource</Table.Head
+					>
+					<Table.Head
+						class="w-[120px] bg-background py-2 text-right text-[11px] font-bold tracking-wider uppercase"
+						>Details</Table.Head
+					>
 				</Table.Row>
 			</Table.Header>
 
 			<Table.Body>
-				{#if filteredLogs.length === 0}
+				{#if isLoadingFilteredLogs}
+					<Table.Row class="bg-card hover:bg-card">
+						<Table.Cell colspan={5} class="h-32 text-center text-muted-foreground">
+							<div class="flex flex-col items-center gap-2">
+								<RefreshCw class="size-4 animate-spin" />
+								<span class="text-sm font-medium text-foreground">Loading logs</span>
+							</div>
+						</Table.Cell>
+					</Table.Row>
+				{:else if filteredLogs.length === 0}
 					<Table.Row class="bg-card hover:bg-card">
 						<Table.Cell colspan={5} class="h-32 text-center text-muted-foreground">
 							<div class="flex flex-col items-center gap-1">
@@ -352,9 +450,13 @@
 										<User class="h-3 w-3 shrink-0 text-blue-400" />
 									{/if}
 									<div class="min-w-0">
-										<span class="block truncate text-[11px] font-medium">{resolveUserLabel(log)}</span>
+										<span class="block truncate text-[11px] font-medium"
+											>{resolveUserLabel(log)}</span
+										>
 										{#if log.user_email && log.actor_role}
-											<span class="block truncate font-mono text-[9px] text-muted-foreground">{log.actor_role}</span>
+											<span class="block truncate font-mono text-[9px] text-muted-foreground"
+												>{log.actor_role}</span
+											>
 										{/if}
 									</div>
 								</div>
@@ -371,7 +473,10 @@
 									<Box class="h-3 w-3 shrink-0 text-muted-foreground" />
 									<div class="flex min-w-0 flex-col">
 										<span class="truncate text-[11px] font-medium">{log.resource}</span>
-										<span class="truncate font-mono text-[9px] text-muted-foreground" title={log.resource_id ?? ''}>
+										<span
+											class="truncate font-mono text-[9px] text-muted-foreground"
+											title={log.resource_id ?? ''}
+										>
 											{resolveResourceName(log.resource, log.resource_id)}
 										</span>
 									</div>
@@ -379,7 +484,10 @@
 							</Table.Cell>
 
 							<Table.Cell class="py-3 text-right">
-								<Badge variant="outline" class="h-5 px-1.5 text-[9px] font-bold tracking-tighter uppercase">
+								<Badge
+									variant="outline"
+									class="h-5 px-1.5 text-[9px] font-bold tracking-tighter uppercase"
+								>
 									Audit
 								</Badge>
 							</Table.Cell>

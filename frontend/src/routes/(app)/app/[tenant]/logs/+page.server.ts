@@ -1,24 +1,16 @@
 import { tenantBackendRequest } from '$lib/server/api';
-import type { SuperadminAuditLogResponse, AgentInstanceResponse, CollectionResponse, DocumentResponse } from '$lib/api/types';
+import type {
+	SuperadminAuditLogResponse,
+	AgentInstanceResponse,
+	CollectionResponse,
+	DocumentResponse
+} from '$lib/api/types';
 
-export const load = async ({ fetch, parent, url }) => {
+export const load = async ({ fetch, parent }) => {
 	const session = await parent();
 
-	const auditParams = new URLSearchParams();
-	const startedAt = url.searchParams.get('started_at');
-	const endedAt = url.searchParams.get('ended_at');
-	const action = url.searchParams.get('action');
-	const resource = url.searchParams.get('resource');
-	if (startedAt) auditParams.set('started_at', startedAt);
-	if (endedAt) auditParams.set('ended_at', endedAt);
-	if (action) auditParams.set('action', action);
-	if (resource) auditParams.set('resource', resource);
-
-	const auditQuery = auditParams.toString();
-	const auditEndpoint = `/tenant/audit${auditQuery ? `?${auditQuery}` : ''}`;
-
 	const [logs, instances, collections] = await Promise.all([
-		tenantBackendRequest<SuperadminAuditLogResponse[]>(fetch, auditEndpoint, session),
+		tenantBackendRequest<SuperadminAuditLogResponse[]>(fetch, '/tenant/audit', session),
 		tenantBackendRequest<AgentInstanceResponse[]>(fetch, '/tenant/instances', session),
 		tenantBackendRequest<CollectionResponse[]>(fetch, '/tenant/collections', session)
 	]);
