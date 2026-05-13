@@ -145,10 +145,7 @@
 	}
 </script>
 
-<div
-	class="space-y-4 rounded-lg p-6"
-	style="background:var(--surface);border:1px solid var(--ds-border)"
->
+<div class="space-y-4 p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
 	<div class="flex items-center justify-between gap-4">
 		<div class="flex items-center gap-3">
 			<div class="flex size-10 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">

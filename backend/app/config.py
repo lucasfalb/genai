@@ -3,7 +3,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     rag_chunk_tokens: int = 512
     rag_chunk_overlap_tokens: int = 64
     rag_top_k: int = 8
-    rag_score_threshold: float = 0.25
+    rag_score_threshold: float = 0.35
     ai_config_encryption_key: str = ""  # Fernet key (base64 32-byte) — required in production
     s3_endpoint_url: str = "http://localhost:9000"
     s3_access_key_id: str = "genai"
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     otel_resource_attributes: str = ""
 
     model_config = SettingsConfigDict(
-        env_file=str(REPO_ROOT / ".env"),
+        env_file=str(BACKEND_ROOT / ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )

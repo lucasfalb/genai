@@ -44,7 +44,7 @@
 	}
 </script>
 
-<div class="rounded-xl p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
+<div class="p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
 	<div class="mb-4 flex items-center justify-between">
 		<div>
 			<h3 class="font-display text-sm font-semibold" style="color:var(--text-main)">Constraints</h3>
@@ -123,9 +123,9 @@
 							>
 								#{c.priority ?? 100}
 							</span>
-							<span class="ml-1 line-clamp-1 truncate text-xs text-foreground/80">{c.rule}</span>
+							<span class="ml-1 line-clamp-1 text-xs text-foreground/80">{c.rule}</span>
 						</Accordion.Trigger>
-						<div class="flex shrink-0 items-center gap-1">
+						<div class="ml-auto flex shrink-0 items-center gap-1">
 							<Switch checked={c.is_enabled} onCheckedChange={() => toggle(i)} />
 							<Button variant="ghost" size="icon-xs" onclick={() => remove(i)}>
 								<X />

@@ -1,0 +1,38 @@
+meta {
+  name: Test Tool
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{base_url}}/api/v1/registry/instances/{{instance_id}}/tools/{{tool_slug}}/test
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+  X-Tenant-ID: {{tenant_id}}
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+    "config": {
+      "http": {
+        "method": "GET",
+        "endpoint": "https://httpbin.org/get",
+        "headers": {}
+      },
+      "variables": {}
+    },
+    "arguments": {}
+  }
+}
+
+settings {
+  encodeUrl: false
+}

@@ -6,7 +6,7 @@ from app.config import settings
 
 
 def psycopg_url() -> str:
-    return settings.test_database_url.replace("postgresql+psycopg://", "postgresql://")
+    return settings.sync_database_url.replace("postgresql+psycopg://", "postgresql://")
 
 
 def main() -> None:

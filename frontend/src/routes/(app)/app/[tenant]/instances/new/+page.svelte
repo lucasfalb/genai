@@ -11,7 +11,11 @@
 	import { aiSettingsApi } from '$lib/api/aiSettings';
 	import { ApiError } from '$lib/api/client';
 	import { tenantBaseFromPath } from '$lib/routes/tenant';
-	import { getAgentUiSettings, inferProviderFromModel, type AgentTemplateOption } from '$lib/settings/agent-ui';
+	import {
+		getAgentUiSettings,
+		inferProviderFromModel,
+		type AgentTemplateOption
+	} from '$lib/settings/agent-ui';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Textarea } from '$lib/components/ui/textarea';
@@ -237,8 +241,7 @@
 					</div>
 
 					<div class="space-y-2">
-						<Label
-							class="text-[11px] font-bold tracking-wider text-muted-foreground uppercase"
+						<Label class="text-[11px] font-bold tracking-wider text-muted-foreground uppercase"
 							>Provider *</Label
 						>
 						<Popover.Root bind:open={providerComboboxOpen}>
@@ -260,7 +263,7 @@
 								<Command.Root>
 									<Command.Input placeholder="Search provider..." />
 									<Command.List>
-										<Command.Empty>No providers.</Command.Empty>
+										<Command.Empty>No providers configured.</Command.Empty>
 										<Command.Group>
 											{#each availableProviders as p (p.value)}
 												<Command.Item value={p.label} onSelect={() => onProviderSelect(p.value)}>
@@ -276,8 +279,7 @@
 					</div>
 
 					<div class="space-y-2">
-						<Label
-							class="text-[11px] font-bold tracking-wider text-muted-foreground uppercase"
+						<Label class="text-[11px] font-bold tracking-wider text-muted-foreground uppercase"
 							>Model *</Label
 						>
 						{#if modelsLoading}
@@ -342,7 +344,6 @@
 						class="h-10 bg-background"
 					/>
 				</div>
-
 			</div>
 
 			<div class="space-y-4 rounded-xl border bg-card p-6 shadow-sm">

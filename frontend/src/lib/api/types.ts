@@ -213,6 +213,19 @@ export interface ActivationRequest {
 	config?: Record<string, unknown>;
 }
 
+export interface ToolTestRequest {
+	config?: Record<string, unknown>;
+	arguments?: Record<string, unknown>;
+}
+
+export interface ToolTestResponse {
+	name: string;
+	status?: number | null;
+	data?: unknown;
+	error?: string | null;
+	raw: Record<string, unknown>;
+}
+
 export interface SkillActivationResponse {
 	slug: string;
 	name: string;
@@ -337,6 +350,11 @@ export interface ToolDefinitionResponse {
 	schema: Record<string, unknown>;
 	executor: string;
 	is_builtin: boolean;
+	method: string;
+	endpoint: string | null;
+	headers_template: Record<string, unknown>;
+	body_template: string | null;
+	variables_schema: Record<string, unknown>[];
 }
 
 export interface ToolDefinitionRequest {
@@ -348,6 +366,11 @@ export interface ToolDefinitionRequest {
 	schema?: Record<string, unknown>;
 	executor?: string;
 	is_builtin?: boolean;
+	method?: string;
+	endpoint?: string | null;
+	headers_template?: Record<string, unknown>;
+	body_template?: string | null;
+	variables_schema?: Record<string, unknown>[];
 }
 
 // ─── Members ──────────────────────────────────────────────────────────────────

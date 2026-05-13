@@ -13,6 +13,48 @@ def psycopg_url() -> str:
 
 TOOLS: list[dict] = [
     {
+        "slug": "web_fetch",
+        "name": "Web Fetch",
+        "description": "Generic HTTP client. Configure method, endpoint, auth, headers, and body per instance. The LLM passes the URL and optional overrides via tool call arguments.",
+        "category": "web",
+        "executor": "web_fetch",
+        "is_builtin": True,
+        "method": "GET",
+        "endpoint": None,
+        "headers_template": {},
+        "body_template": None,
+        "variables_schema": [],
+        "schema": {
+            "name": "web_fetch",
+            "description": "Fetch any URL via HTTP. The endpoint and defaults are configured per instance. Pass the target URL and optionally override method, headers, or body.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "Target URL path or full URL to fetch, e.g. /v1/users or https://api.example.com/data"
+                    },
+                    "method": {
+                        "type": "string",
+                        "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+                        "description": "HTTP method override (default uses instance config)"
+                    },
+                    "headers": {
+                        "type": "object",
+                        "description": "Additional HTTP headers as key-value pairs",
+                        "default": {}
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "Request body for POST/PUT/PATCH (JSON string or raw text)"
+                    }
+                },
+                "required": ["url"]
+            }
+        },
+        "prompt_block": "[web_fetch] Generic HTTP tool. Use to call any REST API or fetch URLs. The endpoint, method, auth, and default headers are configured per agent instance. Pass url (required), and optionally method, headers object, and body string. Returns status code and response data.",
+    },
+    {
         "slug": "wttr_in",
         "name": "Weather",
         "description": "Current weather for any location in JSON format.",
@@ -38,7 +80,7 @@ TOOLS: list[dict] = [
                 "required": ["location"],
             },
         },
-        "prompt_block": "[wttr_in] Use this tool to check the current weather for any city. Provide the city name as `location`.",
+        "prompt_block": "[wttr_in] Use this tool to check the current weather for any city. Calls GET https://wttr.in/{location}?format=j1. Provide the city name as `location`.",
     },
     {
         "slug": "ip_api",
@@ -66,7 +108,7 @@ TOOLS: list[dict] = [
                 "required": ["ip"],
             },
         },
-        "prompt_block": "[ip_api] Use this tool when the user provides an IP address and you need country/city/ISP information.",
+        "prompt_block": "[ip_api] Use this tool to get geolocation data for an IP address. Calls GET http://ip-api.com/json/{ip}. Returns country, city, lat/lon, ISP.",
     },
     {
         "slug": "rest_countries",
@@ -94,7 +136,7 @@ TOOLS: list[dict] = [
                 "required": ["name"],
             },
         },
-        "prompt_block": "[rest_countries] Use this tool when the user asks for country facts (population, capital, currency, flag, languages).",
+        "prompt_block": "[rest_countries] Use this tool to look up country details. Calls GET https://restcountries.com/v3.1/name/{name}. Returns population, capital, currency, languages, flag.",
     },
     {
         "slug": "open_library",
@@ -122,7 +164,7 @@ TOOLS: list[dict] = [
                 "required": ["query"],
             },
         },
-        "prompt_block": "[open_library] Use this tool to search books by title, author, or subject when the user asks about literature.",
+        "prompt_block": "[open_library] Use this tool to search books. Calls GET https://openlibrary.org/search.json?q={query}. Search by title, author, or subject.",
     },
     {
         "slug": "universities_api",
@@ -150,7 +192,7 @@ TOOLS: list[dict] = [
                 "required": ["country"],
             },
         },
-        "prompt_block": "[universities_api] Use this tool when the user asks which universities exist in a given country.",
+        "prompt_block": "[universities_api] Use this tool to list universities in a country. Calls GET http://universities.hipolabs.com/search?country={country}. Provide the country name in English.",
     },
     {
         "slug": "jsonplaceholder",
@@ -178,7 +220,7 @@ TOOLS: list[dict] = [
                 "required": ["resource"],
             },
         },
-        "prompt_block": "[jsonplaceholder] Use this tool to fetch sample REST data (posts, comments, users, todos) for testing or examples.",
+        "prompt_block": "[jsonplaceholder] Use this tool to fetch fake test data. Calls GET https://jsonplaceholder.typicode.com/{resource}. Resources: posts, comments, users, todos, albums. Optionally append an ID: posts/1.",
     },
     {
         "slug": "pokeapi",
@@ -206,7 +248,7 @@ TOOLS: list[dict] = [
                 "required": ["pokemon"],
             },
         },
-        "prompt_block": "[pokeapi] Use this tool when the user asks about Pokemon stats, types, abilities, or sprites.",
+        "prompt_block": "[pokeapi] Use this tool to look up Pokemon data. Calls GET https://pokeapi.co/api/v2/pokemon/{pokemon}. Returns stats, types, abilities, and sprites.",
     },
 ]
 
@@ -214,15 +256,6 @@ TOOLS: list[dict] = [
 def main() -> None:
     with psycopg.connect(psycopg_url()) as connection:
         with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                DELETE FROM tool_definitions
-                WHERE slug = 'web_fetch'
-                  AND NOT EXISTS (
-                    SELECT 1 FROM agent_instance_tools ait WHERE ait.tool_id = tool_definitions.id
-                  )
-                """
-            )
             for tool in TOOLS:
                 cursor.execute(
                     """

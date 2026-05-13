@@ -21,22 +21,42 @@ headers {
 body:json {
   {
     "slug": "{{tool_slug}}",
-    "name": "HTTP GET",
-    "description": "Executa requisicoes HTTP GET controladas",
-    "category": "integration",
-    "prompt_block": "Use esta tool para consultar endpoints HTTP permitidos.",
+    "name": "Web Fetch",
+    "description": "Generic HTTP client configurable per agent instance.",
+    "category": "web",
+    "prompt_block": "Use esta tool para fazer requisicoes HTTP configuradas pelo usuario. A instancia pode definir endpoint, metodo, headers, body e variaveis; a chamada pode informar url, method, headers e body quando aplicavel.",
     "schema": {
       "name": "{{tool_slug}}",
+      "description": "Fetch any URL or configured endpoint via HTTP.",
       "parameters": {
         "type": "object",
         "properties": {
-          "url": { "type": "string" }
+          "url": {
+            "type": "string",
+            "description": "Target URL path or full URL when no endpoint is configured."
+          },
+          "method": {
+            "type": "string",
+            "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]
+          },
+          "headers": {
+            "type": "object",
+            "default": {}
+          },
+          "body": {
+            "type": "string"
+          }
         },
         "required": ["url"]
       }
     },
-    "executor": "tools.http_get",
-    "is_builtin": true
+    "executor": "web_fetch",
+    "is_builtin": true,
+    "method": "GET",
+    "endpoint": null,
+    "headers_template": {},
+    "body_template": null,
+    "variables_schema": []
   }
 }
 

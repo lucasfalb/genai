@@ -6,11 +6,19 @@
 	import Puzzle from '@lucide/svelte/icons/puzzle';
 	import Eye from '@lucide/svelte/icons/eye';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
+	import ClipboardPaste from '@lucide/svelte/icons/clipboard-paste';
+	import Play from '@lucide/svelte/icons/play';
 	import { toast } from 'svelte-sonner';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
+	import * as Select from '$lib/components/ui/select/index.js';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
+	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import RegistryAddDialog from '$lib/components/instance/registry-add-dialog.svelte';
+	import KeyValueJsonEditor from '$lib/components/registry/KeyValueJsonEditor.svelte';
+	import VariableValuesEditor from '$lib/components/registry/VariableValuesEditor.svelte';
 	import { registryApi } from '$lib/api/registry';
 	import { getErrorMessage } from '$lib/api/client';
 	import type {
@@ -37,18 +45,68 @@
 	let addToolOpen = $state(false);
 	let credentialInputs = $state<Record<string, string>>({});
 	let credentialVisible = $state<Record<string, boolean>>({});
-	type HttpOverride = { method: string; endpoint: string; authorization: string; headers_extra: string; body: string };
+	type HttpOverride = {
+		method: string;
+		endpoint: string;
+		headers_template: string;
+		body_template: string;
+	};
 	type ToolDraft = {
 		prompt_block_override: string;
 		variables: Record<string, string>;
 		http: HttpOverride;
 	};
 	type SkillDraft = { prompt_block_override: string };
+	type DeleteTarget =
+		| { kind: 'skill'; slug: string }
+		| { kind: 'tool'; slug: string }
+		| { kind: 'credential'; slug: string };
 	let toolDrafts = $state<Record<string, ToolDraft>>({});
 	let skillDrafts = $state<Record<string, SkillDraft>>({});
+	let deleteTarget = $state<DeleteTarget | null>(null);
+	let curlDialogTool = $state<ToolActivationResponse | null>(null);
+	let curlCommand = $state('');
+	let testDialogTool = $state<ToolActivationResponse | null>(null);
+	let testArgumentsJson = $state('{}');
+	let testResult = $state<Record<string, unknown> | null>(null);
+	let testBusy = $state(false);
 
 	function isHttpConfigurable(tool: ToolActivationResponse): boolean {
-		return !tool.endpoint;
+		return tool.executor === 'web_fetch';
+	}
+
+	function setDraftHttpJson(tool: ToolActivationResponse, field: string, value: string) {
+		if (!toolDrafts[tool.slug]) initToolDraft(tool);
+		if (field === 'headers_template') toolDrafts[tool.slug].http.headers_template = value;
+		if (field === 'body_template') toolDrafts[tool.slug].http.body_template = value;
+		toolDrafts = { ...toolDrafts };
+	}
+
+	function setDraftVariables(tool: ToolActivationResponse, values: Record<string, string>) {
+		if (!toolDrafts[tool.slug]) initToolDraft(tool);
+		toolDrafts[tool.slug].variables = values;
+		toolDrafts = { ...toolDrafts };
+	}
+
+	function setDraftJsonError(_field: string, message: string) {
+		toast.error(message);
+	}
+
+	function clearDraftJsonError(_field: string) {
+		// Validation runs on save; this callback keeps the shared JSON editor contract consistent.
+	}
+
+	function openCurlDialog(tool: ToolActivationResponse) {
+		initToolDraft(tool);
+		curlDialogTool = tool;
+		curlCommand = '';
+	}
+
+	function openTestDialog(tool: ToolActivationResponse) {
+		initToolDraft(tool);
+		testDialogTool = tool;
+		testArgumentsJson = '{}';
+		testResult = null;
 	}
 
 	async function refreshRegistryMetadata() {
@@ -72,7 +130,7 @@
 
 	function credentialLabel(skill: SkillActivationResponse): string {
 		if (skill.credential_schema?.title) return String(skill.credential_schema.title);
-		return skill.credential_schema?.label as string ?? 'API Key';
+		return (skill.credential_schema?.label as string) ?? 'API Key';
 	}
 
 	function hasSkillConfig(skill: SkillActivationResponse): boolean {
@@ -92,24 +150,20 @@
 		const variables: Record<string, string> = {};
 		for (const spec of specs) {
 			const cur = vars[spec.name];
-			variables[spec.name] = cur != null ? String(cur) : spec.default != null ? String(spec.default) : '';
+			variables[spec.name] =
+				cur != null ? String(cur) : spec.default != null ? String(spec.default) : '';
 		}
 		const http = (cfg.http as Record<string, unknown>) ?? {};
-		const httpHeaders = (http.headers as Record<string, string>) ?? {};
-		const authorization = httpHeaders['Authorization'] ?? httpHeaders['authorization'] ?? '';
-		const headersExtra: Record<string, string> = {};
-		for (const [k, v] of Object.entries(httpHeaders)) {
-			if (k.toLowerCase() !== 'authorization') headersExtra[k] = v;
-		}
+		const httpHeaders = (http.headers as Record<string, string>) ?? tool.headers_template ?? {};
 		toolDrafts[tool.slug] = {
-			prompt_block_override: typeof cfg.prompt_block_override === 'string' ? cfg.prompt_block_override : '',
+			prompt_block_override:
+				typeof cfg.prompt_block_override === 'string' ? cfg.prompt_block_override : '',
 			variables,
 			http: {
-				method: typeof http.method === 'string' ? http.method : tool.method ?? 'GET',
-				endpoint: typeof http.endpoint === 'string' ? http.endpoint : tool.endpoint ?? '',
-				authorization: typeof authorization === 'string' ? authorization : '',
-				headers_extra: Object.keys(headersExtra).length > 0 ? JSON.stringify(headersExtra, null, 2) : '',
-				body: typeof http.body === 'string' ? http.body : tool.body_template ?? ''
+				method: typeof http.method === 'string' ? http.method : (tool.method ?? 'GET'),
+				endpoint: typeof http.endpoint === 'string' ? http.endpoint : (tool.endpoint ?? ''),
+				headers_template: JSON.stringify(httpHeaders, null, 2),
+				body_template: typeof http.body === 'string' ? http.body : (tool.body_template ?? '{}')
 			}
 		};
 		toolDrafts = { ...toolDrafts };
@@ -119,7 +173,8 @@
 		if (skillDrafts[skill.slug]) return;
 		const cfg = (skill.config ?? {}) as Record<string, unknown>;
 		skillDrafts[skill.slug] = {
-			prompt_block_override: typeof cfg.prompt_block_override === 'string' ? cfg.prompt_block_override : ''
+			prompt_block_override:
+				typeof cfg.prompt_block_override === 'string' ? cfg.prompt_block_override : ''
 		};
 		skillDrafts = { ...skillDrafts };
 	}
@@ -133,10 +188,7 @@
 		expandedConfig = expandedConfig === key ? '' : key;
 	}
 
-	async function configureSkill(
-		skill: SkillActivationResponse,
-		config = skill.config ?? {}
-	) {
+	async function configureSkill(skill: SkillActivationResponse, config = skill.config ?? {}) {
 		registryBusy = `skill:${skill.slug}`;
 		try {
 			await registryApi.activateSkill(data.instance.id, skill.slug, { is_enabled: true, config });
@@ -149,10 +201,7 @@
 		}
 	}
 
-	async function configureTool(
-		tool: ToolActivationResponse,
-		config = tool.config ?? {}
-	) {
+	async function configureTool(tool: ToolActivationResponse, config = tool.config ?? {}) {
 		registryBusy = `tool:${tool.slug}`;
 		try {
 			await registryApi.activateToolItem(data.instance.id, tool.slug, { is_enabled: true, config });
@@ -165,8 +214,11 @@
 		}
 	}
 
+	function requestRemoveSkill(slug: string) {
+		deleteTarget = { kind: 'skill', slug };
+	}
+
 	async function removeSkill(slug: string) {
-		if (!confirm(`Remove skill "${slug}" from this instance?`)) return;
 		registryBusy = `skill:${slug}`;
 		try {
 			await registryApi.removeSkill(data.instance.id, slug);
@@ -179,8 +231,11 @@
 		}
 	}
 
+	function requestRemoveTool(slug: string) {
+		deleteTarget = { kind: 'tool', slug };
+	}
+
 	async function removeTool(slug: string) {
-		if (!confirm(`Remove tool "${slug}" from this instance?`)) return;
 		registryBusy = `tool:${slug}`;
 		try {
 			await registryApi.removeTool(data.instance.id, slug);
@@ -215,7 +270,10 @@
 
 	async function saveCredential(slug: string) {
 		const value = credentialInputs[slug] ?? '';
-		if (!value.trim()) return;
+		if (!value.trim()) {
+			toast.error('Credential value is required.');
+			return;
+		}
 		registryBusy = `cred:${slug}`;
 		try {
 			await registryApi.saveCredential(slug, {
@@ -232,8 +290,11 @@
 		}
 	}
 
+	function requestDeleteCredential(slug: string) {
+		deleteTarget = { kind: 'credential', slug };
+	}
+
 	async function deleteCredential(slug: string) {
-		if (!confirm(`Remove credential for "${slug}"?`)) return;
 		registryBusy = `cred:${slug}`;
 		try {
 			await registryApi.saveCredential(slug, { secret_ref: '', metadata: {} });
@@ -246,6 +307,210 @@
 		}
 	}
 
+	async function confirmDeleteTarget() {
+		if (!deleteTarget) return;
+		const target = deleteTarget;
+		deleteTarget = null;
+		if (target.kind === 'skill') {
+			await removeSkill(target.slug);
+			return;
+		}
+		if (target.kind === 'tool') {
+			await removeTool(target.slug);
+			return;
+		}
+		await deleteCredential(target.slug);
+	}
+
+	function deleteTitle(target: DeleteTarget | null): string {
+		if (target?.kind === 'tool') return 'Delete Tool';
+		if (target?.kind === 'skill') return 'Delete Skill';
+		return 'Delete Credential';
+	}
+
+	function deleteDescription(target: DeleteTarget | null): string {
+		if (!target) return '';
+		if (target.kind === 'credential') {
+			return `Delete credential for "${target.slug}"? Requests using this credential may stop working until a new value is saved.`;
+		}
+		return `Delete "${target.slug}" from this agent instance? This does not delete the global registry definition.`;
+	}
+
+	function tokenizeCurl(command: string): string[] {
+		const tokens: string[] = [];
+		let current = '';
+		let quote: '"' | "'" | '' = '';
+		let escaping = false;
+		for (const char of command.replace(/\\\r?\n/g, ' ')) {
+			if (escaping) {
+				current += char;
+				escaping = false;
+				continue;
+			}
+			if (char === '\\' && quote !== "'") {
+				escaping = true;
+				continue;
+			}
+			if ((char === '"' || char === "'") && (!quote || quote === char)) {
+				quote = quote ? '' : char;
+				continue;
+			}
+			if (/\s/.test(char) && !quote) {
+				if (current) tokens.push(current);
+				current = '';
+				continue;
+			}
+			current += char;
+		}
+		if (current) tokens.push(current);
+		return tokens;
+	}
+
+	function importCurl() {
+		if (!curlDialogTool) return;
+		const tokens = tokenizeCurl(curlCommand.trim());
+		if (!tokens.length || tokens[0] !== 'curl') {
+			toast.error('Paste a valid curl command.');
+			return;
+		}
+		const headers: Record<string, string> = {};
+		let method = '';
+		let endpoint = '';
+		let body = '';
+		for (let i = 1; i < tokens.length; i += 1) {
+			const token = tokens[i];
+			const next = tokens[i + 1];
+			if (token === '-X' || token === '--request') {
+				method = (next ?? '').toUpperCase();
+				i += 1;
+				continue;
+			}
+			if (token === '-H' || token === '--header') {
+				const [name, ...rest] = (next ?? '').split(':');
+				if (name && rest.length) headers[name.trim()] = rest.join(':').trim();
+				i += 1;
+				continue;
+			}
+			if (['-d', '--data', '--data-raw', '--data-binary', '--json'].includes(token)) {
+				body = next ?? '';
+				if (!method) method = 'POST';
+				i += 1;
+				continue;
+			}
+			if (!token.startsWith('-') && !endpoint) endpoint = token;
+		}
+		if (!endpoint) {
+			toast.error('Could not find a URL in the curl command.');
+			return;
+		}
+		if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+			method = body ? 'POST' : 'GET';
+		}
+		if (!toolDrafts[curlDialogTool.slug]) initToolDraft(curlDialogTool);
+		toolDrafts[curlDialogTool.slug].http = {
+			method: method || 'GET',
+			endpoint,
+			headers_template: JSON.stringify(headers, null, 2),
+			body_template: body || '{}'
+		};
+		toolDrafts = { ...toolDrafts };
+		curlDialogTool = null;
+		curlCommand = '';
+		toast.success('cURL imported.');
+	}
+
+	function buildToolConfig(
+		tool: ToolActivationResponse,
+		draft: ToolDraft
+	): Record<string, unknown> | null {
+		const baseConfig = (tool.config ?? {}) as Record<string, unknown>;
+		const variables: Record<string, string> = {};
+		for (const [key, value] of Object.entries(draft.variables)) {
+			if (value !== '') variables[key] = value;
+		}
+		const config: Record<string, unknown> = { ...baseConfig };
+		if (Object.keys(variables).length > 0) config.variables = variables;
+		else delete config.variables;
+		const override = draft.prompt_block_override.trim();
+		if (override && override !== tool.prompt_block.trim()) config.prompt_block_override = override;
+		else delete config.prompt_block_override;
+
+		if (isHttpConfigurable(tool)) {
+			if (!draft.http.endpoint.trim()) {
+				toast.error('Endpoint is required for web_fetch.');
+				return null;
+			}
+			let headers: Record<string, string> = {};
+			if (draft.http.headers_template.trim()) {
+				try {
+					const parsed = JSON.parse(draft.http.headers_template);
+					if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+						for (const [key, value] of Object.entries(parsed)) headers[key] = String(value);
+					} else {
+						toast.error('Headers template must be a JSON object.');
+						return null;
+					}
+				} catch {
+					toast.error('Headers template JSON is invalid.');
+					return null;
+				}
+			}
+			if (draft.http.body_template.trim()) {
+				try {
+					JSON.parse(draft.http.body_template);
+				} catch {
+					toast.error('Body template JSON is invalid.');
+					return null;
+				}
+			}
+			const http: Record<string, unknown> = {
+				method: draft.http.method,
+				endpoint: draft.http.endpoint.trim(),
+				headers
+			};
+			if (draft.http.body_template.trim()) http.body = draft.http.body_template;
+			config.http = http;
+		}
+		return config;
+	}
+
+	async function runToolTest() {
+		if (!testDialogTool) return;
+		const draft = toolDrafts[testDialogTool.slug];
+		if (!draft) {
+			toast.info('Open the tool config before testing.');
+			return;
+		}
+		const config = buildToolConfig(testDialogTool, draft);
+		if (!config) return;
+		let args: Record<string, unknown> = {};
+		try {
+			const parsed = JSON.parse(testArgumentsJson || '{}');
+			if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) args = parsed;
+			else {
+				toast.error('Test arguments must be a JSON object.');
+				return;
+			}
+		} catch {
+			toast.error('Test arguments JSON is invalid.');
+			return;
+		}
+		testBusy = true;
+		try {
+			const result = await registryApi.testTool(data.instance.id, testDialogTool.slug, {
+				config,
+				arguments: args
+			});
+			testResult = result.raw;
+			if (result.error) toast.error(result.error);
+			else toast.success('Tool test completed.');
+		} catch (err) {
+			toast.error(getErrorMessage(err, 'Tool test failed.'));
+		} finally {
+			testBusy = false;
+		}
+	}
+
 	function toggleCredentialVisibility(slug: string) {
 		credentialVisible[slug] = !credentialVisible[slug];
 		credentialVisible = { ...credentialVisible };
@@ -253,49 +518,12 @@
 
 	async function saveToolDraft(tool: ToolActivationResponse) {
 		const draft = toolDrafts[tool.slug];
-		if (!draft) return;
-		const baseConfig = (tool.config ?? {}) as Record<string, unknown>;
-		const variables: Record<string, string> = {};
-		for (const [k, v] of Object.entries(draft.variables)) {
-			if (v !== '') variables[k] = v;
+		if (!draft) {
+			toast.info('Open the tool config before saving changes.');
+			return;
 		}
-		const config: Record<string, unknown> = { ...baseConfig };
-		if (Object.keys(variables).length > 0) config.variables = variables;
-		else delete config.variables;
-		const override = draft.prompt_block_override.trim();
-		if (override) config.prompt_block_override = override;
-		else delete config.prompt_block_override;
-
-		if (isHttpConfigurable(tool)) {
-			if (!draft.http.endpoint.trim()) {
-				toast.error('Endpoint is required for web_fetch.');
-				return;
-			}
-			let extraHeaders: Record<string, string> = {};
-			if (draft.http.headers_extra.trim()) {
-				try {
-					const parsed = JSON.parse(draft.http.headers_extra);
-					if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-						for (const [k, v] of Object.entries(parsed)) extraHeaders[k] = String(v);
-					} else {
-						toast.error('Extra headers must be a JSON object.');
-						return;
-					}
-				} catch {
-					toast.error('Extra headers JSON is invalid.');
-					return;
-				}
-			}
-			const headers: Record<string, string> = { ...extraHeaders };
-			if (draft.http.authorization.trim()) headers['Authorization'] = draft.http.authorization.trim();
-			const http: Record<string, unknown> = {
-				method: draft.http.method,
-				endpoint: draft.http.endpoint.trim(),
-				headers
-			};
-			if (draft.http.body.trim()) http.body = draft.http.body;
-			config.http = http;
-		}
+		const config = buildToolConfig(tool, draft);
+		if (!config) return;
 
 		registryBusy = `tool:${tool.slug}`;
 		try {
@@ -314,11 +542,14 @@
 
 	async function saveSkillDraft(skill: SkillActivationResponse) {
 		const draft = skillDrafts[skill.slug];
-		if (!draft) return;
+		if (!draft) {
+			toast.info('Open the skill config before saving changes.');
+			return;
+		}
 		const baseConfig = (skill.config ?? {}) as Record<string, unknown>;
 		const config: Record<string, unknown> = { ...baseConfig };
 		const override = draft.prompt_block_override.trim();
-		if (override) config.prompt_block_override = override;
+		if (override && override !== skill.prompt_block.trim()) config.prompt_block_override = override;
 		else delete config.prompt_block_override;
 
 		registryBusy = `skill:${skill.slug}`;
@@ -369,14 +600,15 @@
 	});
 </script>
 
-<div class="mx-auto max-w-3xl space-y-6 px-6 py-5">
-
+<div class="mx-auto space-y-6 px-6 py-5">
 	<!-- Skills -->
-	<section class="rounded-xl p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
+	<section class="p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
 		<div class="mb-4 flex items-center justify-between">
 			<div>
 				<h3 class="font-display text-sm font-semibold" style="color:var(--text-main)">Skills</h3>
-				<p class="mt-0.5 text-xs text-muted-foreground">Instance-level skill activation and configuration</p>
+				<p class="mt-0.5 text-xs text-muted-foreground">
+					Instance-level skill activation and configuration
+				</p>
 			</div>
 			<Button variant="outline" size="sm" onclick={() => (addSkillOpen = true)}>
 				<Plus data-icon="inline-start" />
@@ -385,7 +617,9 @@
 		</div>
 
 		{#if registryMetadata.skills.length === 0}
-			<p class="py-6 text-center text-sm text-muted-foreground">No skills yet. Click "Add Skill" to pick from the catalog.</p>
+			<p class="py-6 text-center text-sm text-muted-foreground">
+				No skills yet. Click "Add Skill" to pick from the catalog.
+			</p>
 		{:else}
 			<div class="space-y-3">
 				{#each registryMetadata.skills as skill (skill.slug)}
@@ -393,11 +627,16 @@
 					{@const busy = registryBusy === key}
 					{@const expanded = expandedConfig === key}
 					{@const cred = getCredential(skill.slug)}
-					<div class="rounded-lg p-4" style="background:var(--surface-hover);border:1px solid var(--ds-border)">
+					<div
+						class="rounded-lg p-4"
+						style="background:var(--surface-hover);border:1px solid var(--ds-border)"
+					>
 						<div class="flex flex-wrap items-start justify-between gap-3">
 							<div class="min-w-0 flex-1">
 								<div class="flex items-center gap-2">
-									<div class="flex size-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-400">
+									<div
+										class="flex size-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-400"
+									>
 										<Puzzle class="size-4" />
 									</div>
 									<div>
@@ -409,22 +648,33 @@
 									<p class="mt-2 text-xs text-muted-foreground">{skill.description}</p>
 								{/if}
 								<div class="mt-2 flex flex-wrap gap-2">
-									<Badge variant="outline" class="text-[10px]">{skill.category ?? 'uncategorized'}</Badge>
-									<Badge variant="outline" class="text-[10px] font-mono">{skill.executor}</Badge>
+									<Badge variant="outline" class="text-[10px]"
+										>{skill.category ?? 'uncategorized'}</Badge
+									>
+									<Badge variant="outline" class="font-mono text-[10px]">{skill.executor}</Badge>
 									{#if skill.requires_credential}
-										<Badge variant="outline" class="text-[10px] text-amber-400 border-amber-400/30">requires credential</Badge>
+										<Badge variant="outline" class="border-amber-400/30 text-[10px] text-amber-400"
+											>requires credential</Badge
+										>
 									{/if}
 								</div>
 							</div>
 							<div class="flex shrink-0 items-center gap-2">
-								<Button variant="ghost" size="sm" onclick={() => { initSkillDraft(skill); openConfig(key, skill.slug); }}>
+								<Button
+									variant="ghost"
+									size="sm"
+									onclick={() => {
+										initSkillDraft(skill);
+										openConfig(key, skill.slug);
+									}}
+								>
 									Config
 								</Button>
 								<Button
 									variant="destructive"
 									size="sm"
 									disabled={busy}
-									onclick={() => removeSkill(skill.slug)}
+									onclick={() => requestRemoveSkill(skill.slug)}
 									title="Remove skill"
 								>
 									{#if busy}<Spinner data-icon="inline-start" />{/if}
@@ -433,27 +683,39 @@
 							</div>
 						</div>
 						{#if expanded}
-							<div class="mt-4 space-y-4 rounded-lg border bg-[var(--canvas)] p-4 text-sm text-muted-foreground" style="border-color:var(--ds-border)">
+							<div
+								class="mt-4 space-y-4 rounded-lg border bg-[var(--canvas)] p-4 text-sm text-muted-foreground"
+								style="border-color:var(--ds-border)"
+							>
 								{#if hasSkillConfig(skill)}
 									<div>
-										<p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Configuration</p>
+										<p
+											class="mb-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+										>
+											Configuration
+										</p>
 										{#each Object.entries(skill.config!).filter(([k]) => k !== 'prompt_block_override') as [key, value]}
 											<div class="mb-2 grid grid-cols-[140px_1fr] gap-2 text-xs">
 												<span class="font-mono text-foreground/70">{key}</span>
-												<span class="text-foreground/80">{typeof value === 'string' ? value : JSON.stringify(value)}</span>
+												<span class="text-foreground/80"
+													>{typeof value === 'string' ? value : JSON.stringify(value)}</span
+												>
 											</div>
 										{/each}
 									</div>
 								{/if}
 								<div>
-									<p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Instruction (when to use)</p>
-									<p class="mb-2 text-[11px] text-muted-foreground/70">Default from registry: <span class="font-mono">{skill.prompt_block}</span></p>
+									<p
+										class="mb-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+									>
+										Instruction
+									</p>
 									<textarea
 										rows="3"
-										placeholder="Leave empty to use the default instruction."
-										value={skillDrafts[skill.slug]?.prompt_block_override ?? ''}
+										value={skillDrafts[skill.slug]?.prompt_block_override || skill.prompt_block}
 										oninput={(e) => {
-											if (!skillDrafts[skill.slug]) skillDrafts[skill.slug] = { prompt_block_override: '' };
+											if (!skillDrafts[skill.slug])
+												skillDrafts[skill.slug] = { prompt_block_override: '' };
 											skillDrafts[skill.slug].prompt_block_override = e.currentTarget.value;
 											skillDrafts = { ...skillDrafts };
 										}}
@@ -466,26 +728,35 @@
 											disabled={registryBusy === `skill:${skill.slug}`}
 											onclick={() => saveSkillDraft(skill)}
 										>
-											{#if registryBusy === `skill:${skill.slug}`}<Spinner data-icon="inline-start" />{/if}
+											{#if registryBusy === `skill:${skill.slug}`}<Spinner
+													data-icon="inline-start"
+												/>{/if}
 											Save instruction
 										</Button>
 									</div>
 								</div>
 								{#if skill.requires_credential}
 									<div>
-										<p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{credentialLabel(skill)}</p>
+										<p
+											class="mb-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+										>
+											{credentialLabel(skill)}
+										</p>
 										<div class="flex items-center gap-2">
 											<div class="relative flex-1">
 												<input
 													type={credentialVisible[skill.slug] ? 'text' : 'password'}
 													placeholder={cred ? '********' : 'Insert the credential value'}
 													value={credentialInputs[skill.slug] ?? ''}
-													oninput={(e) => { credentialInputs[skill.slug] = e.currentTarget.value; credentialInputs = { ...credentialInputs }; }}
+													oninput={(e) => {
+														credentialInputs[skill.slug] = e.currentTarget.value;
+														credentialInputs = { ...credentialInputs };
+													}}
 													class="auth-input w-full rounded-lg px-3.5 py-2.5 pr-10 font-mono text-sm"
 												/>
 												<button
 													onclick={() => toggleCredentialVisibility(skill.slug)}
-													class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+													class="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
 													title={credentialVisible[skill.slug] ? 'Hide' : 'Show'}
 												>
 													{#if credentialVisible[skill.slug]}
@@ -498,10 +769,13 @@
 											<Button
 												variant="default"
 												size="sm"
-												disabled={registryBusy === `cred:${skill.slug}` || !(credentialInputs[skill.slug] ?? '').trim()}
+												disabled={registryBusy === `cred:${skill.slug}` ||
+													!(credentialInputs[skill.slug] ?? '').trim()}
 												onclick={() => saveCredential(skill.slug)}
 											>
-												{#if registryBusy === `cred:${skill.slug}`}<Spinner data-icon="inline-start" />{/if}
+												{#if registryBusy === `cred:${skill.slug}`}<Spinner
+														data-icon="inline-start"
+													/>{/if}
 												Save
 											</Button>
 											{#if cred}
@@ -509,7 +783,7 @@
 													variant="destructive"
 													size="sm"
 													disabled={registryBusy === `cred:${skill.slug}`}
-													onclick={() => deleteCredential(skill.slug)}
+													onclick={() => requestDeleteCredential(skill.slug)}
 													title="Remove credential"
 												>
 													<Trash2 class="size-3.5" />
@@ -527,11 +801,13 @@
 	</section>
 
 	<!-- Tools -->
-	<section class="rounded-xl p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
+	<section class="p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
 		<div class="mb-4 flex items-center justify-between">
 			<div>
 				<h3 class="font-display text-sm font-semibold" style="color:var(--text-main)">Tools</h3>
-				<p class="mt-0.5 text-xs text-muted-foreground">Utility tools available to this agent instance</p>
+				<p class="mt-0.5 text-xs text-muted-foreground">
+					Utility tools available to this agent instance
+				</p>
 			</div>
 			<Button variant="outline" size="sm" onclick={() => (addToolOpen = true)}>
 				<Plus data-icon="inline-start" />
@@ -540,18 +816,26 @@
 		</div>
 
 		{#if registryMetadata.tools.length === 0}
-			<p class="py-6 text-center text-sm text-muted-foreground">No tools yet. Click "Add Tool" to pick from the catalog.</p>
+			<p class="py-6 text-center text-sm text-muted-foreground">
+				No tools yet. Click "Add Tool" to pick from the catalog.
+			</p>
 		{:else}
 			<div class="space-y-3">
 				{#each registryMetadata.tools as tool (tool.slug)}
 					{@const key = `tool:${tool.slug}`}
 					{@const busy = registryBusy === key}
 					{@const expanded = expandedConfig === key}
-					<div class="rounded-lg p-4" style="background:var(--surface-hover);border:1px solid var(--ds-border)">
+					{@const variableSpecs = toolVariableSpecs(tool)}
+					<div
+						class="rounded-lg p-4"
+						style="background:var(--surface-hover);border:1px solid var(--ds-border)"
+					>
 						<div class="flex flex-wrap items-start justify-between gap-3">
 							<div class="min-w-0 flex-1">
 								<div class="flex items-center gap-2">
-									<div class="flex size-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-400">
+									<div
+										class="flex size-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-400"
+									>
 										<Database class="size-4" />
 									</div>
 									<div>
@@ -563,22 +847,34 @@
 									<p class="mt-2 text-xs text-muted-foreground">{tool.description}</p>
 								{/if}
 								<div class="mt-2 flex flex-wrap gap-2">
-									<Badge variant="outline" class="text-[10px]">{tool.category ?? 'uncategorized'}</Badge>
-									<Badge variant="outline" class="text-[10px] font-mono">{tool.executor}</Badge>
+									<Badge variant="outline" class="text-[10px]"
+										>{tool.category ?? 'uncategorized'}</Badge
+									>
+									<Badge variant="outline" class="font-mono text-[10px]">{tool.executor}</Badge>
 									{#if tool.is_builtin}
-										<Badge variant="outline" class="text-[10px] text-emerald-400 border-emerald-400/30">builtin</Badge>
+										<Badge
+											variant="outline"
+											class="border-emerald-400/30 text-[10px] text-emerald-400">builtin</Badge
+										>
 									{/if}
 								</div>
 							</div>
 							<div class="flex shrink-0 items-center gap-2">
-								<Button variant="ghost" size="sm" onclick={() => { initToolDraft(tool); openConfig(key); }}>
+								<Button
+									variant="ghost"
+									size="sm"
+									onclick={() => {
+										initToolDraft(tool);
+										openConfig(key);
+									}}
+								>
 									Config
 								</Button>
 								<Button
 									variant="destructive"
 									size="sm"
 									disabled={busy}
-									onclick={() => removeTool(tool.slug)}
+									onclick={() => requestRemoveTool(tool.slug)}
 									title="Remove tool"
 								>
 									{#if busy}<Spinner data-icon="inline-start" />{/if}
@@ -587,37 +883,78 @@
 							</div>
 						</div>
 						{#if expanded}
-							<div class="mt-4 space-y-4 rounded-lg border bg-[var(--canvas)] p-4 text-sm text-muted-foreground" style="border-color:var(--ds-border)">
+							<div
+								class="mt-4 space-y-4 rounded-lg border bg-[var(--canvas)] p-4 text-sm text-muted-foreground"
+								style="border-color:var(--ds-border)"
+							>
+								<div>
+									<p
+										class="mb-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+									>
+										Instruction
+									</p>
+									<textarea
+										rows="3"
+										value={toolDrafts[tool.slug]?.prompt_block_override || tool.prompt_block}
+										oninput={(e) => {
+											if (!toolDrafts[tool.slug]) initToolDraft(tool);
+											toolDrafts[tool.slug].prompt_block_override = e.currentTarget.value;
+											toolDrafts = { ...toolDrafts };
+										}}
+										class="auth-input w-full rounded-lg px-3.5 py-2.5 text-sm"
+									></textarea>
+								</div>
 								{#if isHttpConfigurable(tool)}
 									<div>
-										<p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">HTTP Request</p>
+										<div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+											<p
+												class="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+											>
+												HTTP Request
+											</p>
+											<div class="flex items-center gap-2">
+												<Button variant="outline" size="sm" onclick={() => openCurlDialog(tool)}>
+													<ClipboardPaste data-icon="inline-start" />
+													Import cURL
+												</Button>
+												<Button variant="outline" size="sm" onclick={() => openTestDialog(tool)}>
+													<Play data-icon="inline-start" />
+													Test
+												</Button>
+											</div>
+										</div>
 										<p class="mb-3 text-[11px] text-muted-foreground/70">
-											Configure the HTTP request shape for this tool. Use <span class="font-mono">{'{var}'}</span> placeholders to interpolate AI tool-call arguments (defined in the JSON schema).
+											Configure this instance override. Use <span class="font-mono">{'{var}'}</span> placeholders
+											from AI tool-call arguments or variables filled below.
 										</p>
 										<div class="space-y-3">
-											<div class="grid grid-cols-[120px_1fr] gap-3 items-center">
+											<div class="grid grid-cols-[120px_1fr] items-center gap-3">
 												<label class="text-xs font-medium text-foreground/80">Method</label>
-												<select
+												<Select.Root
+													type="single"
 													value={toolDrafts[tool.slug]?.http.method ?? 'GET'}
-													onchange={(e) => {
+													onValueChange={(value) => {
 														if (!toolDrafts[tool.slug]) initToolDraft(tool);
-														toolDrafts[tool.slug].http.method = e.currentTarget.value;
+														toolDrafts[tool.slug].http.method = value;
 														toolDrafts = { ...toolDrafts };
 													}}
-													class="auth-input rounded-lg px-3 py-2 text-sm"
 												>
-													<option value="GET">GET</option>
-													<option value="POST">POST</option>
-													<option value="PUT">PUT</option>
-													<option value="PATCH">PATCH</option>
-													<option value="DELETE">DELETE</option>
-												</select>
+													<Select.Trigger class="h-9 w-full bg-background font-mono text-xs">
+														{toolDrafts[tool.slug]?.http.method ?? 'GET'}
+													</Select.Trigger>
+													<Select.Content>
+														{#each ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as method}
+															<Select.Item value={method} label={method}>{method}</Select.Item>
+														{/each}
+													</Select.Content>
+												</Select.Root>
 											</div>
 											<div>
-												<label class="mb-1 block text-xs font-medium text-foreground/80">Endpoint <span class="text-red-400">*</span></label>
+												<label class="mb-1 block text-xs font-medium text-foreground/80"
+													>Endpoint <span class="text-red-400">*</span></label
+												>
 												<input
 													type="text"
-													placeholder={'https://api.example.com/v1/users/{id}'}
 													value={toolDrafts[tool.slug]?.http.endpoint ?? ''}
 													oninput={(e) => {
 														if (!toolDrafts[tool.slug]) initToolDraft(tool);
@@ -627,55 +964,41 @@
 													class="auth-input w-full rounded-lg px-3.5 py-2.5 font-mono text-sm"
 												/>
 											</div>
-											<div>
-												<label class="mb-1 block text-xs font-medium text-foreground/80">Authorization header</label>
-												<p class="mb-1 text-[11px] text-muted-foreground/70">e.g. <span class="font-mono">Bearer ey...</span>, <span class="font-mono">Basic ...</span></p>
-												<input
-													type="text"
-													placeholder="Leave empty if no auth required."
-													value={toolDrafts[tool.slug]?.http.authorization ?? ''}
-													oninput={(e) => {
-														if (!toolDrafts[tool.slug]) initToolDraft(tool);
-														toolDrafts[tool.slug].http.authorization = e.currentTarget.value;
-														toolDrafts = { ...toolDrafts };
-													}}
-													class="auth-input w-full rounded-lg px-3.5 py-2.5 font-mono text-sm"
-												/>
-											</div>
-											<div>
-												<label class="mb-1 block text-xs font-medium text-foreground/80">Extra headers (JSON)</label>
-												<textarea
-													rows="3"
-													placeholder={'{ "Content-Type": "application/json" }'}
-													value={toolDrafts[tool.slug]?.http.headers_extra ?? ''}
-													oninput={(e) => {
-														if (!toolDrafts[tool.slug]) initToolDraft(tool);
-														toolDrafts[tool.slug].http.headers_extra = e.currentTarget.value;
-														toolDrafts = { ...toolDrafts };
-													}}
-													class="auth-input w-full rounded-lg px-3.5 py-2.5 font-mono text-xs"
-												></textarea>
-											</div>
-											<div>
-												<label class="mb-1 block text-xs font-medium text-foreground/80">Body / payload template</label>
-												<p class="mb-1 text-[11px] text-muted-foreground/70">Used for POST/PUT/PATCH. Placeholders allowed.</p>
-												<textarea
-													rows="4"
-													placeholder={'{ "query": "{query}" }'}
-													value={toolDrafts[tool.slug]?.http.body ?? ''}
-													oninput={(e) => {
-														if (!toolDrafts[tool.slug]) initToolDraft(tool);
-														toolDrafts[tool.slug].http.body = e.currentTarget.value;
-														toolDrafts = { ...toolDrafts };
-													}}
-													class="auth-input w-full rounded-lg px-3.5 py-2.5 font-mono text-xs"
-												></textarea>
-											</div>
+											<KeyValueJsonEditor
+												field="headers_template"
+												value={toolDrafts[tool.slug]?.http.headers_template ?? '{}'}
+												label="Headers template"
+												description={'Request headers for this instance. Use placeholders such as {api_key} or {query}.'}
+												keyPlaceholder=""
+												valuePlaceholder={''}
+												resetKey={`${tool.slug}:${expandedConfig}`}
+												onValueChange={(_field, value) =>
+													setDraftHttpJson(tool, 'headers_template', value)}
+												onError={setDraftJsonError}
+												onClear={clearDraftJsonError}
+											/>
+											<KeyValueJsonEditor
+												field="body_template"
+												value={toolDrafts[tool.slug]?.http.body_template ?? '{}'}
+												label="Body template"
+												description="JSON body sent for POST, PUT, or PATCH. Values can use placeholders."
+												keyPlaceholder=""
+												valuePlaceholder={''}
+												resetKey={`${tool.slug}:${expandedConfig}`}
+												onValueChange={(_field, value) =>
+													setDraftHttpJson(tool, 'body_template', value)}
+												onError={setDraftJsonError}
+												onClear={clearDraftJsonError}
+											/>
 										</div>
 									</div>
 								{:else if tool.endpoint}
 									<div>
-										<p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">HTTP Request</p>
+										<p
+											class="mb-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+										>
+											HTTP Request
+										</p>
 										<div class="grid grid-cols-[80px_1fr] gap-2 text-xs">
 											<span class="font-mono text-foreground/70">method</span>
 											<span class="font-mono text-foreground/80">{tool.method ?? 'GET'}</span>
@@ -683,59 +1006,27 @@
 											<span class="font-mono break-all text-foreground/80">{tool.endpoint}</span>
 											{#if tool.headers_template && Object.keys(tool.headers_template).length > 0}
 												<span class="font-mono text-foreground/70">headers</span>
-												<span class="font-mono break-all text-foreground/80">{JSON.stringify(tool.headers_template)}</span>
+												<span class="font-mono break-all text-foreground/80"
+													>{JSON.stringify(tool.headers_template)}</span
+												>
 											{/if}
 											{#if tool.body_template}
 												<span class="font-mono text-foreground/70">body</span>
-												<span class="font-mono break-all text-foreground/80">{tool.body_template}</span>
+												<span class="font-mono break-all text-foreground/80"
+													>{tool.body_template}</span
+												>
 											{/if}
 										</div>
 									</div>
 								{/if}
-								{#if toolVariableSpecs(tool).length > 0}
-									<div>
-										<p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Variables</p>
-										<div class="space-y-2">
-											{#each toolVariableSpecs(tool) as spec (spec.name)}
-												<div>
-													<label class="mb-1 block text-xs font-medium text-foreground/80">
-														{spec.label ?? spec.name}
-														{#if spec.required}<span class="text-red-400">*</span>{/if}
-													</label>
-													{#if spec.description}
-														<p class="mb-1 text-[11px] text-muted-foreground/70">{spec.description}</p>
-													{/if}
-													<input
-														type={spec.secret ? 'password' : 'text'}
-														placeholder={spec.default != null ? String(spec.default) : ''}
-														value={toolDrafts[tool.slug]?.variables[spec.name] ?? ''}
-														oninput={(e) => {
-															if (!toolDrafts[tool.slug]) initToolDraft(tool);
-															toolDrafts[tool.slug].variables[spec.name] = e.currentTarget.value;
-															toolDrafts = { ...toolDrafts };
-														}}
-														class="auth-input w-full rounded-lg px-3.5 py-2.5 font-mono text-sm"
-													/>
-												</div>
-											{/each}
-										</div>
-									</div>
+								{#if variableSpecs.length > 0}
+									<VariableValuesEditor
+										specs={variableSpecs}
+										values={toolDrafts[tool.slug]?.variables ?? {}}
+										resetKey={`${tool.slug}:${expandedConfig}:variables`}
+										onValuesChange={(values) => setDraftVariables(tool, values)}
+									/>
 								{/if}
-								<div>
-									<p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Instruction (when to use)</p>
-									<p class="mb-2 text-[11px] text-muted-foreground/70">Default from registry: <span class="font-mono">{tool.prompt_block}</span></p>
-									<textarea
-										rows="3"
-										placeholder="Leave empty to use the default instruction."
-										value={toolDrafts[tool.slug]?.prompt_block_override ?? ''}
-										oninput={(e) => {
-											if (!toolDrafts[tool.slug]) initToolDraft(tool);
-											toolDrafts[tool.slug].prompt_block_override = e.currentTarget.value;
-											toolDrafts = { ...toolDrafts };
-										}}
-										class="auth-input w-full rounded-lg px-3.5 py-2.5 text-sm"
-									></textarea>
-								</div>
 								<div class="flex justify-end">
 									<Button
 										variant="default"
@@ -743,7 +1034,9 @@
 										disabled={registryBusy === `tool:${tool.slug}`}
 										onclick={() => saveToolDraft(tool)}
 									>
-										{#if registryBusy === `tool:${tool.slug}`}<Spinner data-icon="inline-start" />{/if}
+										{#if registryBusy === `tool:${tool.slug}`}<Spinner
+												data-icon="inline-start"
+											/>{/if}
 										Save configuration
 									</Button>
 								</div>
@@ -769,3 +1062,83 @@
 	excludeSlugs={registryMetadata.tools.map((t) => t.slug)}
 	onPick={addTool}
 />
+
+<Dialog.Root
+	open={!!curlDialogTool}
+	onOpenChange={(open) => {
+		if (!open) curlDialogTool = null;
+	}}
+>
+	<Dialog.Content class="sm:max-w-2xl">
+		<Dialog.Header>
+			<Dialog.Title>Import cURL</Dialog.Title>
+			<Dialog.Description>
+				Paste a cURL command to fill method, endpoint, headers, and body for this web_fetch tool.
+			</Dialog.Description>
+		</Dialog.Header>
+		<Textarea bind:value={curlCommand} rows={10} class="font-mono text-xs" />
+		<Dialog.Footer>
+			<Button variant="outline" onclick={() => (curlDialogTool = null)}>Cancel</Button>
+			<Button onclick={importCurl}>Import</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root
+	open={!!testDialogTool}
+	onOpenChange={(open) => {
+		if (!open) testDialogTool = null;
+	}}
+>
+	<Dialog.Content class="sm:max-w-2xl">
+		<Dialog.Header>
+			<Dialog.Title>Test {testDialogTool?.name ?? 'tool'}</Dialog.Title>
+			<Dialog.Description>
+				Run the current unsaved configuration through the backend executor. Optional arguments can
+				fill placeholders.
+			</Dialog.Description>
+		</Dialog.Header>
+		<div class="space-y-3">
+			<div>
+				<p class="mb-1 text-xs font-medium text-foreground/80">Arguments JSON</p>
+				<Textarea bind:value={testArgumentsJson} rows={5} class="font-mono text-xs" />
+			</div>
+			{#if testResult}
+				<div>
+					<p class="mb-1 text-xs font-medium text-foreground/80">Result</p>
+					<pre
+						class="max-h-72 overflow-auto rounded-lg border bg-background p-3 text-xs text-foreground">{JSON.stringify(
+							testResult,
+							null,
+							2
+						)}</pre>
+				</div>
+			{/if}
+		</div>
+		<Dialog.Footer>
+			<Button variant="outline" onclick={() => (testDialogTool = null)}>Close</Button>
+			<Button disabled={testBusy} onclick={runToolTest}>
+				{#if testBusy}<Spinner data-icon="inline-start" />{/if}
+				Run test
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<AlertDialog.Root
+	open={!!deleteTarget}
+	onOpenChange={(open) => {
+		if (!open) deleteTarget = null;
+	}}
+>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>{deleteTitle(deleteTarget)}</AlertDialog.Title>
+			<AlertDialog.Description>{deleteDescription(deleteTarget)}</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action onclick={confirmDeleteTarget}>Delete</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>

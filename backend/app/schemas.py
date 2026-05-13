@@ -299,6 +299,19 @@ class ActivationRequest(BaseModel):
     config: dict = Field(default_factory=dict)
 
 
+class ToolTestRequest(BaseModel):
+    config: dict = Field(default_factory=dict)
+    arguments: dict = Field(default_factory=dict)
+
+
+class ToolTestResponse(BaseModel):
+    name: str
+    status: int | None = None
+    data: Any | None = None
+    error: str | None = None
+    raw: dict = Field(default_factory=dict)
+
+
 class SkillActivationResponse(BaseModel):
     id: UUID
     tenant_id: UUID
@@ -599,7 +612,7 @@ class AgentInstanceUpdateRequest(BaseModel):
 class AgentInstructionBlock(BaseModel):
     id: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_.-]+$")
     topic: str = Field(min_length=1, max_length=80, pattern=r"^[a-zA-Z0-9_. -]+$")
-    title: str = Field(min_length=1, max_length=160)
+    title: str = Field(min_length=0, max_length=160)
     content: str = Field(min_length=1, max_length=4000)
     priority: int = Field(default=100, ge=0, le=1000)
     is_enabled: bool = True

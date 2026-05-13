@@ -42,11 +42,15 @@
 <div class="mx-auto max-w-4xl space-y-5 px-6 py-5">
 	<div>
 		<h2 class="font-display text-base font-semibold" style="color:var(--text-main)">Channels</h2>
-		<p class="mt-1 text-xs text-muted-foreground">Where this agent is available. Enable a channel to expand its setup.</p>
+		<p class="mt-1 text-xs text-muted-foreground">
+			Where this agent is available. Enable a channel to expand its setup.
+		</p>
 	</div>
 
 	<section class="space-y-2">
-		<p class="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Web & API</p>
+		<p class="text-[11px] font-semibold tracking-widest text-muted-foreground uppercase">
+			Web & API
+		</p>
 		<div class="space-y-3">
 			<ChannelCard
 				icon={Globe}
@@ -68,54 +72,6 @@
 					<ChannelConfigApi instanceId={data.instance.id} />
 				{/snippet}
 			</ChannelCard>
-		</div>
-	</section>
-
-	<section class="space-y-2">
-		<p class="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Messaging</p>
-		<div class="grid gap-3 md:grid-cols-2">
-			<ChannelCard
-				icon={MessageSquare}
-				name="WhatsApp Business"
-				description="Connect via Meta Cloud API. Receives messages and replies through the agent."
-				comingSoon
-			/>
-			<ChannelCard
-				icon={Send}
-				name="Telegram"
-				description="Bot integration with token-based webhook setup."
-				comingSoon
-			/>
-			<ChannelCard
-				icon={Hash}
-				name="Slack"
-				description="Slash commands and DMs in your workspace."
-				comingSoon
-			/>
-			<ChannelCard
-				icon={Phone}
-				name="SMS"
-				description="Inbound and outbound SMS via Twilio or compatible providers."
-				comingSoon
-			/>
-		</div>
-	</section>
-
-	<section class="space-y-2">
-		<p class="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Email & Integrations</p>
-		<div class="grid gap-3 md:grid-cols-2">
-			<ChannelCard
-				icon={Mail}
-				name="Email"
-				description="Reply to emails routed to a dedicated inbox."
-				comingSoon
-			/>
-			<ChannelCard
-				icon={Webhook}
-				name="Webhook"
-				description="Forward events to any HTTPS endpoint with HMAC signing."
-				comingSoon
-			/>
 		</div>
 	</section>
 </div>

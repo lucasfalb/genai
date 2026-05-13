@@ -245,10 +245,7 @@
 		registryMetadata = await registryApi.getMetadata(id);
 	}
 
-	async function configureSkill(
-		skill: SkillActivationResponse,
-		config = skill.config ?? {}
-	) {
+	async function configureSkill(skill: SkillActivationResponse, config = skill.config ?? {}) {
 		registryBusy = `skill:${skill.slug}`;
 		try {
 			await registryApi.activateSkill(id, skill.slug, { is_enabled: true, config });
@@ -261,10 +258,7 @@
 		}
 	}
 
-	async function configureTool(
-		tool: ToolActivationResponse,
-		config = tool.config ?? {}
-	) {
+	async function configureTool(tool: ToolActivationResponse, config = tool.config ?? {}) {
 		registryBusy = `tool:${tool.slug}`;
 		try {
 			await registryApi.activateToolItem(id, tool.slug, { is_enabled: true, config });
@@ -422,7 +416,7 @@
 			{/if}
 
 			<div
-				class="space-y-5 rounded-xl p-6"
+				class="space-y-5 p-6"
 				style="background:var(--surface);border:1px solid var(--ds-border)"
 			>
 				<div class="flex items-center justify-between">
@@ -499,7 +493,7 @@
 			</div>
 
 			<div
-				class="space-y-3 rounded-xl p-6"
+				class="space-y-3 p-6"
 				style="background:var(--surface);border:1px solid var(--ds-border)"
 			>
 				<div>
@@ -521,10 +515,7 @@
 				></textarea>
 			</div>
 
-			<div
-				class="rounded-xl p-6"
-				style="background:var(--surface);border:1px solid var(--ds-border)"
-			>
+			<div class="p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
 				<div class="flex items-center justify-between gap-4">
 					<div class="flex items-center gap-3">
 						<div
@@ -565,7 +556,7 @@
 
 		<!-- ── Tab: Prompt Config ────────────────────────────────────────────────── -->
 	{:else if activeTab === 'prompt'}
-		<div class="mx-auto max-w-2xl space-y-6 px-6 py-5 lg:mr-[420px]">
+		<div class="mx-auto space-y-6 px-6 py-5 lg:mr-[420px]">
 			{#if promptError}
 				<div
 					class="rounded-xl px-4 py-3 text-sm text-red-400"
@@ -584,10 +575,7 @@
 			{/if}
 
 			<!-- Instruction blocks -->
-			<div
-				class="rounded-xl p-6"
-				style="background:var(--surface);border:1px solid var(--ds-border)"
-			>
+			<div class="p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
 				<div class="mb-4 flex items-center justify-between">
 					<div>
 						<h3 class="font-display text-sm font-semibold" style="color:var(--text-main)">
@@ -718,11 +706,11 @@
 											placeholder="Instruction content"
 										></textarea>
 									</div>
-									<div class="flex shrink-0 items-center gap-1">
+									<div class="ml-auto flex shrink-0 items-center gap-1">
 										<button
 											onclick={() => moveBlock(i, -1)}
 											disabled={i === 0}
-											class="rounded p-1 text-muted-foreground/50 hover:text-foreground disabled:opacity-30"
+											class="ml-auto rounded p-1 text-muted-foreground/50 hover:text-foreground disabled:opacity-30"
 											>↑</button
 										>
 										<button
@@ -750,10 +738,7 @@
 			</div>
 
 			<!-- Guardrails -->
-			<div
-				class="rounded-xl p-6"
-				style="background:var(--surface);border:1px solid var(--ds-border)"
-			>
+			<div class="p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
 				<div class="mb-4 flex items-center justify-between">
 					<div>
 						<h3 class="font-display text-sm font-semibold" style="color:var(--text-main)">
@@ -868,7 +853,7 @@
 										placeholder="Guardrail rule"
 									></textarea>
 								</div>
-								<div class="flex shrink-0 items-center gap-1">
+								<div class="ml-auto flex shrink-0 items-center gap-1">
 									<button
 										onclick={() => toggleGuardrail(i)}
 										class="rounded p-1 text-muted-foreground/50 hover:text-blue-400"
@@ -900,11 +885,8 @@
 
 		<!-- ── Tab: Skills/Tools ─────────────────────────────────────────────────── -->
 	{:else if activeTab === 'skills'}
-		<div class="mx-auto max-w-3xl space-y-6 px-6 py-5 lg:mr-[420px]">
-			<section
-				class="rounded-xl p-6"
-				style="background:var(--surface);border:1px solid var(--ds-border)"
-			>
+		<div class="mx-auto space-y-6 px-6 py-5 lg:mr-[420px]">
+			<section class="p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
 				<div class="mb-4 flex items-center justify-between gap-4">
 					<div>
 						<h3 class="font-display text-sm font-semibold" style="color:var(--text-main)">
@@ -932,11 +914,15 @@
 								<div class="flex flex-wrap items-start justify-between gap-3">
 									<div class="min-w-0 flex-1">
 										<div class="flex items-center gap-2">
-											<div class="flex size-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-400">
+											<div
+												class="flex size-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-400"
+											>
 												<Puzzle class="size-4" />
 											</div>
 											<div>
-												<p class="text-sm font-semibold" style="color:var(--text-main)">{skill.name}</p>
+												<p class="text-sm font-semibold" style="color:var(--text-main)">
+													{skill.name}
+												</p>
 												<p class="text-xs text-muted-foreground/70">{skill.slug}</p>
 											</div>
 										</div>
@@ -944,10 +930,17 @@
 											<p class="mt-2 text-xs text-muted-foreground">{skill.description}</p>
 										{/if}
 										<div class="mt-2 flex flex-wrap gap-2">
-											<Badge variant="outline" class="text-[10px]">{skill.category ?? 'uncategorized'}</Badge>
-											<Badge variant="outline" class="text-[10px] font-mono">{skill.executor}</Badge>
+											<Badge variant="outline" class="text-[10px]"
+												>{skill.category ?? 'uncategorized'}</Badge
+											>
+											<Badge variant="outline" class="font-mono text-[10px]">{skill.executor}</Badge
+											>
 											{#if skill.requires_credential}
-												<Badge variant="outline" class="text-[10px] text-amber-400 border-amber-400/30">requires credential</Badge>
+												<Badge
+													variant="outline"
+													class="border-amber-400/30 text-[10px] text-amber-400"
+													>requires credential</Badge
+												>
 											{/if}
 										</div>
 									</div>
@@ -974,8 +967,7 @@
 									<div class="mt-4">
 										<JsonConfigPanel
 											value={JSON.stringify(skill.config ?? {}, null, 2)}
-											onSave={(json) =>
-												configureSkill(skill, parseJsonConfig(json))}
+											onSave={(json) => configureSkill(skill, parseJsonConfig(json))}
 										/>
 									</div>
 								{/if}
@@ -985,10 +977,7 @@
 				{/if}
 			</section>
 
-			<section
-				class="rounded-xl p-6"
-				style="background:var(--surface);border:1px solid var(--ds-border)"
-			>
+			<section class="p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
 				<div class="mb-4 flex items-center justify-between gap-4">
 					<div>
 						<h3 class="font-display text-sm font-semibold" style="color:var(--text-main)">Tools</h3>
@@ -1014,11 +1003,15 @@
 								<div class="flex flex-wrap items-start justify-between gap-3">
 									<div class="min-w-0 flex-1">
 										<div class="flex items-center gap-2">
-											<div class="flex size-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-400">
+											<div
+												class="flex size-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-400"
+											>
 												<Database class="size-4" />
 											</div>
 											<div>
-												<p class="text-sm font-semibold" style="color:var(--text-main)">{tool.name}</p>
+												<p class="text-sm font-semibold" style="color:var(--text-main)">
+													{tool.name}
+												</p>
 												<p class="text-xs text-muted-foreground/70">{tool.slug}</p>
 											</div>
 										</div>
@@ -1026,10 +1019,15 @@
 											<p class="mt-2 text-xs text-muted-foreground">{tool.description}</p>
 										{/if}
 										<div class="mt-2 flex flex-wrap gap-2">
-											<Badge variant="outline" class="text-[10px]">{tool.category ?? 'uncategorized'}</Badge>
-											<Badge variant="outline" class="text-[10px] font-mono">{tool.executor}</Badge>
+											<Badge variant="outline" class="text-[10px]"
+												>{tool.category ?? 'uncategorized'}</Badge
+											>
+											<Badge variant="outline" class="font-mono text-[10px]">{tool.executor}</Badge>
 											{#if tool.is_builtin}
-												<Badge variant="outline" class="text-[10px] text-emerald-400 border-emerald-400/30">builtin</Badge>
+												<Badge
+													variant="outline"
+													class="border-emerald-400/30 text-[10px] text-emerald-400">builtin</Badge
+												>
 											{/if}
 										</div>
 									</div>
@@ -1056,8 +1054,7 @@
 									<div class="mt-4">
 										<JsonConfigPanel
 											value={JSON.stringify(tool.config ?? {}, null, 2)}
-											onSave={(json) =>
-												configureTool(tool, parseJsonConfig(json))}
+											onSave={(json) => configureTool(tool, parseJsonConfig(json))}
 										/>
 									</div>
 								{/if}
@@ -1067,10 +1064,7 @@
 				{/if}
 			</section>
 
-			<section
-				class="rounded-xl p-6"
-				style="background:var(--surface);border:1px solid var(--ds-border)"
-			>
+			<section class="p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
 				<div class="mb-4 flex items-center justify-between gap-4">
 					<div>
 						<h3 class="font-display text-sm font-semibold" style="color:var(--text-main)">Tools</h3>
@@ -1096,11 +1090,15 @@
 								<div class="flex flex-wrap items-start justify-between gap-3">
 									<div class="min-w-0 flex-1">
 										<div class="flex items-center gap-2">
-											<div class="flex size-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-400">
+											<div
+												class="flex size-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-400"
+											>
 												<Database class="size-4" />
 											</div>
 											<div>
-												<p class="text-sm font-semibold" style="color:var(--text-main)">{tool.name}</p>
+												<p class="text-sm font-semibold" style="color:var(--text-main)">
+													{tool.name}
+												</p>
 												<p class="text-xs text-muted-foreground/70">{tool.slug}</p>
 											</div>
 										</div>
@@ -1108,10 +1106,15 @@
 											<p class="mt-2 text-xs text-muted-foreground">{tool.description}</p>
 										{/if}
 										<div class="mt-2 flex flex-wrap gap-2">
-											<Badge variant="outline" class="text-[10px]">{tool.category ?? 'uncategorized'}</Badge>
-											<Badge variant="outline" class="text-[10px] font-mono">{tool.executor}</Badge>
+											<Badge variant="outline" class="text-[10px]"
+												>{tool.category ?? 'uncategorized'}</Badge
+											>
+											<Badge variant="outline" class="font-mono text-[10px]">{tool.executor}</Badge>
 											{#if tool.is_builtin}
-												<Badge variant="outline" class="text-[10px] text-emerald-400 border-emerald-400/30">builtin</Badge>
+												<Badge
+													variant="outline"
+													class="border-emerald-400/30 text-[10px] text-emerald-400">builtin</Badge
+												>
 											{/if}
 										</div>
 									</div>

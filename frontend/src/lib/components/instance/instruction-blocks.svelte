@@ -26,13 +26,21 @@
 		if (!newBlock.topic.trim() || !newBlock.content.trim()) return;
 		blocks = [
 			...blocks,
-			{ id: genId(), ...newBlock, topic: newBlock.topic.trim(), title: newBlock.title.trim(), content: newBlock.content.trim() }
+			{
+				id: genId(),
+				...newBlock,
+				topic: newBlock.topic.trim(),
+				title: newBlock.title.trim(),
+				content: newBlock.content.trim()
+			}
 		];
 		newBlock = { topic: '', title: '', content: '', priority: 10, is_enabled: true };
 		adding = false;
 	}
 
-	function remove(i: number) { blocks = blocks.filter((_, idx) => idx !== i); }
+	function remove(i: number) {
+		blocks = blocks.filter((_, idx) => idx !== i);
+	}
 
 	function move(i: number, dir: -1 | 1) {
 		const j = i + dir;
@@ -43,19 +51,23 @@
 	}
 
 	function toggle(i: number) {
-		blocks = blocks.map((b, idx) => idx === i ? { ...b, is_enabled: !b.is_enabled } : b);
+		blocks = blocks.map((b, idx) => (idx === i ? { ...b, is_enabled: !b.is_enabled } : b));
 	}
 
 	function update(i: number, patch: Partial<AgentInstructionBlock>) {
-		blocks = blocks.map((b, idx) => idx === i ? { ...b, ...patch } : b);
+		blocks = blocks.map((b, idx) => (idx === i ? { ...b, ...patch } : b));
 	}
 </script>
 
-<div class="rounded-xl p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
+<div class="p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
 	<div class="mb-4 flex items-center justify-between">
 		<div>
-			<h3 class="font-display text-sm font-semibold" style="color:var(--text-main)">Instruction blocks</h3>
-			<p class="mt-0.5 text-xs text-muted-foreground">Custom instruction sections injected into the prompt</p>
+			<h3 class="font-display text-sm font-semibold" style="color:var(--text-main)">
+				Instruction blocks
+			</h3>
+			<p class="mt-0.5 text-xs text-muted-foreground">
+				Custom instruction sections injected into the prompt
+			</p>
 		</div>
 		<Button variant="ghost" size="sm" onclick={() => (adding = !adding)}>
 			<Plus data-icon="inline-start" />
@@ -64,25 +76,50 @@
 	</div>
 
 	{#if adding}
-		<div class="mb-4 rounded-lg p-4 space-y-3" style="background:var(--surface-hover);border:1px solid var(--ds-border-hover)">
+		<div
+			class="mb-4 space-y-3 rounded-lg p-4"
+			style="background:var(--surface-hover);border:1px solid var(--ds-border-hover)"
+		>
 			<div class="grid grid-cols-2 gap-3">
 				<div class="space-y-1">
-					<label class="block text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Topic *</label>
+					<label
+						class="block text-[10px] font-semibold tracking-widest text-muted-foreground uppercase"
+						>Topic *</label
+					>
 					<Input bind:value={newBlock.topic} placeholder="e.g. tone" />
 				</div>
 				<div class="space-y-1">
-					<label class="block text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Title</label>
+					<label
+						class="block text-[10px] font-semibold tracking-widest text-muted-foreground uppercase"
+						>Title</label
+					>
 					<Input bind:value={newBlock.title} placeholder="Display title" />
 				</div>
 			</div>
 			<div class="space-y-1">
-				<label class="block text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Content *</label>
-				<Textarea bind:value={newBlock.content} rows={3} placeholder="Instruction text..." class="font-mono" />
+				<label
+					class="block text-[10px] font-semibold tracking-widest text-muted-foreground uppercase"
+					>Content *</label
+				>
+				<Textarea
+					bind:value={newBlock.content}
+					rows={3}
+					placeholder="Instruction text..."
+					class="font-mono"
+				/>
 			</div>
 			<div class="flex items-center justify-between">
 				<div class="flex items-center gap-2">
-					<label class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Priority</label>
-					<Input type="number" bind:value={newBlock.priority} min={1} max={100} class="w-16 text-center font-mono" />
+					<label class="text-[10px] font-semibold tracking-widest text-muted-foreground uppercase"
+						>Priority</label
+					>
+					<Input
+						type="number"
+						bind:value={newBlock.priority}
+						min={1}
+						max={100}
+						class="w-16 text-center font-mono"
+					/>
 				</div>
 				<div class="flex gap-2">
 					<Button variant="ghost" size="sm" onclick={() => (adding = false)}>Cancel</Button>
@@ -101,20 +138,34 @@
 				<Accordion.Item
 					value={itemValue}
 					class="rounded-lg border-b-0 px-3 py-1"
-					style="background:var(--surface-hover);border:1px solid var(--ds-border);opacity:{blk.is_enabled ? 1 : 0.5}"
+					style="background:var(--surface-hover);border:1px solid var(--ds-border);opacity:{blk.is_enabled
+						? 1
+						: 0.5}"
 				>
 					<div class="flex items-center gap-2 py-2">
 						<Accordion.Trigger class="flex flex-1 items-center gap-2 hover:no-underline">
-							<ChevronDown class="size-4 text-muted-foreground transition-transform" data-accordion-chevron />
-							<span class="font-mono text-sm font-semibold" style="color:var(--text-main)">{blk.topic || '(no topic)'}</span>
-							{#if blk.title}<span class="truncate text-xs text-muted-foreground">— {blk.title}</span>{/if}
-							<Badge variant="outline" class="ml-auto text-[10px] font-mono">p{blk.priority}</Badge>
+							<ChevronDown
+								class="size-4 text-muted-foreground transition-transform"
+								data-accordion-chevron
+							/>
+							<span class="font-mono text-sm font-semibold" style="color:var(--text-main)"
+								>{blk.topic || '(no topic)'}</span
+							>
+							{#if blk.title}<span class="truncate text-xs text-muted-foreground"
+									>— {blk.title}</span
+								>{/if}
+							<Badge variant="outline" class="ml-auto font-mono text-[10px]">p{blk.priority}</Badge>
 						</Accordion.Trigger>
-						<div class="flex shrink-0 items-center gap-1">
+						<div class="ml-auto flex shrink-0 items-center gap-1">
 							<Button variant="ghost" size="icon-xs" disabled={i === 0} onclick={() => move(i, -1)}>
 								<ArrowUp />
 							</Button>
-							<Button variant="ghost" size="icon-xs" disabled={i === blocks.length - 1} onclick={() => move(i, 1)}>
+							<Button
+								variant="ghost"
+								size="icon-xs"
+								disabled={i === blocks.length - 1}
+								onclick={() => move(i, 1)}
+							>
 								<ArrowDown />
 							</Button>
 							<Switch checked={blk.is_enabled} onCheckedChange={() => toggle(i)} />

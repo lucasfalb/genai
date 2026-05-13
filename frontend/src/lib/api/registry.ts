@@ -6,6 +6,8 @@ import type {
 	RegistryCatalogResponse,
 	SkillActivationResponse,
 	ToolActivationResponse,
+	ToolTestRequest,
+	ToolTestResponse,
 	ToolMetadataResponse
 } from '$lib/api/types';
 
@@ -25,6 +27,9 @@ export const registryApi = {
 
 	activateToolItem: (instanceId: string, toolSlug: string, body: ActivationRequest) =>
 		api.put<ToolActivationResponse>(`/registry/instances/${instanceId}/tools/${toolSlug}`, body),
+
+	testTool: (instanceId: string, toolSlug: string, body: ToolTestRequest) =>
+		api.post<ToolTestResponse>(`/registry/instances/${instanceId}/tools/${toolSlug}/test`, body),
 
 	removeSkill: (instanceId: string, skillSlug: string) =>
 		api.del<{ message: string }>(`/registry/instances/${instanceId}/skills/${skillSlug}`),

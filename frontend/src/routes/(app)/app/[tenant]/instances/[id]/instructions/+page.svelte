@@ -72,7 +72,7 @@
 	});
 </script>
 
-<div class="mx-auto max-w-2xl space-y-6 px-6 py-5">
+<div class="mx-auto space-y-6 px-6 py-5">
 	<InstructionBlocks bind:blocks />
 	<Guardrails bind:guardrails />
 	<Constraints bind:constraints />

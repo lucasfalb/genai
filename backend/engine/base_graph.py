@@ -131,8 +131,8 @@ async def _execute_web_fetch(call: dict, config: dict | None = None) -> dict:
 
     method = (
         http_override.get("method")
-        or config.get("method")
         or args.get("method")
+        or config.get("method")
         or "GET"
     ).upper()
 

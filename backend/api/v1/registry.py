@@ -1,3 +1,4 @@
+import json
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -16,6 +17,8 @@ from app.schemas import (
     RegistryCatalogResponse,
     SkillActivationResponse,
     ToolActivationResponse,
+    ToolTestRequest,
+    ToolTestResponse,
     ToolMetadataResponse,
 )
 from database.connection import TenantContext, tenant_connection
@@ -26,6 +29,7 @@ from database.repositories.registry import (
     ToolActivationRecord,
 )
 from dependencies.auth import require_permission
+from engine.base_graph import TOOL_EXECUTORS
 from engine.prompt_cache import PromptCache
 
 
@@ -136,6 +140,50 @@ async def configure_instance_tool(
         return api_success(_tool_activation_response(activation), message="Tool configuration updated.")
 
 
+@router.post(
+    "/instances/{instance_id}/tools/{tool_slug}/test",
+    response_model=ApiResponse[ToolTestResponse],
+    summary="Test instance tool",
+    description="Executes one active instance tool with a temporary configuration payload and returns the executor result. This is intended for validating configurable HTTP tools before saving changes.",
+)
+async def test_instance_tool(
+    instance_id: UUID,
+    tool_slug: str,
+    payload: ToolTestRequest,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_SKILLS_TOOLS)),
+) -> ApiResponse[ToolTestResponse]:
+    async with tenant_connection(context) as connection:
+        metadata = await ToolMetadataCache(connection).get(tenant_id=context.tenant_id, instance_id=instance_id)
+        tool = next((item for item in metadata.tools if item.slug == tool_slug), None)
+        if tool is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Tool activation not found")
+
+        executor = TOOL_EXECUTORS.get(tool.executor)
+        if executor is None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"No executor available for tool: {tool.executor}")
+
+        draft_config = payload.config or {}
+        tool_config = {
+            "executor": tool.executor,
+            "method": tool.method,
+            "endpoint": tool.endpoint,
+            "headers_template": tool.headers_template or {},
+            "body_template": tool.body_template,
+            "variables": draft_config.get("variables") or (tool.config or {}).get("variables") or {},
+            "http_override": draft_config.get("http") or (tool.config or {}).get("http") or {},
+        }
+        result = await executor(
+            {
+                "id": "test",
+                "name": tool.slug,
+                "arguments": payload.arguments or {},
+            },
+            tool_config,
+        )
+        parsed = _parse_tool_test_output(result)
+        return api_success(parsed, message="Tool test completed.")
+
+
 @router.delete(
     "/instances/{instance_id}/skills/{skill_slug}",
     response_model=ApiResponse[MessageResponse],
@@ -241,6 +289,30 @@ def _skill_activation_response(record: SkillActivationRecord) -> SkillActivation
 
 def _tool_activation_response(record: ToolActivationRecord) -> ToolActivationResponse:
     return ToolActivationResponse(**record.__dict__)
+
+
+def _parse_tool_test_output(result: dict) -> ToolTestResponse:
+    output = result.get("output")
+    raw: dict
+    if isinstance(output, str):
+        try:
+            parsed = json.loads(output)
+        except json.JSONDecodeError:
+            parsed = {"output": output}
+    elif isinstance(output, dict):
+        parsed = output
+    else:
+        parsed = {"output": output}
+
+    raw = parsed if isinstance(parsed, dict) else {"output": parsed}
+    status_value = raw.get("status")
+    return ToolTestResponse(
+        name=str(result.get("name") or ""),
+        status=status_value if isinstance(status_value, int) else None,
+        data=raw.get("data"),
+        error=raw.get("error") if isinstance(raw.get("error"), str) else None,
+        raw=raw,
+    )
 
 
 def _credential_response(record: CredentialRecord) -> CredentialResponse:

@@ -181,7 +181,7 @@
 		</div>
 	{/if}
 
-	<div class="space-y-5 rounded-lg border border-ds-border bg-surface p-6">
+	<div class="space-y-5 border border-ds-border bg-surface p-6">
 		<div class="flex items-center justify-between">
 			<div>
 				<h2 class="font-display text-sm font-semibold text-text-main">Details</h2>
@@ -231,7 +231,7 @@
 						<Command.Root>
 							<Command.Input placeholder="Search provider..." />
 							<Command.List>
-								<Command.Empty>No providers.</Command.Empty>
+								<Command.Empty>No providers configured.</Command.Empty>
 								<Command.Group>
 									{#each availableProviders as p (p.value)}
 										<Command.Item value={p.label} onSelect={() => onProviderSelect(p.value)}>
@@ -301,7 +301,7 @@
 		</div>
 	</div>
 
-	<div class="space-y-3 rounded-lg border border-ds-border bg-surface p-6">
+	<div class="space-y-3 border border-ds-border bg-surface p-6">
 		<div>
 			<h2 class="font-display text-sm font-semibold text-text-main">Instructions</h2>
 			<p class="mt-1 text-xs text-muted-foreground">
