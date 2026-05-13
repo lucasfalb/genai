@@ -25,12 +25,15 @@ class AuditLogFullRecord:
     id: UUID
     tenant_id: UUID | None
     user_id: UUID | None
+    user_email: str | None
+    user_name: str | None
     action: str
     resource: str
     resource_id: str | None
     actor_type: str
     actor_role: str | None
     created_at: datetime
+    metadata: dict
 
 
 class AuditLogRepository:
@@ -81,18 +84,42 @@ class AuditLogRepository:
             actor_type=row.actor_type,
         )
 
-    async def list_by_tenant(self, *, tenant_id: UUID, limit: int = 100) -> list[AuditLogFullRecord]:
-        result = await self.connection.execute(
-            text("""
-                SELECT id, tenant_id, user_id, action, resource, resource_id,
-                       actor_type, actor_role, created_at
-                FROM audit_logs
-                WHERE tenant_id = :tenant_id
-                ORDER BY created_at DESC
-                LIMIT :limit
-            """),
-            {"tenant_id": tenant_id, "limit": limit},
-        )
+    async def list_by_tenant(
+        self,
+        *,
+        tenant_id: UUID,
+        limit: int = 100,
+        started_at: datetime | None = None,
+        ended_at: datetime | None = None,
+        action: str | None = None,
+        resource: str | None = None,
+    ) -> list[AuditLogFullRecord]:
+        query = """
+            SELECT al.id, al.tenant_id, al.user_id, al.action, al.resource, al.resource_id,
+                   al.actor_type, al.actor_role, al.created_at, al.metadata,
+                   u.email as user_email, u.name as user_name
+            FROM audit_logs al
+            LEFT JOIN users u ON al.user_id = u.id
+            WHERE al.tenant_id = :tenant_id
+        """
+        params: dict[str, object] = {"tenant_id": tenant_id, "limit": limit}
+
+        if started_at:
+            query += " AND al.created_at >= :started_at"
+            params["started_at"] = started_at
+        if ended_at:
+            query += " AND al.created_at <= :ended_at"
+            params["ended_at"] = ended_at
+        if action:
+            query += " AND al.action = :action"
+            params["action"] = action
+        if resource:
+            query += " AND al.resource = :resource"
+            params["resource"] = resource
+
+        query += " ORDER BY al.created_at DESC LIMIT :limit"
+
+        result = await self.connection.execute(text(query), params)
         return [_audit_full_from_row(row) for row in result.fetchall()]
 
 
@@ -101,12 +128,15 @@ def _audit_full_from_row(row) -> AuditLogFullRecord:
         id=row.id,
         tenant_id=row.tenant_id,
         user_id=row.user_id,
+        user_email=row.user_email,
+        user_name=row.user_name,
         action=row.action,
         resource=row.resource,
         resource_id=row.resource_id,
         actor_type=row.actor_type,
         actor_role=row.actor_role,
         created_at=row.created_at,
+        metadata=row.metadata if isinstance(row.metadata, dict) else json.loads(row.metadata or "{}"),
     )
 
 

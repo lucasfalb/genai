@@ -1,0 +1,403 @@
+<script lang="ts">
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { tick } from 'svelte';
+	import { CalendarDate } from '@internationalized/date';
+	import type { DateValue } from '@internationalized/date';
+	import type { SuperadminAuditLogResponse, AgentInstanceResponse, CollectionResponse, DocumentResponse } from '$lib/api/types';
+	import * as Table from '$lib/components/ui/table/index.js';
+	import * as Command from '$lib/components/ui/command/index.js';
+	import * as Popover from '$lib/components/ui/popover/index.js';
+	import RangeCalendar from '$lib/components/ui/range-calendar/range-calendar.svelte';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Badge } from '$lib/components/ui/badge/index.js';
+	import { cn } from '$lib/utils.js';
+	import Search from '@lucide/svelte/icons/search';
+	import User from '@lucide/svelte/icons/user';
+	import Shield from '@lucide/svelte/icons/shield';
+	import Box from '@lucide/svelte/icons/box';
+	import CalendarIcon from '@lucide/svelte/icons/calendar';
+	import X from '@lucide/svelte/icons/x';
+	import Check from '@lucide/svelte/icons/check';
+	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
+
+	function parseDateParam(value: string | null): DateValue | undefined {
+		if (!value || value.length < 10) return;
+		try {
+			return new CalendarDate(
+				parseInt(value.slice(0, 4)),
+				parseInt(value.slice(5, 7)),
+				parseInt(value.slice(8, 10))
+			);
+		} catch {
+			return;
+		}
+	}
+
+	let { data } = $props();
+	let logs = $state<SuperadminAuditLogResponse[]>(data.logs);
+	let instances = $state<AgentInstanceResponse[]>(data.instances);
+	let collections = $state<CollectionResponse[]>(data.collections);
+	let documents = $state<DocumentResponse[]>(data.documents);
+
+	let searchQuery = $state(page.url.searchParams.get('q') ?? '');
+	let actionFilter = $state(page.url.searchParams.get('action') ?? 'all');
+	let resourceFilter = $state(page.url.searchParams.get('resource') ?? 'all');
+	let actionOpen = $state(false);
+	let resourceOpen = $state(false);
+	let dateRangeOpen = $state(false);
+	let actionTriggerRef = $state<HTMLButtonElement>(null!);
+	let resourceTriggerRef = $state<HTMLButtonElement>(null!);
+
+	let dateRange = $state<{ start: DateValue | undefined; end: DateValue | undefined } | undefined>(
+		(() => {
+			const s = page.url.searchParams.get('started_at');
+			const e = page.url.searchParams.get('ended_at');
+			if (s && e) return { start: parseDateParam(s), end: parseDateParam(e) };
+			return;
+		})()
+	);
+
+	const instanceNames = $derived(new Map(instances.map((i) => [i.id, i.name])));
+	const collectionNames = $derived(new Map(collections.map((c) => [c.id, c.name])));
+	const documentNames = $derived(new Map(documents.map((d) => [d.id, d.filename])));
+
+	const uniqueActions = $derived([...new Set(logs.map((l) => l.action))].sort());
+	const uniqueResources = $derived([...new Set(logs.map((l) => l.resource))].sort());
+
+	const filteredLogs = $derived.by(() => {
+		const q = searchQuery.toLowerCase().trim();
+		if (!q) return logs;
+		return logs.filter(
+			(l) =>
+				l.action.toLowerCase().includes(q) ||
+				l.resource.toLowerCase().includes(q) ||
+				(l.resource_id ?? '').toLowerCase().includes(q) ||
+				(l.user_email ?? '').toLowerCase().includes(q) ||
+				(l.user_name ?? '').toLowerCase().includes(q) ||
+				resolveResourceName(l.resource, l.resource_id).toLowerCase().includes(q)
+		);
+	});
+
+	function closeAndFocus(ref: HTMLButtonElement | undefined) {
+		tick().then(() => ref?.focus());
+	}
+
+	function resolveResourceName(resource: string, resourceId: string | null): string {
+		if (!resourceId) return '—';
+		if (resource === 'agent_instances') return instanceNames.get(resourceId) ?? resourceId;
+		if (resource === 'collections') return collectionNames.get(resourceId) ?? resourceId;
+		if (resource === 'documents') return documentNames.get(resourceId) ?? resourceId;
+		return resourceId;
+	}
+
+	function resolveUserLabel(log: SuperadminAuditLogResponse): string {
+		if (log.user_email) return log.user_email;
+		if (log.user_name) return log.user_name;
+		return log.actor_role || log.actor_type;
+	}
+
+	function hasActiveFilters(): boolean {
+		return actionFilter !== 'all' || resourceFilter !== 'all' || dateRange !== undefined || searchQuery.trim() !== '';
+	}
+
+	function buildUrlParams(): URLSearchParams {
+		const params = new URLSearchParams();
+		if (actionFilter !== 'all') params.set('action', actionFilter);
+		if (resourceFilter !== 'all') params.set('resource', resourceFilter);
+		if (searchQuery.trim()) params.set('q', searchQuery.trim());
+		if (dateRange?.start) {
+			const d = dateRange.start.toDate('utc');
+			d.setUTCHours(0, 0, 0, 0);
+			params.set('started_at', d.toISOString());
+		}
+		if (dateRange?.end) {
+			const d = dateRange.end.toDate('utc');
+			d.setUTCHours(23, 59, 59, 999);
+			params.set('ended_at', d.toISOString());
+		}
+		return params;
+	}
+
+	function applyFilters() {
+		const params = buildUrlParams();
+		const qs = params.toString();
+		goto(`${page.url.pathname}${qs ? `?${qs}` : ''}`, { replaceState: true, noScroll: true });
+	}
+
+	function clearFilters() {
+		searchQuery = '';
+		actionFilter = 'all';
+		resourceFilter = 'all';
+		dateRange = undefined;
+		goto(page.url.pathname, { replaceState: true, noScroll: true });
+	}
+
+	function applyFilterOnEnter(event: KeyboardEvent) {
+		if (event.key === 'Enter') applyFilters();
+	}
+
+	function formatDate(value: string): string {
+		return new Date(value).toLocaleString('pt-BR');
+	}
+
+	function getActionColor(action: string): string {
+		if (action.includes('created') || action.includes('added')) return 'text-emerald-500';
+		if (action.includes('deleted') || action.includes('removed')) return 'text-red-500';
+		if (action.includes('updated') || action.includes('changed') || action.includes('toggled')) return 'text-blue-500';
+		return 'text-muted-foreground';
+	}
+
+	const dateRangeLabel = $derived(
+		dateRange?.start && dateRange?.end
+			? `${dateRange.start.toDate('utc').toLocaleDateString('pt-BR')} - ${dateRange.end.toDate('utc').toLocaleDateString('pt-BR')}`
+			: 'Date range'
+	);
+</script>
+
+<div class="flex flex-col gap-4 p-4">
+	<div class="flex flex-wrap items-center justify-between gap-3">
+		<div class="flex max-w-4xl min-w-[300px] flex-1 flex-wrap items-center gap-2">
+			<div class="relative w-full max-w-xs">
+				<Search class="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
+				<Input
+					placeholder="Search logs..."
+					bind:value={searchQuery}
+					class="h-9 bg-background pl-9"
+					onkeydown={applyFilterOnEnter}
+				/>
+			</div>
+
+			<Popover.Root bind:open={actionOpen}>
+				<Popover.Trigger bind:ref={actionTriggerRef}>
+					{#snippet child({ props })}
+						<Button
+							variant="outline"
+							class="h-9 w-[240px] justify-between bg-background"
+							{...props}
+							role="combobox"
+							aria-expanded={actionOpen}
+						>
+							<span class="truncate">{actionFilter === 'all' ? 'All Actions' : actionFilter}</span>
+							<ChevronsUpDown class="ms-2 size-4 shrink-0 opacity-50" />
+						</Button>
+					{/snippet}
+				</Popover.Trigger>
+				<Popover.Content class="w-[240px] p-0">
+					<Command.Root>
+						<Command.Input placeholder="Search action..." />
+						<Command.List>
+							<Command.Empty>No actions found.</Command.Empty>
+							<Command.Group>
+								<Command.Item
+									value="__all__"
+									onSelect={() => {
+										actionFilter = 'all';
+										actionOpen = false;
+										closeAndFocus(actionTriggerRef);
+										applyFilters();
+									}}
+								>
+									<Check class={cn('size-4', actionFilter !== 'all' && 'text-transparent')} />
+									All Actions
+								</Command.Item>
+								{#each uniqueActions as act}
+									<Command.Item
+										value={act}
+										onSelect={() => {
+											actionFilter = act;
+											actionOpen = false;
+											closeAndFocus(actionTriggerRef);
+											applyFilters();
+										}}
+									>
+										<Check class={cn('size-4', actionFilter !== act && 'text-transparent')} />
+										{act}
+									</Command.Item>
+								{/each}
+							</Command.Group>
+						</Command.List>
+					</Command.Root>
+				</Popover.Content>
+			</Popover.Root>
+
+			<Popover.Root bind:open={resourceOpen}>
+				<Popover.Trigger bind:ref={resourceTriggerRef}>
+					{#snippet child({ props })}
+						<Button
+							variant="outline"
+							class="h-9 w-[240px] justify-between bg-background"
+							{...props}
+							role="combobox"
+							aria-expanded={resourceOpen}
+						>
+							<span class="truncate">{resourceFilter === 'all' ? 'All Resources' : resourceFilter}</span>
+							<ChevronsUpDown class="ms-2 size-4 shrink-0 opacity-50" />
+						</Button>
+					{/snippet}
+				</Popover.Trigger>
+				<Popover.Content class="w-[240px] p-0">
+					<Command.Root>
+						<Command.Input placeholder="Search resource..." />
+						<Command.List>
+							<Command.Empty>No resources found.</Command.Empty>
+							<Command.Group>
+								<Command.Item
+									value="__all__"
+									onSelect={() => {
+										resourceFilter = 'all';
+										resourceOpen = false;
+										closeAndFocus(resourceTriggerRef);
+										applyFilters();
+									}}
+								>
+									<Check class={cn('size-4', resourceFilter !== 'all' && 'text-transparent')} />
+									All Resources
+								</Command.Item>
+								{#each uniqueResources as res}
+									<Command.Item
+										value={res}
+										onSelect={() => {
+											resourceFilter = res;
+											resourceOpen = false;
+											closeAndFocus(resourceTriggerRef);
+											applyFilters();
+										}}
+									>
+										<Check class={cn('size-4', resourceFilter !== res && 'text-transparent')} />
+										{res}
+									</Command.Item>
+								{/each}
+							</Command.Group>
+						</Command.List>
+					</Command.Root>
+				</Popover.Content>
+			</Popover.Root>
+
+			<Popover.Root bind:open={dateRangeOpen}>
+				<Popover.Trigger>
+					{#snippet child({ props })}
+						<Button variant="outline" class="h-9 gap-2 bg-background" {...props}>
+							<CalendarIcon class="size-4" />
+							<span class="text-xs">{dateRangeLabel}</span>
+						</Button>
+					{/snippet}
+				</Popover.Trigger>
+				<Popover.Content class="w-auto p-0" align="start">
+					<RangeCalendar bind:value={dateRange} numberOfMonths={2} locale="pt-BR" />
+					<div class="border-t p-2" style="border-color:var(--ds-border)">
+						<Button
+							class="w-full"
+							size="sm"
+							onclick={() => {
+								dateRangeOpen = false;
+								applyFilters();
+							}}
+						>
+							Apply range
+						</Button>
+					</div>
+				</Popover.Content>
+			</Popover.Root>
+
+			{#if hasActiveFilters()}
+				<Button
+					variant="ghost"
+					size="sm"
+					class="h-9 gap-1 border bg-background text-muted-foreground hover:bg-muted"
+					onclick={clearFilters}
+				>
+					<X class="size-4" />
+					Clear
+				</Button>
+			{/if}
+		</div>
+	</div>
+
+	<div class="overflow-hidden border bg-card">
+		<Table.Root containerClass="scrollbar-none max-h-[600px] overflow-auto bg-card" class="w-full table-fixed">
+			<Table.Header class="sticky top-0 z-10 bg-background">
+				<Table.Row class="bg-background hover:bg-background">
+					<Table.Head class="w-[180px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase">Date</Table.Head>
+					<Table.Head class="w-[200px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase">Actor</Table.Head>
+					<Table.Head class="bg-background py-2 text-[11px] font-bold tracking-wider uppercase">Action</Table.Head>
+					<Table.Head class="w-[200px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase">Resource</Table.Head>
+					<Table.Head class="w-[120px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase text-right">Details</Table.Head>
+				</Table.Row>
+			</Table.Header>
+
+			<Table.Body>
+				{#if filteredLogs.length === 0}
+					<Table.Row class="bg-card hover:bg-card">
+						<Table.Cell colspan={5} class="h-32 text-center text-muted-foreground">
+							<div class="flex flex-col items-center gap-1">
+								<span class="text-sm font-medium text-foreground">No logs found</span>
+								<span class="text-xs">Try adjusting your search or filter criteria.</span>
+							</div>
+						</Table.Cell>
+					</Table.Row>
+				{:else}
+					{#each filteredLogs as log (log.id)}
+						<Table.Row class="group bg-card transition-colors hover:bg-muted/30">
+							<Table.Cell class="py-3 font-mono text-[10px] text-muted-foreground">
+								{formatDate(log.created_at)}
+							</Table.Cell>
+
+							<Table.Cell class="py-3">
+								<div class="flex items-center gap-2">
+									{#if log.actor_type === 'superadmin'}
+										<Shield class="h-3 w-3 shrink-0 text-purple-400" />
+									{:else}
+										<User class="h-3 w-3 shrink-0 text-blue-400" />
+									{/if}
+									<div class="min-w-0">
+										<span class="block truncate text-[11px] font-medium">{resolveUserLabel(log)}</span>
+										{#if log.user_email && log.actor_role}
+											<span class="block truncate font-mono text-[9px] text-muted-foreground">{log.actor_role}</span>
+										{/if}
+									</div>
+								</div>
+							</Table.Cell>
+
+							<Table.Cell class="py-3">
+								<span class="text-xs font-semibold {getActionColor(log.action)}">
+									{log.action}
+								</span>
+							</Table.Cell>
+
+							<Table.Cell class="py-3">
+								<div class="flex items-center gap-2 overflow-hidden">
+									<Box class="h-3 w-3 shrink-0 text-muted-foreground" />
+									<div class="flex min-w-0 flex-col">
+										<span class="truncate text-[11px] font-medium">{log.resource}</span>
+										<span class="truncate font-mono text-[9px] text-muted-foreground" title={log.resource_id ?? ''}>
+											{resolveResourceName(log.resource, log.resource_id)}
+										</span>
+									</div>
+								</div>
+							</Table.Cell>
+
+							<Table.Cell class="py-3 text-right">
+								<Badge variant="outline" class="h-5 px-1.5 text-[9px] font-bold tracking-tighter uppercase">
+									Audit
+								</Badge>
+							</Table.Cell>
+						</Table.Row>
+					{/each}
+				{/if}
+			</Table.Body>
+		</Table.Root>
+		<div class="border-t bg-card px-4 py-2">
+			<p class="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+				Showing {filteredLogs.length} of {logs.length} entries
+			</p>
+		</div>
+	</div>
+</div>
+
+<style>
+	:global(td) {
+		white-space: nowrap;
+	}
+</style>

@@ -548,12 +548,15 @@ export interface SuperadminAgentInstanceResponse {
 export interface SuperadminAuditLogResponse {
 	id: string;
 	user_id: string | null;
+	user_email: string | null;
+	user_name: string | null;
 	action: string;
 	resource: string;
 	resource_id: string | null;
 	actor_type: string;
 	actor_role: string | null;
 	created_at: string;
+	metadata: Record<string, unknown>;
 }
 
 export interface EmailTemplateResponse {

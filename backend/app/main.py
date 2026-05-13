@@ -23,6 +23,7 @@ from api.v1.tenant_ai_config import router as tenant_ai_config_router
 from api.v1.tenant_settings import router as tenant_settings_router
 from api.v1.tenant_collections import router as tenant_collections_router
 from api.v1.tenant_members import router as tenant_members_router
+from api.v1.tenant_audit import router as tenant_audit_router
 from app.responses import api_success, http_exception_handler, validation_exception_handler
 from app.schemas import ApiResponse
 
@@ -53,6 +54,7 @@ app.include_router(tenant_ai_config_router, prefix="/api/v1")
 app.include_router(tenant_settings_router, prefix="/api/v1")
 app.include_router(tenant_collections_router, prefix="/api/v1")
 app.include_router(tenant_members_router, prefix="/api/v1")
+app.include_router(tenant_audit_router, prefix="/api/v1")
 app.include_router(superadmin_system_settings_router, prefix="/api/v1")
 
 

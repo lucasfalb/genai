@@ -18,6 +18,7 @@
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import Bell from '@lucide/svelte/icons/bell';
 	import Search from '@lucide/svelte/icons/search';
+	import History from '@lucide/svelte/icons/history';
 	import type { Component } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { authApi } from '$lib/api/auth';
@@ -76,6 +77,12 @@
 					label: 'Observability',
 					icon: Activity,
 					description: 'Logs, traces and execution health'
+				},
+				{
+					href: '/logs',
+					label: 'Audit Logs',
+					icon: History,
+					description: 'Track tenant changes and activity'
 				},
 				{
 					href: '/settings',

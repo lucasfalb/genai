@@ -157,12 +157,15 @@ class SuperadminAgentInstanceResponse(BaseModel):
 class SuperadminAuditLogResponse(BaseModel):
     id: UUID
     user_id: UUID | None
+    user_email: str | None
+    user_name: str | None
     action: str
     resource: str
     resource_id: str | None
     actor_type: str
     actor_role: str | None
     created_at: datetime
+    metadata: dict
 
 
 class TenantMemberUpdateRequest(BaseModel):
