@@ -101,10 +101,12 @@
 			: page.url.pathname
 	);
 	const currentNav = $derived(
-		allNavItems.find(
-			(item) =>
-				appPath === item.href || (item.href !== '/dashboard' && appPath.startsWith(`${item.href}/`))
-		) ?? allNavItems[0]
+		[...allNavItems]
+			.sort((a, b) => b.href.length - a.href.length)
+			.find(
+				(item) =>
+					appPath === item.href || (item.href !== '/dashboard' && appPath.startsWith(`${item.href}/`))
+			) ?? allNavItems[0]
 	);
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -222,9 +224,7 @@
 					<Sidebar.GroupContent>
 						<Sidebar.Menu>
 							{#each group.items as item}
-								{@const isActive =
-									appPath === item.href ||
-									(item.href !== '/dashboard' && appPath.startsWith(`${item.href}/`))}
+								{@const isActive = currentNav.href === item.href}
 								{@const IconComp = item.icon}
 								<Sidebar.MenuItem>
 									<Sidebar.MenuButton

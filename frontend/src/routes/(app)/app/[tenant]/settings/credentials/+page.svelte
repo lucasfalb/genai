@@ -5,16 +5,27 @@
 	import type { CredentialResponse } from '$lib/api/types';
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import Pencil from '@lucide/svelte/icons/pencil';
+	import Search from '@lucide/svelte/icons/search';
 	import X from '@lucide/svelte/icons/x';
 	import { toast } from 'svelte-sonner';
+	import * as Table from '$lib/components/ui/table';
+	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
+	import * as Dialog from '$lib/components/ui/dialog';
+	import { Label } from '$lib/components/ui/label';
 
 	let { data } = $props();
 
 	let credentials = $state<CredentialResponse[]>(data.credentials);
-	let editing = $state<CredentialResponse | null>(null);
+	let editTarget = $state<CredentialResponse | null>(null);
 	let secretRef = $state('');
 	let metadataText = $state('{}');
 	let saving = $state(false);
+	let searchQuery = $state('');
+
+	const filteredCredentials = $derived(
+		credentials.filter((c) => c.skill_slug.toLowerCase().includes(searchQuery.toLowerCase()))
+	);
 
 	function maskSecret(ref: string): string {
 		if (!ref) return 'Not set';
@@ -23,22 +34,22 @@
 	}
 
 	function startEdit(credential: CredentialResponse) {
-		editing = credential;
+		editTarget = credential;
 		secretRef = credential.secret_ref;
 		metadataText = JSON.stringify(credential.metadata ?? {}, null, 2);
 	}
 
 	function closeEdit() {
-		editing = null;
+		editTarget = null;
 		secretRef = '';
 		metadataText = '{}';
 	}
 
 	async function saveCredential(json: string) {
-		if (!editing) return;
+		if (!editTarget) return;
 		saving = true;
 		try {
-			const saved = await registryApi.saveCredential(editing.skill_slug, {
+			const saved = await registryApi.saveCredential(editTarget.skill_slug, {
 				secret_ref: secretRef.trim(),
 				metadata: JSON.parse(json || '{}') as Record<string, unknown>
 			});
@@ -56,77 +67,123 @@
 	}
 </script>
 
-<div class="mx-auto max-w-5xl space-y-6 p-6">
-	<div class="flex items-center justify-between gap-4">
-		<div>
-			<h1 class="font-display text-xl font-semibold" style="color:var(--text-main)">Credential References</h1>
-			<p class="mt-1 text-sm text-muted-foreground">Tenant credential references by skill slug</p>
-		</div>
-		<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-			<KeyRound class="h-5 w-5" />
+<div class="flex flex-col gap-4 p-4">
+	<!-- Search Row -->
+	<div class="flex flex-wrap items-center justify-between gap-3">
+		<div class="relative w-full max-w-xs">
+			<Search class="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
+			<Input
+				placeholder="Search skills..."
+				bind:value={searchQuery}
+				class="h-9 bg-background pl-9"
+			/>
 		</div>
 	</div>
 
-	<section class="rounded-xl" style="background:var(--surface);border:1px solid var(--ds-border)">
-		{#if credentials.length === 0}
-			<p class="py-12 text-center text-sm text-muted-foreground">No credential references configured.</p>
-		{:else}
-			<div class="overflow-x-auto">
-				<table class="w-full text-left text-sm">
-					<thead class="border-b text-xs uppercase tracking-widest text-muted-foreground" style="border-color:var(--ds-border)">
-						<tr>
-							<th class="px-4 py-3 font-semibold">Skill</th>
-							<th class="px-4 py-3 font-semibold">Secret ref</th>
-							<th class="px-4 py-3 font-semibold">Metadata</th>
-							<th class="px-4 py-3 text-right font-semibold">Actions</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each credentials as credential (credential.skill_slug)}
-							<tr class="border-b last:border-b-0" style="border-color:var(--ds-border)">
-								<td class="px-4 py-3 font-mono text-xs" style="color:var(--text-main)">{credential.skill_slug}</td>
-								<td class="px-4 py-3 font-mono text-xs text-muted-foreground">{maskSecret(credential.secret_ref)}</td>
-								<td class="max-w-md px-4 py-3">
-									<pre class="max-h-24 overflow-auto rounded-lg p-2 text-xs text-muted-foreground" style="background:var(--surface-hover)">{JSON.stringify(credential.metadata ?? {}, null, 2)}</pre>
-								</td>
-								<td class="px-4 py-3 text-right">
-									<button
-										onclick={() => startEdit(credential)}
-										class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-blue-400 transition-colors hover:bg-blue-400/10"
-									>
-										<Pencil class="h-3.5 w-3.5" />
-										Edit
-									</button>
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-		{/if}
-	</section>
+	<!-- Credentials Table -->
+	<div class="overflow-hidden border bg-card">
+		<Table.Root containerClass="scrollbar-none bg-card" class="w-full table-fixed">
+			<Table.Header class="bg-background">
+				<Table.Row class="bg-background hover:bg-background">
+					<Table.Head class="w-[200px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase">Skill</Table.Head>
+					<Table.Head class="bg-background py-2 text-[11px] font-bold tracking-wider uppercase">Secret Reference</Table.Head>
+					<Table.Head class="hidden bg-background py-2 text-[11px] font-bold tracking-wider uppercase md:table-cell">Metadata</Table.Head>
+					<Table.Head class="w-[100px] bg-background py-2 text-right"></Table.Head>
+				</Table.Row>
+			</Table.Header>
 
-	{#if editing}
-		<div class="rounded-xl p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
-			<div class="mb-4 flex items-center justify-between gap-4">
-				<div>
-					<h2 class="font-display text-sm font-semibold" style="color:var(--text-main)">Edit {editing.skill_slug}</h2>
-					<p class="mt-0.5 text-xs text-muted-foreground">Secret value is stored outside the application; save only the reference.</p>
-				</div>
-				<button onclick={closeEdit} class="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
-					<X class="h-4 w-4" />
-				</button>
-			</div>
+			<Table.Body>
+				{#if filteredCredentials.length === 0}
+					<Table.Row class="bg-card hover:bg-card">
+						<Table.Cell colspan={4} class="h-32 text-center text-muted-foreground">
+							<div class="flex flex-col items-center gap-1">
+								<span class="text-sm font-medium text-foreground">No credentials found</span>
+								<span class="text-xs">Try adjusting your search query.</span>
+							</div>
+						</Table.Cell>
+					</Table.Row>
+				{:else}
+					{#each filteredCredentials as credential (credential.skill_slug)}
+						<Table.Row class="group bg-card transition-colors hover:bg-muted/30">
+							<Table.Cell class="py-3">
+								<div class="flex items-center gap-3 overflow-hidden">
+									<div class="flex h-8 w-8 shrink-0 items-center justify-center border bg-background text-blue-400 transition-all group-hover:border-primary/40">
+										<KeyRound class="h-4 w-4" />
+									</div>
+									<span class="truncate font-mono text-xs font-semibold">{credential.skill_slug}</span>
+								</div>
+							</Table.Cell>
 
-			<div class="mb-4 space-y-1.5">
-				<label class="block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Secret reference</label>
-				<input type="password" bind:value={secretRef} class="auth-input w-full rounded-lg px-3.5 py-2.5 font-mono text-sm" />
-			</div>
+							<Table.Cell class="py-3 font-mono text-xs text-muted-foreground">
+								{maskSecret(credential.secret_ref)}
+							</Table.Cell>
 
-			<JsonConfigPanel value={metadataText} onSave={saveCredential} />
-			{#if saving}
-				<p class="mt-2 text-xs text-muted-foreground">Saving credential reference...</p>
-			{/if}
+							<Table.Cell class="hidden py-3 md:table-cell">
+								<div class="max-w-md">
+									<pre class="line-clamp-1 truncate rounded bg-muted/50 px-2 py-1 text-[10px] text-muted-foreground">{JSON.stringify(credential.metadata ?? {})}</pre>
+								</div>
+							</Table.Cell>
+
+							<Table.Cell class="py-3 text-right">
+								<Button
+									variant="ghost"
+									size="sm"
+									onclick={() => startEdit(credential)}
+									class="h-8 gap-1.5 text-xs text-blue-400 hover:bg-blue-400/10 hover:text-blue-400"
+								>
+									<Pencil class="h-3.5 w-3.5" />
+									Edit
+								</Button>
+							</Table.Cell>
+						</Table.Row>
+					{/each}
+				{/if}
+			</Table.Body>
+		</Table.Root>
+		<div class="border-t bg-card px-4 py-2">
+			<p class="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+				Showing {filteredCredentials.length} of {credentials.length} skills
+			</p>
 		</div>
-	{/if}
+	</div>
 </div>
+
+<!-- Edit Dialog -->
+<Dialog.Root open={!!editTarget} onOpenChange={(o) => { if (!o) closeEdit(); }}>
+	<Dialog.Content class="sm:max-w-[600px]">
+		<Dialog.Header>
+			<Dialog.Title>Edit Credential Reference</Dialog.Title>
+			<Dialog.Description>
+				Update the secret reference and metadata for <strong class="text-foreground">{editTarget?.skill_slug}</strong>.
+			</Dialog.Description>
+		</Dialog.Header>
+
+		<div class="grid gap-4 py-4">
+			<div class="grid gap-2">
+				<Label for="secret">Secret Reference</Label>
+				<Input id="secret" type="password" bind:value={secretRef} placeholder="Environment variable name or key ID" />
+				<p class="text-[10px] text-muted-foreground">The actual secret value is managed in your secure environment.</p>
+			</div>
+			
+			<div class="grid gap-2">
+				<Label>Metadata (JSON)</Label>
+				<JsonConfigPanel value={metadataText} onSave={saveCredential} />
+			</div>
+		</div>
+
+		<Dialog.Footer>
+			<Button variant="outline" onclick={closeEdit}>Cancel</Button>
+			{#if saving}
+				<Button disabled><X class="mr-2 h-4 w-4 animate-spin" /> Saving...</Button>
+			{:else}
+				<p class="text-[10px] text-muted-foreground self-center italic">Metadata is saved via the code editor above.</p>
+			{/if}
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<style>
+	:global(td) {
+		white-space: nowrap;
+	}
+</style>

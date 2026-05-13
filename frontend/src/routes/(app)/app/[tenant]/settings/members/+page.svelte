@@ -5,12 +5,21 @@
 	import { invitationsApi } from '$lib/api/invitations';
 	import { ApiError, getErrorMessage } from '$lib/api/client';
 	import type { TenantInvitationResponse, TenantMemberResponse } from '$lib/api/types';
-	import Shield from '@lucide/svelte/icons/shield';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import MailPlus from '@lucide/svelte/icons/mail-plus';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import X from '@lucide/svelte/icons/x';
+	import Search from '@lucide/svelte/icons/search';
+	import UserPlus from '@lucide/svelte/icons/user-plus';
 	import { toast } from 'svelte-sonner';
+
+	import * as Table from '$lib/components/ui/table';
+	import * as Tabs from '$lib/components/ui/tabs';
+	import * as Dialog from '$lib/components/ui/dialog';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+	import * as Select from '$lib/components/ui/select';
+	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 
 	let { data } = $props();
 
@@ -21,12 +30,46 @@
 	let inviteRole = $state('member');
 	let creating = $state(false);
 	let busyInvitationId = $state('');
+	let inviteOpen = $state(false);
 
-	const ASSIGNABLE_ROLES = ['tenant_admin', 'member', 'viewer'];
-	const ASSIGNABLE_STATUS = ['active', 'pending', 'suspended'];
+	// Removal/Cancel state
+	let memberToRemove = $state<TenantMemberResponse | null>(null);
+	let invitationToCancel = $state<TenantInvitationResponse | null>(null);
+
+	// Search state
+	let searchQuery = $state('');
+
+	const ASSIGNABLE_ROLES = [
+		{ value: 'tenant_admin', label: 'Tenant Admin' },
+		{ value: 'member', label: 'Member' },
+		{ value: 'viewer', label: 'Viewer' }
+	];
+
+	const ASSIGNABLE_STATUS = [
+		{ value: 'active', label: 'Active' },
+		{ value: 'pending', label: 'Pending' },
+		{ value: 'suspended', label: 'Suspended' }
+	];
+
+	const filteredMembers = $derived(
+		members.filter((m) => {
+			const name = (m.name || '').toLowerCase();
+			const mEmail = (m.email || '').toLowerCase();
+			const query = searchQuery.toLowerCase();
+			return name.includes(query) || mEmail.includes(query);
+		})
+	);
+
+	const filteredInvitations = $derived(
+		invitations.filter((i) => {
+			const iEmail = (i.email || '').toLowerCase();
+			const query = searchQuery.toLowerCase();
+			return iEmail.includes(query);
+		})
+	);
 
 	function initials(member: TenantMemberResponse): string {
-		const source = member.name || member.email;
+		const source = member.name || member.email || '?';
 		return source
 			.split(/[\s@.]+/)
 			.filter(Boolean)
@@ -36,10 +79,17 @@
 	}
 
 	function canEdit(member: TenantMemberResponse): boolean {
-		return member.user_id !== data.currentUserId && member.role !== 'owner' && member.role !== 'superadmin';
+		return (
+			member.user_id !== data.currentUserId &&
+			member.role !== 'owner' &&
+			member.role !== 'superadmin'
+		);
 	}
 
-	async function updateMember(member: TenantMemberResponse, patch: { role?: string; status?: string }) {
+	async function updateMember(
+		member: TenantMemberResponse,
+		patch: { role?: string; status?: string }
+	) {
 		if (!canEdit(member)) return;
 		busyUserId = member.user_id;
 		try {
@@ -53,13 +103,14 @@
 		}
 	}
 
-	async function removeMember(member: TenantMemberResponse) {
-		if (!canEdit(member)) return;
-		if (!confirm(`Remove ${member.email} from this tenant?`)) return;
-		busyUserId = member.user_id;
+	async function removeMember() {
+		if (!memberToRemove) return;
+		const target = memberToRemove;
+		memberToRemove = null;
+		busyUserId = target.user_id;
 		try {
-			await membersApi.remove(member.user_id);
-			members = members.filter((item) => item.user_id !== member.user_id);
+			await membersApi.remove(target.user_id);
+			members = members.filter((item) => item.user_id !== target.user_id);
 			toast.success('Member removed.');
 		} catch (err) {
 			toast.error(getErrorMessage(err, 'Member removal failed.'));
@@ -80,7 +131,10 @@
 	}
 
 	function effectiveStatus(invitation: TenantInvitationResponse): string {
-		if (invitation.status === 'pending' && new Date(invitation.expires_at).getTime() <= Date.now()) {
+		if (
+			invitation.status === 'pending' &&
+			new Date(invitation.expires_at).getTime() <= Date.now()
+		) {
 			return 'expired';
 		}
 		return invitation.status;
@@ -97,6 +151,7 @@
 			invitations = [created, ...invitations.filter((item) => item.id !== created.id)];
 			email = '';
 			inviteRole = 'member';
+			inviteOpen = false;
 			toast.success('Invitation created.');
 		} catch (err) {
 			if (err instanceof ApiError && err.status === 409) {
@@ -122,12 +177,14 @@
 		}
 	}
 
-	async function cancelInvitation(invitation: TenantInvitationResponse) {
-		if (!confirm(`Cancel invitation for ${invitation.email}?`)) return;
-		busyInvitationId = invitation.id;
+	async function cancelInvitation() {
+		if (!invitationToCancel) return;
+		const target = invitationToCancel;
+		invitationToCancel = null;
+		busyInvitationId = target.id;
 		try {
-			await invitationsApi.cancel(invitation.id);
-			invitations = invitations.filter((item) => item.id !== invitation.id);
+			await invitationsApi.cancel(target.id);
+			invitations = invitations.filter((item) => item.id !== target.id);
 			toast.success('Invitation cancelled.');
 		} catch (err) {
 			toast.error(getErrorMessage(err, 'Invitation cancel failed.'));
@@ -137,172 +194,348 @@
 	}
 </script>
 
-<div class="mx-auto max-w-6xl space-y-6 p-6">
-	<div class="flex items-center justify-between gap-4">
-		<div>
-			<h1 class="font-display text-xl font-semibold" style="color:var(--text-main)">Members</h1>
-			<p class="mt-1 text-sm text-muted-foreground">Tenant users, roles and membership status</p>
-		</div>
-		<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-			<Shield class="h-5 w-5" />
-		</div>
-	</div>
+<div class="flex flex-col gap-3 p-4">
+	<Tabs.Root value="members" class="w-full gap-3">
+		<div class="flex flex-wrap items-center justify-between gap-3">
+			<Tabs.List class="bg-muted p-1">
+				<Tabs.Trigger value="members" class="px-6">Members</Tabs.Trigger>
+				<Tabs.Trigger value="invitations" class="px-6">
+					Invitations
+					{#if invitations.length > 0}
+						<span class="ml-2 rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[10px] text-blue-400">
+							{invitations.length}
+						</span>
+					{/if}
+				</Tabs.Trigger>
+			</Tabs.List>
 
-	<section class="rounded-xl" style="background:var(--surface);border:1px solid var(--ds-border)">
-		{#if members.length === 0}
-			<p class="py-12 text-center text-sm text-muted-foreground">No tenant members found.</p>
-		{:else}
-			<div class="overflow-x-auto">
-				<table class="w-full text-left text-sm">
-					<thead class="border-b text-xs uppercase tracking-widest text-muted-foreground" style="border-color:var(--ds-border)">
-						<tr>
-							<th class="px-4 py-3 font-semibold">User</th>
-							<th class="px-4 py-3 font-semibold">Role</th>
-							<th class="px-4 py-3 font-semibold">Status</th>
-							<th class="px-4 py-3 text-right font-semibold">Actions</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each members as member (member.user_id)}
-							{@const isSelf = member.user_id === data.currentUserId}
-							{@const editable = canEdit(member)}
-							{@const busy = busyUserId === member.user_id}
-							<tr class="border-b last:border-b-0" style="border-color:var(--ds-border)">
-								<td class="px-4 py-3">
-									<div class="flex items-center gap-3">
-										<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-xs font-semibold text-white" style="border:1px solid var(--ds-border-hover)">
-											{initials(member)}
+			<div class="flex items-center gap-3">
+				<!-- Search -->
+				<div class="relative w-full max-w-xs">
+					<Search class="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
+					<Input placeholder="Search..." bind:value={searchQuery} class="h-9 bg-background pl-9" />
+				</div>
+
+				<Button onclick={() => (inviteOpen = true)} size="sm" class="h-9 gap-2">
+					<UserPlus class="h-4 w-4" />
+					Invite Member
+				</Button>
+			</div>
+		</div>
+
+		<Tabs.Content value="members" class="mt-0">
+			<div class="overflow-hidden border bg-card">
+				<Table.Root containerClass="scrollbar-none bg-card" class="w-full table-fixed">
+					<Table.Header class="bg-background">
+						<Table.Row class="bg-background hover:bg-background">
+							<Table.Head
+								class="w-[40%] bg-background py-2 text-[11px] font-bold tracking-wider uppercase"
+								>User</Table.Head
+							>
+							<Table.Head class="bg-background py-2 text-[11px] font-bold tracking-wider uppercase"
+								>Role</Table.Head
+							>
+							<Table.Head
+								class="w-[120px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase"
+								>Status</Table.Head
+							>
+							<Table.Head class="w-[100px] bg-background py-2"></Table.Head>
+						</Table.Row>
+					</Table.Header>
+
+					<Table.Body>
+						{#if filteredMembers.length === 0}
+							<Table.Row class="bg-card hover:bg-card">
+								<Table.Cell colspan={4} class="h-32 text-center text-muted-foreground">
+									<div class="flex flex-col items-center gap-1">
+										<span class="text-sm font-medium text-foreground">No members found</span>
+										<span class="text-xs">Try adjusting your search query.</span>
+									</div>
+								</Table.Cell>
+							</Table.Row>
+						{:else}
+							{#each filteredMembers as member (member.user_id)}
+								{@const isSelf = member.user_id === data.currentUserId}
+								{@const editable = canEdit(member)}
+								{@const busy = busyUserId === member.user_id}
+								<Table.Row class="group bg-card transition-colors hover:bg-muted/30">
+									<Table.Cell class="py-3">
+										<div class="flex items-center gap-3 overflow-hidden">
+											<div
+												class="flex h-9 w-9 shrink-0 items-center justify-center border bg-background text-[10px] font-bold text-muted-foreground uppercase transition-all group-hover:border-primary/40"
+											>
+												{initials(member)}
+											</div>
+											<div class="min-w-0">
+												<p class="truncate text-sm font-semibold">
+													{member.name || member.email}
+													{#if isSelf}<span
+															class="ml-1 text-[10px] font-normal tracking-tighter text-muted-foreground uppercase"
+															>(you)</span
+														>{/if}
+												</p>
+												<p class="truncate text-[10px] text-muted-foreground">{member.email}</p>
+											</div>
 										</div>
+									</Table.Cell>
+
+									<Table.Cell class="py-3">
+										{#if editable}
+											<Select.Root
+												type="single"
+												value={member.role}
+												onValueChange={(v) => updateMember(member, { role: v })}
+												disabled={busy}
+											>
+												<Select.Trigger class="h-8 w-full max-w-[140px] bg-background text-xs">
+													{ASSIGNABLE_ROLES.find((r) => r.value === member.role)?.label ||
+														member.role}
+												</Select.Trigger>
+												<Select.Content>
+													{#each ASSIGNABLE_ROLES as role}
+														<Select.Item value={role.value}>{role.label}</Select.Item>
+													{/each}
+												</Select.Content>
+											</Select.Root>
+										{:else}
+											<RoleBadge role={member.role} />
+										{/if}
+									</Table.Cell>
+
+									<Table.Cell class="py-3">
+										{#if editable}
+											<Select.Root
+												type="single"
+												value={member.status}
+												onValueChange={(v) => updateMember(member, { status: v })}
+												disabled={busy}
+											>
+												<Select.Trigger class="h-8 w-full max-w-[110px] bg-background text-xs">
+													{ASSIGNABLE_STATUS.find((s) => s.value === member.status)?.label ||
+														member.status}
+												</Select.Trigger>
+												<Select.Content>
+													{#each ASSIGNABLE_STATUS as status}
+														<Select.Item value={status.value}>{status.label}</Select.Item>
+													{/each}
+												</Select.Content>
+											</Select.Root>
+										{:else}
+											<StatusBadge status={member.status} />
+										{/if}
+									</Table.Cell>
+
+									<Table.Cell class="py-3 text-right">
+										{#if editable}
+											<Button
+												variant="ghost"
+												size="sm"
+												onclick={() => (memberToRemove = member)}
+												disabled={busy}
+												class="h-8 gap-1.5 text-xs text-red-400 hover:bg-red-400/10 hover:text-red-400"
+											>
+												<Trash2 class="h-3.5 w-3.5" />
+												Remove
+											</Button>
+										{/if}
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						{/if}
+					</Table.Body>
+				</Table.Root>
+				<div class="border-t bg-card px-4 py-2">
+					<p class="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+						Showing {filteredMembers.length} of {members.length} members
+					</p>
+				</div>
+			</div>
+		</Tabs.Content>
+
+		<Tabs.Content value="invitations" class="mt-0">
+			<div class="overflow-hidden border bg-card">
+				<Table.Root containerClass="scrollbar-none bg-card" class="w-full table-fixed">
+					<Table.Header class="bg-background">
+						<Table.Row class="bg-background hover:bg-background">
+							<Table.Head
+								class="w-[40%] bg-background py-2 text-[11px] font-bold tracking-wider uppercase"
+								>Email</Table.Head
+							>
+							<Table.Head class="bg-background py-2 text-[11px] font-bold tracking-wider uppercase"
+								>Role</Table.Head
+							>
+							<Table.Head class="bg-background py-2 text-[11px] font-bold tracking-wider uppercase"
+								>Status</Table.Head
+							>
+							<Table.Head
+								class="w-[120px] bg-background py-2 text-right text-[11px] font-bold tracking-wider uppercase"
+								>Actions</Table.Head
+							>
+						</Table.Row>
+					</Table.Header>
+
+					<Table.Body>
+						{#if filteredInvitations.length === 0}
+							<Table.Row class="bg-card hover:bg-card">
+								<Table.Cell colspan={4} class="h-32 text-center text-muted-foreground">
+									<div class="flex flex-col items-center gap-1">
+										<span class="text-sm font-medium text-foreground">No invitations found</span>
+										<span class="text-xs">
+											{searchQuery
+												? 'Try adjusting your search query.'
+												: 'Invite someone to get started.'}
+										</span>
+									</div>
+								</Table.Cell>
+							</Table.Row>
+						{:else}
+							{#each filteredInvitations as invitation (invitation.id)}
+								{@const status = effectiveStatus(invitation)}
+								{@const busy = busyInvitationId === invitation.id}
+								<Table.Row class="group bg-card transition-colors hover:bg-muted/30">
+									<Table.Cell class="py-3">
 										<div class="min-w-0">
-											<p class="truncate font-medium" style="color:var(--text-main)">
-												{member.name || member.email}
-												{#if isSelf}<span class="ml-2 text-xs text-muted-foreground">(you)</span>{/if}
+											<p class="truncate text-sm font-semibold">{invitation.email}</p>
+											<p
+												class="truncate text-[10px] tracking-tighter text-muted-foreground uppercase"
+											>
+												{formatExpiry(invitation.expires_at)}
 											</p>
-											<p class="truncate text-xs text-muted-foreground">{member.email}</p>
 										</div>
-									</div>
-								</td>
-								<td class="px-4 py-3">
-									{#if editable}
-										<select
-											value={member.role}
-											disabled={busy}
-											onchange={(event) => updateMember(member, { role: event.currentTarget.value })}
-											class="auth-input rounded-lg px-3 py-1.5 text-xs"
-										>
-											{#each ASSIGNABLE_ROLES as role (role)}
-												<option value={role}>{role}</option>
-											{/each}
-										</select>
-									{:else}
-										<RoleBadge role={member.role} />
-									{/if}
-								</td>
-								<td class="px-4 py-3">
-									{#if editable}
-										<select
-											value={member.status}
-											disabled={busy}
-											onchange={(event) => updateMember(member, { status: event.currentTarget.value })}
-											class="auth-input rounded-lg px-3 py-1.5 text-xs"
-										>
-											{#each ASSIGNABLE_STATUS as status (status)}
-												<option value={status}>{status}</option>
-											{/each}
-										</select>
-									{:else}
-										<StatusBadge status={member.status} />
-									{/if}
-								</td>
-								<td class="px-4 py-3 text-right">
-									<button
-										onclick={() => removeMember(member)}
-										disabled={!editable || busy}
-										class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-red-400 transition-colors hover:bg-red-400/10 disabled:cursor-not-allowed disabled:opacity-40"
-									>
-										<Trash2 class="h-3.5 w-3.5" />
-										Remove
-									</button>
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-		{/if}
-	</section>
+									</Table.Cell>
 
-	<section class="rounded-xl p-5" style="background:var(--surface);border:1px solid var(--ds-border)">
-		<div class="mb-4 flex items-center justify-between gap-4">
-			<div>
-				<h2 class="font-display text-sm font-semibold" style="color:var(--text-main)">Invitations</h2>
-				<p class="mt-1 text-sm text-muted-foreground">Invite users into this tenant.</p>
-			</div>
-			<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-				<MailPlus class="h-5 w-5" />
-			</div>
-		</div>
+									<Table.Cell class="py-3">
+										<RoleBadge role={invitation.role} />
+									</Table.Cell>
 
-		<div class="grid gap-3 md:grid-cols-[1fr_180px_auto]">
-			<div class="space-y-1.5">
-				<label for="invite-email" class="block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Email</label>
-				<input id="invite-email" type="email" bind:value={email} class="auth-input w-full rounded-lg px-3.5 py-2.5 text-sm" placeholder="name@company.com" />
-			</div>
-			<div class="space-y-1.5">
-				<label for="invite-role" class="block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Role</label>
-				<select id="invite-role" bind:value={inviteRole} class="auth-input w-full rounded-lg px-3.5 py-2.5 text-sm">
-					{#each ASSIGNABLE_ROLES as option (option)}
-						<option value={option}>{option}</option>
-					{/each}
-				</select>
-			</div>
-			<div class="flex items-end">
-				<button onclick={createInvitation} disabled={creating} class="h-[42px] rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-500 disabled:opacity-60">
-					{creating ? 'Inviting...' : 'Invite'}
-				</button>
-			</div>
-		</div>
-	</section>
+									<Table.Cell class="py-3">
+										<StatusBadge {status} />
+									</Table.Cell>
 
-	<section class="rounded-xl" style="background:var(--surface);border:1px solid var(--ds-border)">
-		{#if invitations.length === 0}
-			<p class="py-10 text-center text-sm text-muted-foreground">No pending invitations.</p>
-		{:else}
-			<div class="overflow-x-auto">
-				<table class="w-full text-left text-sm">
-					<thead class="border-b text-xs uppercase tracking-widest text-muted-foreground" style="border-color:var(--ds-border)">
-						<tr>
-							<th class="px-4 py-3 font-semibold">Email</th>
-							<th class="px-4 py-3 font-semibold">Role</th>
-							<th class="px-4 py-3 font-semibold">Status</th>
-							<th class="px-4 py-3 font-semibold">Expires</th>
-							<th class="px-4 py-3 text-right font-semibold">Actions</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each invitations as invitation (invitation.id)}
-							{@const status = effectiveStatus(invitation)}
-							{@const busy = busyInvitationId === invitation.id}
-							<tr class="border-b last:border-b-0" style="border-color:var(--ds-border)">
-								<td class="px-4 py-3 font-medium" style="color:var(--text-main)">{invitation.email}</td>
-								<td class="px-4 py-3"><RoleBadge role={invitation.role} /></td>
-								<td class="px-4 py-3"><StatusBadge {status} /></td>
-								<td class="px-4 py-3 text-xs text-muted-foreground">{formatExpiry(invitation.expires_at)}</td>
-								<td class="px-4 py-3 text-right">
-									<div class="flex justify-end gap-2">
-										<button onclick={() => resendInvitation(invitation)} disabled={busy || status === 'accepted'} class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-blue-400 transition-colors hover:bg-blue-400/10 disabled:opacity-40">
-											<RefreshCw class="h-3.5 w-3.5" /> Resend
-										</button>
-										<button onclick={() => cancelInvitation(invitation)} disabled={busy || status !== 'pending'} class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-red-400 transition-colors hover:bg-red-400/10 disabled:opacity-40">
-											<X class="h-3.5 w-3.5" /> Cancel
-										</button>
-									</div>
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
+									<Table.Cell class="py-3 text-right">
+										<div class="flex items-center justify-end gap-1">
+											<Button
+												variant="ghost"
+												size="icon-sm"
+												onclick={() => resendInvitation(invitation)}
+												disabled={busy || status === 'accepted'}
+												class="text-blue-400 hover:bg-blue-400/10 hover:text-blue-400"
+											>
+												<RefreshCw class="h-3.5 w-3.5" />
+											</Button>
+											<Button
+												variant="ghost"
+												size="icon-sm"
+												onclick={() => (invitationToCancel = invitation)}
+												disabled={busy || status !== 'pending'}
+												class="text-red-400 hover:bg-red-400/10 hover:text-red-400"
+											>
+												<X class="h-3.5 w-3.5" />
+											</Button>
+										</div>
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						{/if}
+					</Table.Body>
+				</Table.Root>
+				<div class="border-t bg-card px-4 py-2">
+					<p class="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+						Showing {filteredInvitations.length} of {invitations.length} invitations
+					</p>
+				</div>
 			</div>
-		{/if}
-	</section>
+		</Tabs.Content>
+	</Tabs.Root>
 </div>
+
+<!-- Invite Dialog -->
+<Dialog.Root bind:open={inviteOpen}>
+	<Dialog.Content class="sm:max-w-[425px]">
+		<Dialog.Header>
+			<Dialog.Title>Invite Member</Dialog.Title>
+			<Dialog.Description>
+				Send an invitation to join this tenant. They will receive an email with a link to join.
+			</Dialog.Description>
+		</Dialog.Header>
+
+		<div class="grid gap-4 py-4">
+			<div class="grid gap-2">
+				<Label for="email">Email address</Label>
+				<Input id="email" type="email" bind:value={email} placeholder="name@company.com" />
+			</div>
+			<div class="grid gap-2">
+				<Label for="role">Role</Label>
+				<Select.Root type="single" bind:value={inviteRole}>
+					<Select.Trigger class="w-full bg-background">
+						{ASSIGNABLE_ROLES.find((r) => r.value === inviteRole)?.label}
+					</Select.Trigger>
+					<Select.Content>
+						{#each ASSIGNABLE_ROLES as role}
+							<Select.Item value={role.value}>{role.label}</Select.Item>
+						{/each}
+					</Select.Content>
+				</Select.Root>
+			</div>
+		</div>
+
+		<Dialog.Footer>
+			<Button variant="outline" onclick={() => (inviteOpen = false)}>Cancel</Button>
+			<Button onclick={createInvitation} disabled={creating || !email.trim()}>
+				{creating ? 'Sending...' : 'Send Invitation'}
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<!-- Remove Member AlertDialog -->
+<AlertDialog.Root
+	open={!!memberToRemove}
+	onOpenChange={(o) => {
+		if (!o) memberToRemove = null;
+	}}
+>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Remove Member</AlertDialog.Title>
+			<AlertDialog.Description>
+				Are you sure you want to remove <strong class="text-foreground"
+					>{memberToRemove?.name || memberToRemove?.email}</strong
+				> from this tenant? This user will lose all access immediately.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<Button variant="destructive" onclick={removeMember}>Remove</Button>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
+
+<!-- Cancel Invitation AlertDialog -->
+<AlertDialog.Root
+	open={!!invitationToCancel}
+	onOpenChange={(o) => {
+		if (!o) invitationToCancel = null;
+	}}
+>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Cancel Invitation</AlertDialog.Title>
+			<AlertDialog.Description>
+				Are you sure you want to cancel the invitation for <strong class="text-foreground"
+					>{invitationToCancel?.email}</strong
+				>? The invitation link will be deactivated.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<Button variant="destructive" onclick={cancelInvitation}>Cancel Invitation</Button>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
+
+<style>
+	:global(td) {
+		white-space: nowrap;
+	}
+</style>

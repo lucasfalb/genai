@@ -36,9 +36,9 @@
 	}
 </script>
 
-<div class="flex flex-col gap-4 p-4">
+<div class="flex flex-col gap-3 p-4">
 	<div class="flex flex-wrap items-center justify-between gap-3">
-		<div class="flex max-w-2xl min-w-[300px] flex-1 items-center gap-2">
+		<div class="flex max-w-2xl min-w-[300px] flex-1 items-center gap-3">
 			<div class="relative w-full max-w-xs">
 				<Search class="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
 				<Input
@@ -61,15 +61,19 @@
 		<Table.Root containerClass="scrollbar-none bg-card" class="w-full table-fixed">
 			<Table.Header class="bg-background">
 				<Table.Row class="bg-background hover:bg-background">
-					<Table.Head class="w-[40%] bg-background py-2 text-[11px] font-bold tracking-wider uppercase">
+					<Table.Head
+						class="w-[40%] bg-background py-2 text-[11px] font-bold tracking-wider uppercase"
+					>
 						Collection
 					</Table.Head>
 					<Table.Head
-						class="hidden bg-background py-2 text-[11px] font-bold tracking-wider uppercase md:table-cell"
+						class="hidden bg-background py-2 text-center text-[11px] font-bold tracking-wider uppercase md:table-cell"
 					>
 						Stats
 					</Table.Head>
-					<Table.Head class="w-[120px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase">
+					<Table.Head
+						class="w-[120px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase"
+					>
 						Status
 					</Table.Head>
 					<Table.Head class="w-[50px] bg-background py-2"></Table.Head>
@@ -109,17 +113,19 @@
 							</Table.Cell>
 
 							<Table.Cell class="hidden py-3 md:table-cell">
-								<div class="flex gap-4 text-xs">
+								<div class="flex justify-center gap-4 text-xs">
 									<div class="flex flex-col">
-										<span class="font-semibold">{collection.document_count}</span>
+										<span class="text-center font-semibold">{collection.document_count}</span>
 										<span class="text-[10px] text-muted-foreground uppercase">Docs</span>
 									</div>
 									<div class="flex flex-col">
-										<span class="font-semibold">{collection.indexed_count}</span>
+										<span class="text-center font-semibold">{collection.indexed_count}</span>
 										<span class="text-[10px] text-muted-foreground uppercase">Indexed</span>
 									</div>
 									<div class="flex flex-col">
-										<span class="font-semibold text-red-400">{collection.failed_count}</span>
+										<span class="text-center font-semibold text-red-400"
+											>{collection.failed_count}</span
+										>
 										<span class="text-[10px] text-muted-foreground uppercase">Failed</span>
 									</div>
 								</div>

@@ -381,7 +381,7 @@
 	}
 </script>
 
-<div class="flex flex-col gap-4 p-4">
+<div class="flex flex-col gap-3 p-4">
 	<section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
 		<div class="min-h-[124px] border bg-card p-4">
 			<div class="flex items-center justify-between">
@@ -475,7 +475,9 @@
 				</Popover.Content>
 			</Popover.Root>
 
-			<Button variant="outline" size="sm" class="h-9 bg-background" onclick={applyFilters}>Apply</Button>
+			<Button variant="outline" size="sm" class="h-9 bg-background" onclick={applyFilters}
+				>Apply</Button
+			>
 
 			{#if hasActiveFilters}
 				<Button
@@ -503,9 +505,7 @@
 	</div>
 
 	<section class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-		<div
-			class="relative flex h-[620px] flex-col overflow-hidden border bg-card"
-		>
+		<div class="relative flex h-[620px] flex-col overflow-hidden border bg-card">
 			{#if isRefetching}
 				<div
 					class="pointer-events-none absolute top-3 right-3 z-10 flex items-center gap-2 border bg-background/90 px-2.5 py-1.5 text-xs text-muted-foreground backdrop-blur"
@@ -515,7 +515,10 @@
 				</div>
 			{/if}
 			<div class="min-h-0 flex-1 bg-card">
-				<Table.Root containerClass="scrollbar-none h-full overflow-auto bg-card" class="min-w-[1120px] table-fixed text-sm">
+				<Table.Root
+					containerClass="scrollbar-none h-full overflow-auto bg-card"
+					class="min-w-[1120px] table-fixed text-sm"
+				>
 					<colgroup>
 						<col class="w-[112px]" />
 						<col class="w-[180px]" />
@@ -531,13 +534,26 @@
 					>
 						<Table.Row class="bg-background hover:bg-background">
 							<Table.Head class="bg-background px-4 py-2 font-bold tracking-wider">Run</Table.Head>
-							<Table.Head class="bg-background px-4 py-2 font-bold tracking-wider">Agent</Table.Head>
-							<Table.Head class="bg-background px-4 py-2 font-bold tracking-wider">Message</Table.Head>
-							<Table.Head class="bg-background px-4 py-2 text-right font-bold tracking-wider">Prompt</Table.Head>
-							<Table.Head class="bg-background px-4 py-2 text-right font-bold tracking-wider">Completion</Table.Head>
-							<Table.Head class="bg-background px-4 py-2 text-right font-bold tracking-wider">Embeddings</Table.Head>
-							<Table.Head class="bg-background px-4 py-2 text-right font-bold tracking-wider">Total</Table.Head>
-							<Table.Head class="bg-background px-4 py-2 text-right font-bold tracking-wider">Duration</Table.Head>
+							<Table.Head class="bg-background px-4 py-2 font-bold tracking-wider">Agent</Table.Head
+							>
+							<Table.Head class="bg-background px-4 py-2 font-bold tracking-wider"
+								>Message</Table.Head
+							>
+							<Table.Head class="bg-background px-4 py-2 text-right font-bold tracking-wider"
+								>Prompt</Table.Head
+							>
+							<Table.Head class="bg-background px-4 py-2 text-right font-bold tracking-wider"
+								>Completion</Table.Head
+							>
+							<Table.Head class="bg-background px-4 py-2 text-right font-bold tracking-wider"
+								>Embeddings</Table.Head
+							>
+							<Table.Head class="bg-background px-4 py-2 text-right font-bold tracking-wider"
+								>Total</Table.Head
+							>
+							<Table.Head class="bg-background px-4 py-2 text-right font-bold tracking-wider"
+								>Duration</Table.Head
+							>
 						</Table.Row>
 					</Table.Header>
 					<Table.Body>
@@ -609,7 +625,9 @@
 											></div>
 										</div>
 									</Table.Cell>
-									<Table.Cell class="px-4 py-3 text-right font-mono">{fmtDuration(run.duration_ms)}</Table.Cell>
+									<Table.Cell class="px-4 py-3 text-right font-mono"
+										>{fmtDuration(run.duration_ms)}</Table.Cell
+									>
 								</Table.Row>
 							{/each}
 							{#if !loading && filteredRuns.length > 0}

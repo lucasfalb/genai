@@ -38,11 +38,11 @@
 					<Sidebar.MenuButton
 						{...props}
 						size="lg"
-						class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+						class="w-full group-data-[collapsible=icon]:min-w-[47px] data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
 					>
 						<!-- Icon box: gradient matches original dashboard style -->
 						<div
-							class="flex aspect-square size-8 shrink-0 items-center justify-center bg-gradient-to-tr from-blue-500/20 to-sky-400/20 text-blue-600 dark:text-blue-300"
+							class="flex aspect-square size-8 shrink-0 items-center justify-center bg-gradient-to-tr from-blue-500/20 to-sky-400/20 text-blue-600 group-data-[collapsible=icon]:min-w-[47px] dark:text-blue-300"
 							style="border:1px solid oklch(0.623 0.214 259.815 / 0.30)"
 						>
 							<Building2 class="size-4" />
