@@ -10,6 +10,7 @@ from engine.ai_provider import (
     AIProviderResolver,
     decrypt_api_key,
     encrypt_api_key,
+    infer_provider_from_model,
 )
 
 
@@ -91,6 +92,65 @@ async def test_resolver_tenant_overrides_system_settings(db_connection: psycopg.
     assert resolved.api_key == "sk-tenant"
 
 
+async def test_resolver_uses_preferred_provider_when_multiple_tenant_providers(
+    db_connection: psycopg.Connection,
+):
+    from database.connection import TenantContext, tenant_connection
+
+    tenant_id = _seed_tenant(db_connection)
+    _seed_tenant_config(
+        db_connection,
+        tenant_id=tenant_id,
+        providers=[
+            {
+                "name": "google",
+                "api_key_encrypted": encrypt_api_key("google-key"),
+                "configured_at": "2026-05-11T00:00:00Z",
+            },
+            {
+                "name": "openai",
+                "api_key_encrypted": encrypt_api_key("openai-key"),
+                "configured_at": "2026-05-10T00:00:00Z",
+            },
+        ],
+    )
+
+    async with tenant_connection(TenantContext(tenant_id=tenant_id)) as connection:
+        resolved = await AIProviderResolver(connection).resolve(
+            tenant_id=tenant_id,
+            preferred_provider=infer_provider_from_model("gpt-5-mini"),
+        )
+
+    assert resolved.provider == "openai"
+    assert resolved.api_key == "openai-key"
+
+
+async def test_resolver_does_not_fall_back_to_mismatched_provider_for_known_model(
+    db_connection: psycopg.Connection,
+):
+    from database.connection import TenantContext, tenant_connection
+
+    tenant_id = _seed_tenant(db_connection)
+    _seed_tenant_config(
+        db_connection,
+        tenant_id=tenant_id,
+        providers=[
+            {
+                "name": "google",
+                "api_key_encrypted": encrypt_api_key("google-key"),
+                "configured_at": "2026-05-11T00:00:00Z",
+            }
+        ],
+    )
+
+    async with tenant_connection(TenantContext(tenant_id=tenant_id)) as connection:
+        with pytest.raises(AIProviderNotConfigured):
+            await AIProviderResolver(connection).resolve(
+                tenant_id=tenant_id,
+                preferred_provider=infer_provider_from_model("gpt-5-mini"),
+            )
+
+
 def _seed_tenant(db_connection: psycopg.Connection):
     from uuid import uuid4
 
@@ -115,19 +175,34 @@ def _seed_system_settings_config(db_connection: psycopg.Connection, *, api_key_e
         db_connection.commit()
 
 
-def _seed_tenant_config(db_connection: psycopg.Connection, *, tenant_id, api_key_encrypted: str):
+def _seed_tenant_config(
+    db_connection: psycopg.Connection,
+    *,
+    tenant_id,
+    api_key_encrypted: str | None = None,
+    providers: list[dict] | None = None,
+):
     import json
 
-    providers_config = {
-        "providers": [
+    if providers is None:
+        providers = [
             {
                 "name": "openai",
                 "api_key_encrypted": api_key_encrypted,
+                "configured_at": "2026-05-10T00:00:00Z",
+            }
+        ]
+    providers_config = {
+        "providers": [
+            {
+                "name": provider["name"],
+                "api_key_encrypted": provider["api_key_encrypted"],
                 "api_key_hint": "****",
                 "enabled": True,
-                "configured_at": "2026-05-10T00:00:00Z",
+                "configured_at": provider["configured_at"],
                 "configured_by": str(tenant_id),
             }
+            for provider in providers
         ]
     }
     with db_connection.cursor() as cursor:

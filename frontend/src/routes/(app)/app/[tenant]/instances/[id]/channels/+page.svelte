@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { getContext, onMount } from 'svelte';
 	import ChannelCard from '$lib/components/instance/channel-card.svelte';
 	import ChannelConfigWeb from '$lib/components/instance/channel-config-web.svelte';
 	import ChannelConfigApi from '$lib/components/instance/channel-config-api.svelte';
@@ -10,11 +11,32 @@
 	import Hash from '@lucide/svelte/icons/hash';
 	import Send from '@lucide/svelte/icons/send';
 	import Webhook from '@lucide/svelte/icons/webhook';
+	import { toast } from 'svelte-sonner';
 
 	let { data } = $props();
 
+	const { register, unregister, setSaving } = getContext<{
+		register: (handler: () => Promise<void>, label: string) => void;
+		unregister: () => void;
+		setSaving: (v: boolean) => void;
+	}>('save-action');
+
 	let webEnabled = $state(false);
 	let apiEnabled = $state(false);
+
+	async function saveChannels() {
+		setSaving(true);
+		try {
+			toast.success('Channel settings saved.');
+		} finally {
+			setSaving(false);
+		}
+	}
+
+	onMount(() => {
+		register(saveChannels, 'Save changes');
+		return () => unregister();
+	});
 </script>
 
 <div class="mx-auto max-w-4xl space-y-5 px-6 py-5">

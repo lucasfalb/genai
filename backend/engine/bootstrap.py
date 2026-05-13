@@ -5,7 +5,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.registry_cache import ToolMetadataCache
-from engine.ai_provider import AIProviderResolver
+from engine.ai_provider import AIProviderResolver, infer_provider_from_model
 from engine.prompt_builder import PromptBuilder
 from engine.state import AgentState
 
@@ -52,7 +52,10 @@ class RunBootstrap:
             linked_agents=[self._link_to_dict(link) for link in linked_agents],
         )
         messages = await self._get_messages(tenant_id=tenant_id, session_id=session_id)
-        ai_config = await AIProviderResolver(self.connection).resolve(tenant_id=tenant_id)
+        ai_config = await AIProviderResolver(self.connection).resolve(
+            tenant_id=tenant_id,
+            preferred_provider=infer_provider_from_model(instance.model),
+        )
 
         return AgentState(
             messages=messages,

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { getContext, onMount } from 'svelte';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Database from '@lucide/svelte/icons/database';
@@ -21,6 +22,12 @@
 	} from '$lib/api/types';
 
 	let { data } = $props();
+
+	const { register, unregister, setSaving } = getContext<{
+		register: (handler: () => Promise<void>, label: string) => void;
+		unregister: () => void;
+		setSaving: (v: boolean) => void;
+	}>('save-action');
 
 	let registryMetadata = $state<ToolMetadataResponse>(data.registryMetadata);
 	let credentials = $state<CredentialResponse[]>([]);
@@ -328,6 +335,38 @@
 			registryBusy = '';
 		}
 	}
+
+	async function saveAllDrafts() {
+		setSaving(true);
+		try {
+			let saved = 0;
+			for (const skill of registryMetadata.skills) {
+				if (skillDrafts[skill.slug]) {
+					await saveSkillDraft(skill);
+					saved += 1;
+				}
+				const credential = credentialInputs[skill.slug];
+				if (credential?.trim()) {
+					await saveCredential(skill.slug);
+					saved += 1;
+				}
+			}
+			for (const tool of registryMetadata.tools) {
+				if (toolDrafts[tool.slug]) {
+					await saveToolDraft(tool);
+					saved += 1;
+				}
+			}
+			if (saved === 0) toast.info('No tool changes to save.');
+		} finally {
+			setSaving(false);
+		}
+	}
+
+	onMount(() => {
+		register(saveAllDrafts, 'Save changes');
+		return () => unregister();
+	});
 </script>
 
 <div class="mx-auto max-w-3xl space-y-6 px-6 py-5">

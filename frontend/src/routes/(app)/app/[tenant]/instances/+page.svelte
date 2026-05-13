@@ -49,11 +49,11 @@
 		<div class="flex max-w-2xl min-w-[300px] flex-1 items-center gap-2">
 			<div class="relative w-full max-w-xs">
 				<Search class="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
-				<Input placeholder="Search agents..." bind:value={searchQuery} class="h-9 pl-9" />
+				<Input placeholder="Search agents..." bind:value={searchQuery} class="h-9 bg-background pl-9" />
 			</div>
 
 			<Select.Root type="single" bind:value={statusFilter}>
-				<Select.Trigger class="min-h-9 w-[140px] bg-card">
+				<Select.Trigger class="min-h-9 w-[140px] bg-background">
 					{statusOptions.find((o) => o.value === statusFilter)?.label}
 				</Select.Trigger>
 				<Select.Content>
@@ -64,33 +64,33 @@
 			</Select.Root>
 		</div>
 
-		<Button href="{appBase}/instances/new" size="sm" class="h-9 gap-2 shadow-sm">
+		<Button href="{appBase}/instances/new" size="sm" class="h-9 gap-2">
 			<Plus class="h-4 w-4" />
 			New Agent
 		</Button>
 	</div>
 
-	<div class="overflow-hidden rounded-none border bg-card shadow-sm">
-		<Table.Root class="w-full table-fixed">
-			<Table.Header class="bg-muted/40">
-				<Table.Row class="hover:bg-transparent">
-					<Table.Head class="w-[40%] py-2 text-[11px] font-bold tracking-wider uppercase"
+	<div class="overflow-hidden border bg-card">
+		<Table.Root containerClass="scrollbar-none bg-card" class="w-full table-fixed">
+			<Table.Header class="bg-background">
+				<Table.Row class="bg-background hover:bg-background">
+					<Table.Head class="w-[40%] bg-background py-2 text-[11px] font-bold tracking-wider uppercase"
 						>Agent</Table.Head
 					>
 					<Table.Head
-						class="hidden py-2 text-[11px] font-bold tracking-wider uppercase md:table-cell"
+						class="hidden bg-background py-2 text-[11px] font-bold tracking-wider uppercase md:table-cell"
 						>Configuration</Table.Head
 					>
-					<Table.Head class="w-[120px] py-2 text-[11px] font-bold tracking-wider uppercase"
+					<Table.Head class="w-[120px] bg-background py-2 text-[11px] font-bold tracking-wider uppercase"
 						>Status</Table.Head
 					>
-					<Table.Head class="w-[50px] py-2"></Table.Head>
+					<Table.Head class="w-[50px] bg-background py-2"></Table.Head>
 				</Table.Row>
 			</Table.Header>
 
 			<Table.Body>
 				{#if filteredInstances.length === 0}
-					<Table.Row>
+					<Table.Row class="bg-card hover:bg-card">
 						<Table.Cell colspan={4} class="h-32 text-center text-muted-foreground">
 							<div class="flex flex-col items-center gap-1">
 								<span class="text-sm font-medium text-foreground">No agents found</span>
@@ -100,14 +100,14 @@
 					</Table.Row>
 				{:else}
 					{#each filteredInstances as inst (inst.id)}
-						<Table.Row class="group transition-colors hover:bg-muted/30">
+						<Table.Row class="group bg-card transition-colors hover:bg-muted/30">
 							<Table.Cell class="py-3">
 								<a
 									href="{appBase}/instances/{inst.id}"
 									class="flex items-center gap-3 overflow-hidden"
 								>
 									<div
-										class="flex h-8 w-8 shrink-0 items-center justify-center rounded border bg-background transition-all group-hover:border-primary/40"
+										class="flex h-8 w-8 shrink-0 items-center justify-center border bg-background transition-all group-hover:border-primary/40"
 									>
 										<Bot class="h-4 w-4 text-muted-foreground group-hover:text-primary" />
 									</div>
@@ -135,7 +135,7 @@
 									variant="ghost"
 									size="icon"
 									href="{appBase}/instances/{inst.id}"
-									class="h-7 w-7 text-muted-foreground/30 group-hover:text-foreground"
+									class="h-7 w-7 bg-card text-muted-foreground/30 group-hover:bg-muted group-hover:text-foreground"
 								>
 									<ChevronRight class="h-4 w-4" />
 								</Button>
@@ -146,7 +146,7 @@
 			</Table.Body>
 		</Table.Root>
 
-		<div class="border-t bg-muted/20 px-4 py-2">
+		<div class="border-t bg-card px-4 py-2">
 			<p class="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
 				Showing {filteredInstances.length} of {instances.length} agents
 			</p>

@@ -18,6 +18,7 @@
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import Search from '@lucide/svelte/icons/search';
 	import { toast } from 'svelte-sonner';
 
 	let { data } = $props();
@@ -28,6 +29,8 @@
 	let reindexing = $state(false);
 	let deleteConfirmOpen = $state(false);
 	let confirmName = $state('');
+	let searchQuery = $state('');
+
 	const canDelete = $derived(confirmName === collection.name);
 	const appBase = $derived(tenantBaseFromPath(page.url.pathname));
 	let previewTarget = $state<DocumentResponse | null>(null);
@@ -81,44 +84,112 @@
 	}
 </script>
 
-<div class="mx-auto max-w-5xl space-y-6 p-6">
-	<div class="flex items-center justify-between gap-4">
+<div class="flex flex-col gap-6 p-4">
+	<!-- Header -->
+	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 		<div class="flex items-center gap-3">
-			<a href="{appBase}/collections" class="rounded-lg p-1.5 transition-colors hover:bg-white/5">
-				<ArrowLeft class="size-4 text-muted-foreground" />
-			</a>
-			<div class="flex size-10 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
+			<Button
+				variant="ghost"
+				size="icon"
+				href="{appBase}/collections"
+				class="h-8 w-8 text-muted-foreground"
+			>
+				<ArrowLeft class="size-4" />
+			</Button>
+			<div class="flex size-10 items-center justify-center border bg-card text-blue-400">
 				<Database class="size-5" />
 			</div>
-			<div>
-				<h1 class="font-display text-xl font-semibold" style="color:var(--text-main)">
+			<div class="flex flex-col overflow-hidden">
+				<h1 class="truncate font-display text-xl font-semibold">
 					{collection.name}
 				</h1>
-				<p class="mt-1 text-sm text-muted-foreground">
+				<p class="truncate text-sm text-muted-foreground">
 					{collection.description || 'No description.'}
 				</p>
 			</div>
 		</div>
-		<div class="flex gap-2">
+
+		<div class="flex flex-wrap items-center gap-2">
 			{#if collection.document_count > 0}
-				<Button variant="outline" disabled={reindexing} onclick={reindexCollection}>
-					{#if reindexing}<Spinner data-icon="inline-start" />{:else}<RefreshCw
-							data-icon="inline-start"
-						/>{/if}
-					{reindexing ? 'Queueing...' : 'Reindex'}
+				<Button
+					variant="outline"
+					size="sm"
+					class="h-9 gap-2"
+					disabled={reindexing}
+					onclick={reindexCollection}
+				>
+					{#if reindexing}<Spinner class="size-3.5" />{:else}<RefreshCw class="size-3.5" />{/if}
+					Reindex
 				</Button>
 			{/if}
-			<Button variant="outline" onclick={() => (editOpen = true)}>
-				<Pencil data-icon="inline-start" />
+			<Button variant="outline" size="sm" class="h-9 gap-2" onclick={() => (editOpen = true)}>
+				<Pencil class="size-3.5" />
 				Edit
 			</Button>
-			<Button variant="destructive" disabled={deleting} onclick={() => (deleteConfirmOpen = true)}>
-				{#if deleting}<Spinner data-icon="inline-start" />{:else}<Trash2
-						data-icon="inline-start"
-					/>{/if}
-				{deleting ? 'Deleting...' : 'Delete'}
+			<Button
+				variant="destructive"
+				size="sm"
+				class="h-9 gap-2"
+				disabled={deleting}
+				onclick={() => (deleteConfirmOpen = true)}
+			>
+				{#if deleting}<Spinner class="size-3.5" />{:else}<Trash2 class="size-3.5" />{/if}
+				Delete
 			</Button>
 		</div>
+	</div>
+
+	<!-- Stats Grid -->
+	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+		<div class="flex flex-col gap-1 border bg-card p-4">
+			<span class="text-[10px] font-bold tracking-widest text-muted-foreground uppercase"
+				>Status</span
+			>
+			<div class="mt-1">
+				<IndexingStatusBadge
+					status={collection.indexing_status}
+					progress={collection.indexing_progress}
+				/>
+			</div>
+		</div>
+		<div class="flex flex-col gap-1 border bg-card p-4">
+			<span class="text-[10px] font-bold tracking-widest text-muted-foreground uppercase"
+				>Documents</span
+			>
+			<span class="text-2xl font-bold">{collection.document_count}</span>
+		</div>
+		<div class="flex flex-col gap-1 border bg-card p-4">
+			<span class="text-[10px] font-bold tracking-widest text-muted-foreground uppercase"
+				>Indexed</span
+			>
+			<div class="flex items-baseline gap-2">
+				<span class="text-2xl font-bold text-emerald-500">{collection.indexed_count}</span>
+				{#if collection.document_count > 0}
+					<span class="text-xs font-medium text-muted-foreground">
+						({Math.round((collection.indexed_count / collection.document_count) * 100)}%)
+					</span>
+				{/if}
+			</div>
+		</div>
+		<div class="flex flex-col gap-1 border bg-card p-4">
+			<span class="text-[10px] font-bold tracking-widest text-muted-foreground uppercase"
+				>Failed</span
+			>
+			<span class="text-2xl font-bold text-red-500">{collection.failed_count}</span>
+		</div>
+	</div>
+
+	<!-- Documents Explorer Section -->
+	<div class="flex flex-col gap-4">
+		{#key explorerKey}
+			<DocumentsExplorer
+				collectionId={collection.id}
+				initialDocuments={documents}
+				bind:searchQuery
+				onChange={handleDocumentsChange}
+				onPreview={(doc) => (previewTarget = doc)}
+			/>
+		{/key}
 	</div>
 
 	<CollectionDialog
@@ -128,55 +199,17 @@
 		onSaved={(saved) => (collection = saved)}
 	/>
 
-	<section class="grid gap-3 md:grid-cols-4">
-		<div class="rounded-xl p-4" style="background:var(--surface);border:1px solid var(--ds-border)">
-			<p class="text-xs text-muted-foreground">Status</p>
-			<div class="mt-2">
-				<IndexingStatusBadge
-					status={collection.indexing_status}
-					progress={collection.indexing_progress}
-				/>
-			</div>
-		</div>
-		<div class="rounded-xl p-4" style="background:var(--surface);border:1px solid var(--ds-border)">
-			<p class="text-xs text-muted-foreground">Documents</p>
-			<p class="mt-2 text-2xl font-semibold">{collection.document_count}</p>
-		</div>
-		<div class="rounded-xl p-4" style="background:var(--surface);border:1px solid var(--ds-border)">
-			<p class="text-xs text-muted-foreground">Indexed</p>
-			<div class="flex items-baseline gap-2">
-				<p class="mt-2 text-2xl font-semibold text-emerald-400">{collection.indexed_count}</p>
-				<!-- {#if collection.document_count > 0}
-					<span class="text-xs text-muted-foreground">
-						({Math.round((collection.indexed_count / collection.document_count) * 100)}%)
-					</span>
-				{/if} -->
-			</div>
-		</div>
-		<div class="rounded-xl p-4" style="background:var(--surface);border:1px solid var(--ds-border)">
-			<p class="text-xs text-muted-foreground">Failed</p>
-			<p class="mt-2 text-2xl font-semibold text-red-400">{collection.failed_count}</p>
-		</div>
-	</section>
-
-	{#key explorerKey}
-		<DocumentsExplorer
-			collectionId={collection.id}
-			initialDocuments={documents}
-			onChange={handleDocumentsChange}
-			onPreview={(doc) => (previewTarget = doc)}
-		/>
-	{/key}
-
 	<FilePreview
 		open={previewTarget !== null}
 		document={previewTarget}
 		onclose={() => (previewTarget = null)}
 	/>
 
-	<p class="text-xs text-muted-foreground">
-		Last indexed: {formatDate(collection.last_indexed_at)}
-	</p>
+	<div class="flex items-center justify-between border-t pt-4">
+		<p class="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+			Last indexed: {formatDate(collection.last_indexed_at)}
+		</p>
+	</div>
 </div>
 
 <AlertDialog.Root
@@ -190,16 +223,16 @@
 >
 	<AlertDialog.Content>
 		<AlertDialog.Header>
-			<AlertDialog.Title class="text-red-400">Delete collection</AlertDialog.Title>
+			<AlertDialog.Title class="text-red-500">Delete collection</AlertDialog.Title>
 			<AlertDialog.Description>
 				This will permanently delete <strong class="text-foreground">"{collection.name}"</strong>
 				and all its {collection.document_count} document(s).
 				{#if collection.indexed_count > 0}
-					<br /><span class="text-amber-400"
+					<br /><span class="text-amber-500"
 						>Indexed data in the vector store will also be removed.</span
 					>
 				{/if}
-				<br />This action <strong class="text-red-400">cannot</strong> be undone.
+				<br />This action <strong class="text-red-500">cannot</strong> be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<div class="px-6 pb-4">
@@ -217,10 +250,8 @@
 		<AlertDialog.Footer>
 			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
 			<Button variant="destructive" disabled={!canDelete || deleting} onclick={deleteCollection}>
-				{#if deleting}<Spinner data-icon="inline-start" />{:else}<Trash2
-						data-icon="inline-start"
-					/>{/if}
-				{deleting ? 'Deleting...' : 'Delete'}
+				{#if deleting}<Spinner class="size-3.5" />{:else}<Trash2 class="size-3.5" />{/if}
+				Delete
 			</Button>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>

@@ -176,6 +176,7 @@ export const tracesApi = {
 		),
 	get: (instanceId: string, runId: string) =>
 		api.get<RunTraceResponse>(`/agent/instances/${instanceId}/runs/${runId}`),
+	getTenantRun: (runId: string) => api.get<RunTraceResponse>(`/agent/runs/${runId}`),
 	list: (instanceId: string, sessionId?: string | null, limit = 20) => {
 		const params: Record<string, string> = { limit: String(limit) };
 		if (sessionId) params.session_id = sessionId;

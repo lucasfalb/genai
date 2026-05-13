@@ -17,15 +17,19 @@
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+	import Search from '@lucide/svelte/icons/search';
+	import { Input } from '$lib/components/ui/input/index.js';
 
 	let {
 		collectionId,
 		initialDocuments = [],
+		searchQuery = $bindable(''),
 		onChange,
 		onPreview
 	}: {
 		collectionId: string;
 		initialDocuments?: DocumentResponse[];
+		searchQuery?: string;
 		onChange?: () => void;
 		onPreview?: (doc: DocumentResponse) => void;
 	} = $props();
@@ -33,6 +37,12 @@
 	let documents = $state<DocumentResponse[]>(initialDocuments);
 	let uploading = $state(false);
 	let refreshing = $state(false);
+
+	// Reactive filtered documents
+	const filteredDocuments = $derived(
+		documents.filter((doc) => doc.filename.toLowerCase().includes(searchQuery.toLowerCase()))
+	);
+
 	let deleteTarget = $state<DocumentResponse | null>(null);
 	let confirmBulkDelete = $state(false);
 	let editorOpen = $state(false);
@@ -182,14 +192,18 @@
 		editorOpen = true;
 	}
 
-	const allSelected = $derived(documents.length > 0 && selectedIds.size === documents.length);
-	const someSelected = $derived(selectedIds.size > 0 && selectedIds.size < documents.length);
+	const allSelected = $derived(
+		filteredDocuments.length > 0 && selectedIds.size === filteredDocuments.length
+	);
+	const someSelected = $derived(
+		selectedIds.size > 0 && selectedIds.size < filteredDocuments.length
+	);
 
 	function toggleAll() {
 		if (allSelected) {
 			selectedIds = new Set();
 		} else {
-			selectedIds = new Set(documents.map((d) => d.id));
+			selectedIds = new Set(filteredDocuments.map((d) => d.id));
 		}
 	}
 
@@ -289,11 +303,22 @@
 					</span>
 				{/if}
 			</div>
-			<div class="flex gap-2">
+			<div class="flex flex-1 items-center justify-end gap-2">
+				{#if documents.length > 0}
+					<div class="relative w-full max-w-[200px]">
+						<Search class="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-muted-foreground" />
+						<Input
+							placeholder="Search files..."
+							bind:value={searchQuery}
+							class="h-8 bg-background pl-8 text-xs"
+						/>
+					</div>
+				{/if}
 				{#if selectedIds.size > 0}
 					<Button
 						variant="destructive"
 						size="sm"
+						class="h-8"
 						onclick={() => (confirmBulkDelete = true)}
 						disabled={deleting}
 					>
@@ -303,22 +328,21 @@
 						Delete ({selectedIds.size})
 					</Button>
 				{/if}
-				<Button variant="outline" size="sm" onclick={openCreateDialog}>
-					<FilePlus data-icon="inline-start" />
+				<Button variant="outline" size="sm" class="h-8 gap-2" onclick={openCreateDialog}>
+					<FilePlus class="size-3.5" />
 					Create file
 				</Button>
-				<Button variant="ghost" size="sm" disabled={refreshing} onclick={refresh}>
+				<Button variant="ghost" size="sm" class="h-8" disabled={refreshing} onclick={refresh}>
 					{#if refreshing}<Spinner data-icon="inline-start" />{:else}<RefreshCw
-							data-icon="inline-start"
+							class="size-3.5"
 						/>{/if}
-					Refresh
 				</Button>
 			</div>
 		</div>
 
-		{#if documents.length === 0}
+		{#if filteredDocuments.length === 0}
 			<p class="py-8 text-center text-sm text-muted-foreground">
-				No documents yet. Upload one above.
+				{searchQuery ? 'No documents match your search.' : 'No documents yet. Upload one above.'}
 			</p>
 		{:else}
 			<Table.Root>
@@ -341,7 +365,7 @@
 					</Table.Row>
 				</Table.Header>
 				<Table.Body>
-					{#each documents as doc (doc.id)}
+					{#each filteredDocuments as doc (doc.id)}
 						<Table.Row class={selectedIds.has(doc.id) ? 'bg-muted/50' : ''}>
 							<Table.Cell>
 								<Checkbox

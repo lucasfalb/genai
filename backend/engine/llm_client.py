@@ -1,4 +1,5 @@
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
@@ -24,6 +25,13 @@ class LLMCompletion:
     final_response: str | None = None
     pending_tool_calls: list[dict] | None = None
     usage: TokenUsage = TokenUsage()
+
+
+_SECRET_PATTERNS = (
+    re.compile(r"sk-[A-Za-z0-9_-]{12,}"),
+    re.compile(r"(Bearer\s+)[A-Za-z0-9._~+/=-]+", re.IGNORECASE),
+    re.compile(r"((?:api[_-]?key|token|secret)\s*[=:]\s*)[^\s,;]+", re.IGNORECASE),
+)
 
 
 PROVIDER_BASE_URLS: dict[str, str | None] = {
@@ -66,7 +74,7 @@ async def complete_chat(
         "messages": messages,
         "stream": True,
     }
-    if provider_key == "openai":
+    if provider_key in {"openai", "google", "gemini"}:
         kwargs["stream_options"] = {"include_usage": True}
     if tool_schemas:
         kwargs["tools"] = [{"type": "function", "function": schema} for schema in tool_schemas]
@@ -76,7 +84,8 @@ async def complete_chat(
         client = _create_openai_client(api_key=api_key, base_url=base_url)
         stream = await client.chat.completions.create(**kwargs)
     except Exception as exc:
-        raise LLMProviderError(f"LLM provider request failed ({provider_key})") from exc
+        detail = _format_provider_exception(exc)
+        raise LLMProviderError(f"LLM provider request failed ({provider_key}): {detail}") from exc
 
     content_parts: list[str] = []
     tool_call_chunks: dict[int, dict[str, str]] = {}
@@ -147,3 +156,61 @@ def _parse_tool_arguments(raw_arguments: str | None) -> dict:
     if not isinstance(parsed, dict):
         raise LLMProviderError("LLM provider returned non-object tool arguments")
     return parsed
+
+
+def _format_provider_exception(exc: Exception) -> str:
+    status_code = getattr(exc, "status_code", None)
+    code = getattr(exc, "code", None)
+    message = _extract_provider_message(exc)
+
+    parts: list[str] = []
+    if status_code:
+        parts.append(f"HTTP {status_code}")
+    if code:
+        parts.append(str(code))
+    if message:
+        parts.append(message)
+
+    detail = " - ".join(parts) if parts else str(exc) or exc.__class__.__name__
+    return _sanitize_error_detail(detail)
+
+
+def _extract_provider_message(exc: Exception) -> str:
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        error = body.get("error")
+        if isinstance(error, dict):
+            message = error.get("message")
+            if isinstance(message, str) and message:
+                return message
+        message = body.get("message")
+        if isinstance(message, str) and message:
+            return message
+    response = getattr(exc, "response", None)
+    if response is not None:
+        try:
+            payload = response.json()
+        except Exception:
+            payload = None
+        if isinstance(payload, dict):
+            error = payload.get("error")
+            if isinstance(error, dict):
+                message = error.get("message")
+                if isinstance(message, str) and message:
+                    return message
+            message = payload.get("message")
+            if isinstance(message, str) and message:
+                return message
+    return str(exc)
+
+
+def _sanitize_error_detail(detail: str, *, max_length: int = 500) -> str:
+    sanitized = detail.replace("\n", " ").replace("\r", " ").strip()
+    for pattern in _SECRET_PATTERNS:
+        sanitized = pattern.sub(
+            lambda match: f"{match.group(1)}[redacted]" if match.groups() else "[redacted]",
+            sanitized,
+        )
+    if len(sanitized) > max_length:
+        return sanitized[: max_length - 3] + "..."
+    return sanitized or "Unknown provider error"

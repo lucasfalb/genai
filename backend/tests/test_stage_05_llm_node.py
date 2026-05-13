@@ -37,6 +37,31 @@ async def test_llm_node_populates_final_response(monkeypatch) -> None:
     assert "tools" not in calls[0]
 
 
+async def test_llm_node_requests_usage_for_gemini_compatible_stream(monkeypatch) -> None:
+    calls = []
+
+    class FakeCompletions:
+        async def create(self, **kwargs):
+            calls.append(kwargs)
+            return _stream_content(["Oi"])
+
+    monkeypatch.setattr(llm_client, "_create_openai_client", lambda **_kwargs: _client(FakeCompletions()))
+
+    await llm_node(
+        {
+            "ai_provider": "google",
+            "ai_api_key": "gemini-test",
+            "system_prompt": "You are helpful.",
+            "messages": [{"role": "user", "content": "oi"}],
+            "model": "gemini-2.0-flash",
+            "temperature": 0.1,
+            "tool_schemas": [],
+        }
+    )
+
+    assert calls[0]["stream_options"] == {"include_usage": True}
+
+
 async def test_llm_node_populates_pending_tool_calls(monkeypatch) -> None:
     calls = []
 
@@ -95,6 +120,35 @@ async def test_llm_node_rejects_unsupported_provider() -> None:
                 "messages": [{"role": "user", "content": "hello"}],
             }
         )
+
+
+async def test_llm_node_preserves_sanitized_provider_error(monkeypatch) -> None:
+    class ProviderError(Exception):
+        status_code = 404
+        code = "model_not_found"
+        body = {"error": {"message": "Model gpt-test was not found for this account using sk-secret123456"}}
+
+    class FakeCompletions:
+        async def create(self, **_kwargs):
+            raise ProviderError("fallback message")
+
+    monkeypatch.setattr(llm_client, "_create_openai_client", lambda **_kwargs: _client(FakeCompletions()))
+
+    with pytest.raises(LLMProviderError) as exc_info:
+        await llm_node(
+            {
+                "ai_provider": "openai",
+                "ai_api_key": "sk-test",
+                "messages": [{"role": "user", "content": "hello"}],
+                "model": "gpt-test",
+            }
+        )
+
+    message = str(exc_info.value)
+    assert "LLM provider request failed (openai): HTTP 404 - model_not_found" in message
+    assert "Model gpt-test was not found" in message
+    assert "sk-secret" not in message
+    assert "[redacted]" in message
 
 
 def _client(completions):

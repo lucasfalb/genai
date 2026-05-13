@@ -349,6 +349,68 @@ async def test_list_tenant_traces_returns_token_usage_for_all_instances(
     assert date_data[0]["user_message"] == "two"
 
 
+async def test_get_tenant_trace_by_run_id(db_connection: psycopg.Connection) -> None:
+    setup = _seed_engine_tenant(db_connection, uuid4().hex)
+    other_setup = _seed_engine_tenant(db_connection, uuid4().hex)
+    run_id = uuid4()
+    other_run_id = uuid4()
+    started_at = datetime.now(timezone.utc)
+
+    with db_connection.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO agent_run_traces (
+                run_id, tenant_id, instance_id, session_id, channel,
+                trace, started_at, completed_at
+            )
+            VALUES
+                (
+                    %s, %s, %s, %s, 'api',
+                    '{"duration_ms": 100, "user_message": "deep", "final_response": "linked", "token_usage": {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5}}',
+                    %s, %s
+                ),
+                (
+                    %s, %s, %s, %s, 'api',
+                    '{"duration_ms": 100, "user_message": "foreign", "final_response": "hidden"}',
+                    %s, %s
+                )
+            """,
+            (
+                run_id,
+                setup["tenant_id"],
+                setup["instance_id"],
+                uuid4(),
+                started_at,
+                started_at,
+                other_run_id,
+                other_setup["tenant_id"],
+                other_setup["instance_id"],
+                uuid4(),
+                started_at,
+                started_at,
+            ),
+        )
+        db_connection.commit()
+
+    token = create_access_token(user_id=setup["user_id"], email=setup["email"])
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            f"/api/v1/agent/runs/{run_id}",
+            headers={"Authorization": f"Bearer {token}", "X-Tenant-ID": str(setup["tenant_id"])},
+        )
+        foreign_response = await client.get(
+            f"/api/v1/agent/runs/{other_run_id}",
+            headers={"Authorization": f"Bearer {token}", "X-Tenant-ID": str(setup["tenant_id"])},
+        )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["run_id"] == str(run_id)
+    assert data["trace"]["user_message"] == "deep"
+    assert data["trace"]["token_usage"]["total_tokens"] == 5
+    assert foreign_response.status_code == 404
+
+
 def _seed_engine_tenant(db_connection: psycopg.Connection, suffix: str) -> dict:
     with db_connection.cursor() as cursor:
         cursor.execute(

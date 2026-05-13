@@ -18,6 +18,25 @@ class ResolvedAIConfig:
     default_model: str
 
 
+def infer_provider_from_model(model: str | None) -> str | None:
+    if not model:
+        return None
+    normalized = model.lower()
+    if (
+        normalized.startswith("gpt-")
+        or normalized.startswith("o1")
+        or normalized.startswith("o3")
+        or normalized.startswith("o4")
+        or normalized.startswith("chatgpt")
+    ):
+        return "openai"
+    if normalized.startswith("claude-"):
+        return "anthropic"
+    if normalized.startswith("gemini-") or normalized.startswith("models/gemini"):
+        return "google"
+    return None
+
+
 def encrypt_api_key(plaintext: str) -> str:
     from cryptography.fernet import Fernet
     if not settings.ai_config_encryption_key:
@@ -83,17 +102,17 @@ class AIProviderResolver:
 
         return settings.openai_embedding_api_key or settings.openai_api_key or None
 
-    async def resolve(self, *, tenant_id: UUID) -> ResolvedAIConfig:
-        tenant_cfg = await self._get_tenant_config(tenant_id)
+    async def resolve(self, *, tenant_id: UUID, preferred_provider: str | None = None) -> ResolvedAIConfig:
+        tenant_cfg = await self._get_tenant_config(tenant_id, provider_name=preferred_provider)
         if tenant_cfg is not None:
             return tenant_cfg
 
-        system_cfg = await self._get_system_settings()
+        system_cfg = await self._get_system_settings(provider_name=preferred_provider)
         if system_cfg is not None:
             return system_cfg
 
         # Dev fallback: OPENAI_API_KEY in settings (not for production)
-        if settings.openai_api_key:
+        if settings.openai_api_key and (preferred_provider is None or preferred_provider == "openai"):
             return ResolvedAIConfig(
                 provider="openai",
                 api_key=settings.openai_api_key,
@@ -105,10 +124,13 @@ class AIProviderResolver:
             "Configure via superadmin system settings or tenant AI settings."
         )
 
-    async def _get_tenant_config(self, tenant_id: UUID) -> ResolvedAIConfig | None:
+    async def _get_tenant_config(
+        self, tenant_id: UUID, *, provider_name: str | None = None
+    ) -> ResolvedAIConfig | None:
+        provider_filter = "AND provider->>'name' = :provider_name" if provider_name else ""
         result = await self.connection.execute(
             text(
-                """
+                f"""
                 SELECT provider->>'name' AS provider,
                        provider->>'api_key_encrypted' AS api_key_encrypted,
                        provider->>'default_model' AS default_model
@@ -119,11 +141,12 @@ class AIProviderResolver:
                 WHERE id = :tenant_id
                   AND COALESCE((provider->>'enabled')::boolean, false) = true
                   AND provider->>'api_key_encrypted' IS NOT NULL
+                  {provider_filter}
                 ORDER BY provider->>'configured_at' DESC NULLS LAST
                 LIMIT 1
                 """
             ),
-            {"tenant_id": tenant_id},
+            {"tenant_id": tenant_id, "provider_name": provider_name},
         )
         row = result.one_or_none()
         if row is None:
@@ -142,19 +165,22 @@ class AIProviderResolver:
         row = result.one_or_none()
         return row.ai_default_model if row else None
 
-    async def _get_system_settings(self) -> ResolvedAIConfig | None:
+    async def _get_system_settings(self, *, provider_name: str | None = None) -> ResolvedAIConfig | None:
+        provider_filter = "AND ai_provider = :provider_name" if provider_name else ""
         result = await self.connection.execute(
             text(
-                """
+                f"""
                 SELECT ai_provider AS provider,
                        ai_api_key_encrypted AS api_key_encrypted,
                        ai_default_model AS default_model
                 FROM system_settings
                 WHERE id = 1
                   AND ai_api_key_encrypted IS NOT NULL
+                  {provider_filter}
                 LIMIT 1
                 """
             ),
+            {"provider_name": provider_name},
         )
         row = result.one_or_none()
         if row is None:

@@ -112,6 +112,24 @@ async def list_tenant_traces(
 
 
 @router.get(
+    "/runs/{run_id}",
+    response_model=ApiResponse[RunTraceResponse],
+    summary="Get tenant run trace",
+    description="Returns a persisted tenant-scoped run trace by run_id for deep links from observability.",
+    responses={404: {"description": "Trace not found."}},
+)
+async def get_tenant_trace(
+    run_id: UUID,
+    context: TenantContext = Depends(require_permission(Permission.MANAGE_AGENT_INSTANCES)),
+    connection: AsyncConnection = Depends(get_connection),
+) -> ApiResponse[RunTraceResponse]:
+    record = await RunTraceRepository(connection).get(tenant_id=context.tenant_id, run_id=run_id)
+    if record is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Trace not found")
+    return api_success(_trace_response(record))
+
+
+@router.get(
     "/instances/{instance_id}/runs/latest",
     response_model=ApiResponse[RunTraceResponse],
     summary="Get latest run trace",
