@@ -10,7 +10,21 @@ from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from app.config import settings
 
 
-engine = create_async_engine(settings.database_url, pool_pre_ping=True, poolclass=NullPool)
+if settings.database_schema == "genai_test":
+    engine_kwargs = {"pool_pre_ping": True, "poolclass": NullPool}
+else:
+    engine_kwargs = {
+        "pool_pre_ping": True,
+        "pool_size": 5,
+        "max_overflow": 10,
+        "pool_recycle": 1800,
+    }
+if settings.database_schema:
+    engine_kwargs["connect_args"] = {
+        "server_settings": {"search_path": settings.database_schema}
+    }
+
+engine = create_async_engine(settings.database_url, **engine_kwargs)
 
 
 @dataclass(frozen=True)

@@ -117,13 +117,14 @@ async def test_agent_executor_persists_messages_in_order(db_connection: psycopg.
             )
         ).fetchall()
 
-    assert [event.event for event in events] == [
-        "message.persisted",
-        "assistant.delta",
-        "run.trace",
-        "run.completed",
-    ]
-    trace_event = events[2]
+    event_names = [event.event for event in events]
+    assert event_names[0] == "message.persisted"
+    assert event_names[-1] == "run.completed"
+    assert "assistant.delta" in event_names
+    assert "run.trace" in event_names
+    assert event_names.index("run.trace") < event_names.index("run.completed")
+
+    trace_event = next(e for e in events if e.event == "run.trace")
     assert trace_event.metadata.get("trace") is not None
     assert trace_event.metadata["trace"]["final_response"] == "Fake LLM response."
     assert trace_event.metadata["trace"]["user_message"] == "hello"

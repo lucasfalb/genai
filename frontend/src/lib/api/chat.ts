@@ -5,6 +5,7 @@ import { api } from '$lib/api/client';
 import type {
 	ChatEvent,
 	ChatRequest,
+	GraphNodeEventPayload,
 	RunTraceListItem,
 	RunTracePayload,
 	RunTraceResponse
@@ -31,6 +32,8 @@ export interface ChatStreamCallbacks {
 	onTrace?: (trace: RunTracePayload, event: ChatEvent) => void;
 	onCompleted?: (event: ChatEvent) => void;
 	onError?: (error: ChatStreamError) => void;
+	onNodeStarted?: (node: GraphNodeEventPayload, event: ChatEvent) => void;
+	onNodeCompleted?: (node: GraphNodeEventPayload, event: ChatEvent) => void;
 }
 
 export async function streamChat(
@@ -145,6 +148,16 @@ function dispatchSseBlock(block: string, callbacks: ChatStreamCallbacks): void {
 		case 'run.completed':
 			callbacks.onCompleted?.(event);
 			break;
+		case 'graph.node.started': {
+			const node = event.metadata as GraphNodeEventPayload | undefined;
+			if (node) callbacks.onNodeStarted?.(node, event);
+			break;
+		}
+		case 'graph.node.completed': {
+			const node = event.metadata as GraphNodeEventPayload | undefined;
+			if (node) callbacks.onNodeCompleted?.(node, event);
+			break;
+		}
 	}
 }
 

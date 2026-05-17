@@ -1,8 +1,6 @@
-import json
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
-from redis.exceptions import RedisError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -27,6 +25,7 @@ from database.connection import TenantContext
 from database.repositories.collections import CollectionRecord, CollectionRepository
 from database.repositories.documents import DocumentRecord, DocumentRepository
 from dependencies.auth import get_connection, require_permission
+from rag.indexing_service import schedule_indexing_job
 
 router = APIRouter(prefix="/tenant/collections", tags=["tenant-collections"])
 
@@ -36,7 +35,6 @@ ALLOWED_CONTENT_TYPES = {
     "text/plain",
     "text/markdown",
 }
-INDEXING_QUEUE_KEY = "rag:indexing_queue"
 
 
 @router.get(
@@ -165,18 +163,12 @@ async def delete_collection(
             await _delete_stored_object(document.storage_bucket, document.storage_key)
 
     for document in documents:
-        try:
-            await redis_client.rpush(
-                INDEXING_QUEUE_KEY,
-                json.dumps({
-                    "action": "delete",
-                    "document_id": str(document.id),
-                    "tenant_id": str(context.tenant_id),
-                    "collection_id": str(collection_id),
-                }),
-            )
-        except (RedisError, RuntimeError):
-            pass
+        await _schedule_indexing_job(
+            tenant_id=context.tenant_id,
+            collection_id=collection_id,
+            document_id=document.id,
+            action="delete",
+        )
 
     await record_tenant_mutation(
         connection=connection,
@@ -229,19 +221,11 @@ async def reindex_collection(
     )
 
     for document in documents:
-        try:
-            await redis_client.rpush(
-                INDEXING_QUEUE_KEY,
-                json.dumps(
-                    {
-                        "document_id": str(document.id),
-                        "tenant_id": str(context.tenant_id),
-                        "collection_id": str(collection_id),
-                    }
-                ),
-            )
-        except (RedisError, RuntimeError):
-            pass
+        await _schedule_indexing_job(
+            tenant_id=context.tenant_id,
+            collection_id=collection_id,
+            document_id=document.id,
+        )
 
     await record_tenant_mutation(
         connection=connection,
@@ -354,19 +338,11 @@ async def upload_document(
         metadata={"collection_id": str(collection_id), "filename": safe_filename, "size_bytes": len(payload)},
     )
 
-    try:
-        await redis_client.rpush(
-            INDEXING_QUEUE_KEY,
-            json.dumps(
-                {
-                    "document_id": str(document.id),
-                    "tenant_id": str(context.tenant_id),
-                    "collection_id": str(collection_id),
-                }
-            ),
-        )
-    except (RedisError, RuntimeError):
-        pass
+    await _schedule_indexing_job(
+        tenant_id=context.tenant_id,
+        collection_id=collection_id,
+        document_id=document.id,
+    )
 
     return api_success(_document_response(document), message="Document uploaded.")
 
@@ -460,20 +436,12 @@ async def delete_document(
         metadata={"collection_id": str(collection_id), "filename": document.filename},
     )
 
-    try:
-        await redis_client.rpush(
-            INDEXING_QUEUE_KEY,
-            json.dumps(
-                {
-                    "action": "delete",
-                    "document_id": str(document_id),
-                    "tenant_id": str(context.tenant_id),
-                    "collection_id": str(collection_id),
-                }
-            ),
-        )
-    except (RedisError, RuntimeError):
-        pass
+    await _schedule_indexing_job(
+        tenant_id=context.tenant_id,
+        collection_id=collection_id,
+        document_id=document_id,
+        action="delete",
+    )
 
     message = "Document deleted."
     return api_success(MessageResponse(message=message), message=message)
@@ -616,19 +584,11 @@ async def create_text_document(
         metadata={"collection_id": str(collection_id), "filename": safe_filename, "size_bytes": len(content_bytes)},
     )
 
-    try:
-        await redis_client.rpush(
-            INDEXING_QUEUE_KEY,
-            json.dumps(
-                {
-                    "document_id": str(document.id),
-                    "tenant_id": str(context.tenant_id),
-                    "collection_id": str(collection_id),
-                }
-            ),
-        )
-    except (RedisError, RuntimeError):
-        pass
+    await _schedule_indexing_job(
+        tenant_id=context.tenant_id,
+        collection_id=collection_id,
+        document_id=document.id,
+    )
 
     return api_success(_document_response(document), message="Document created.")
 
@@ -719,19 +679,11 @@ async def update_document_content(
         metadata={"collection_id": str(collection_id), "filename": document.filename, "size_bytes": len(content_bytes)},
     )
 
-    try:
-        await redis_client.rpush(
-            INDEXING_QUEUE_KEY,
-            json.dumps(
-                {
-                    "document_id": str(document_id),
-                    "tenant_id": str(context.tenant_id),
-                    "collection_id": str(collection_id),
-                }
-            ),
-        )
-    except (RedisError, RuntimeError):
-        pass
+    await _schedule_indexing_job(
+        tenant_id=context.tenant_id,
+        collection_id=collection_id,
+        document_id=document_id,
+    )
 
     return api_success(
         _document_response(updated_document or document),
@@ -743,6 +695,22 @@ async def _set_tenant(connection: AsyncConnection, context: TenantContext) -> No
     await connection.execute(
         text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
         {"tenant_id": str(context.tenant_id)},
+    )
+
+
+async def _schedule_indexing_job(
+    *,
+    tenant_id: UUID,
+    collection_id: UUID,
+    document_id: UUID,
+    action: str = "index",
+) -> None:
+    await schedule_indexing_job(
+        tenant_id=tenant_id,
+        collection_id=collection_id,
+        document_id=document_id,
+        action=action,
+        redis=redis_client,
     )
 
 

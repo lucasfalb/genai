@@ -81,7 +81,9 @@ class DocumentRepository:
                        status, chunk_count, error_message, storage_bucket, storage_key,
                        content_type, size_bytes, created_at, indexed_at
                 FROM documents
-                WHERE tenant_id = :tenant_id AND collection_id = :collection_id
+                WHERE tenant_id = :tenant_id
+                  AND tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
+                  AND collection_id = :collection_id
                 ORDER BY created_at DESC
                 """
             ),
@@ -103,7 +105,9 @@ class DocumentRepository:
                     chunk_count   = 0,
                     error_message = NULL,
                     indexed_at    = NULL
-                WHERE tenant_id = :tenant_id AND collection_id = :collection_id
+                WHERE tenant_id = :tenant_id
+                  AND tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
+                  AND collection_id = :collection_id
                 RETURNING id, tenant_id, collection_id, filename, source_type,
                           status, chunk_count, error_message, storage_bucket, storage_key,
                           content_type, size_bytes, created_at, indexed_at
@@ -121,7 +125,9 @@ class DocumentRepository:
                        status, chunk_count, error_message, storage_bucket, storage_key,
                        content_type, size_bytes, created_at, indexed_at
                 FROM documents
-                WHERE tenant_id = :tenant_id AND id = :document_id
+                WHERE tenant_id = :tenant_id
+                  AND tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
+                  AND id = :document_id
                 """
             ),
             {"tenant_id": tenant_id, "document_id": document_id},
@@ -147,7 +153,9 @@ class DocumentRepository:
                     chunk_count   = COALESCE(:chunk_count, chunk_count),
                     error_message = COALESCE(:error_message, error_message),
                     indexed_at    = COALESCE(:indexed_at, indexed_at)
-                WHERE tenant_id = :tenant_id AND id = :document_id
+                WHERE tenant_id = :tenant_id
+                  AND tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
+                  AND id = :document_id
                 RETURNING id, tenant_id, collection_id, filename, source_type,
                           status, chunk_count, error_message, storage_bucket, storage_key,
                           content_type, size_bytes, created_at, indexed_at
@@ -168,7 +176,12 @@ class DocumentRepository:
     async def delete(self, *, tenant_id: UUID, document_id: UUID) -> bool:
         result = await self.connection.execute(
             text(
-                "DELETE FROM documents WHERE tenant_id = :tenant_id AND id = :document_id"
+                """
+                DELETE FROM documents
+                WHERE tenant_id = :tenant_id
+                  AND tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
+                  AND id = :document_id
+                """
             ),
             {"tenant_id": tenant_id, "document_id": document_id},
         )
@@ -188,7 +201,9 @@ class DocumentRepository:
                   COUNT(*) FILTER (WHERE status = 'indexed') AS indexed,
                   COUNT(*) FILTER (WHERE status = 'failed') AS failed
                 FROM documents
-                WHERE tenant_id = :tenant_id AND collection_id = :collection_id
+                WHERE tenant_id = :tenant_id
+                  AND tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
+                  AND collection_id = :collection_id
                 """
             ),
             {"tenant_id": tenant_id, "collection_id": collection_id},

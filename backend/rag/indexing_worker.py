@@ -1,14 +1,11 @@
-import asyncio
 import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID
 
-from redis.asyncio import Redis
 from sqlalchemy import text
 
-from app.cache import redis_client
 from app.config import settings
 from app.object_storage import object_storage
 from database.connection import TenantContext, tenant_connection
@@ -20,8 +17,6 @@ from rag.qdrant_client import QdrantRagClient
 from rag.text_extractor import extract_text
 
 logger = logging.getLogger("rag.indexing_worker")
-
-INDEXING_QUEUE_KEY = "rag:indexing_queue"
 
 
 @dataclass(frozen=True)
@@ -211,33 +206,3 @@ async def _refresh_collection_status(
         failed_count=failed,
         last_indexed_at=datetime.now(timezone.utc) if status in {"ready", "partial", "failed"} else None,
     )
-
-
-async def run_worker(redis: Redis = redis_client) -> None:
-    logger.info("Worker started | queue=%s qdrant_url=%s", INDEXING_QUEUE_KEY, settings.qdrant_url)
-    worker = IndexingWorker()
-    errors = 0
-    while True:
-        try:
-            item = await redis.blpop(INDEXING_QUEUE_KEY, timeout=0)
-            if item is None:
-                continue
-            _, payload = item
-            await worker.process_payload(payload)
-            errors = 0
-        except Exception as exc:
-            errors += 1
-            logger.critical("Worker crashed | errors=%d error=%s", errors, exc, exc_info=True)
-            if errors >= 3:
-                logger.critical("Too many consecutive errors, exiting")
-                raise
-            await asyncio.sleep(1)
-
-
-if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    )
-    logger.info("Starting indexing worker from command line")
-    asyncio.run(run_worker())

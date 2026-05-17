@@ -1,8 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.cache import redis_client
 from app.responses import api_success
 from app.schemas import ApiResponse, SystemSettingsResponse, SystemSettingsUpdateRequest
+from api.v1.system_settings import SYSTEM_SETTINGS_PUBLIC_KEY
 from database.repositories.ai_configs import AIConfigRepository, SystemSettingsRecord
 from database.repositories.audit import AuditLogRepository
 from dependencies.auth import CurrentUser, get_connection, require_superadmin
@@ -68,6 +71,10 @@ async def update_system_settings(
             "changed_fields": sorted(payload.model_dump(exclude_unset=True).keys()),
         },
     )
+    try:
+        await redis_client.delete(SYSTEM_SETTINGS_PUBLIC_KEY)
+    except (RedisError, RuntimeError):
+        pass
     return api_success(_settings_response(record), message="System settings updated.")
 
 

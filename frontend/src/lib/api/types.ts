@@ -622,7 +622,28 @@ export type ChatEventName =
 	| 'message.persisted'
 	| 'assistant.delta'
 	| 'run.trace'
-	| 'run.completed';
+	| 'run.completed'
+	| 'graph.node.started'
+	| 'graph.node.completed';
+
+export interface GraphNodeEventPayload {
+	name: string;
+	step: number | null;
+	started_at?: string | null;
+	ended_at?: string | null;
+	triggers?: string[] | null;
+	duration_ms?: number;
+	error?: string | null;
+}
+
+export interface LiveNodeStatus {
+	name: string;
+	step: number | null;
+	status: 'running' | 'completed' | 'error';
+	duration_ms?: number;
+	error?: string | null;
+	triggers?: string[] | null;
+}
 
 export interface ChatEvent {
 	event: ChatEventName | string;
@@ -635,6 +656,16 @@ export interface ChatEvent {
 export interface RunTraceSection {
 	label: string;
 	content: string;
+}
+
+export interface NodeTiming {
+	name: string;
+	step: number | null;
+	started_at: string | null;
+	ended_at: string | null;
+	duration_ms: number;
+	triggers: string[] | null;
+	error: string | null;
 }
 
 export interface RunTraceChunk {
@@ -666,6 +697,8 @@ export interface RunTraceTokenCall {
 	model?: string | null;
 	phase?: string | null;
 	iteration?: number | null;
+	output_text?: string | null;
+	tool_calls?: unknown[];
 }
 
 export interface RunTraceTokenUsage {
@@ -688,6 +721,13 @@ export interface RunTraceExecutedCall {
 	iteration?: number | null;
 }
 
+export interface RunTraceMessage {
+	role: string;
+	content?: unknown;
+	tool_call_id?: string | null;
+	tool_calls?: unknown;
+}
+
 export interface RunTracePayload {
 	run_id: string;
 	tenant_id: string;
@@ -696,6 +736,7 @@ export interface RunTracePayload {
 	channel: string;
 	user_message: string;
 	final_response: string;
+	messages?: RunTraceMessage[];
 	model?: string | null;
 	temperature?: number | null;
 	ai_provider?: string | null;
@@ -711,12 +752,14 @@ export interface RunTracePayload {
 	tool_results: RunTraceToolResult[];
 	executed_tool_calls: RunTraceExecutedCall[];
 	token_usage?: RunTraceTokenUsage;
+	thinking?: unknown;
+	reasoning?: unknown;
 	rag_error?: string | null;
 	run_error?: string | null;
 	handoff_target?: string | null;
 	handoff_summary?: string | null;
 	citations: unknown[];
-	node_timings: { name: string; duration_ms: number }[];
+	node_timings: NodeTiming[];
 	started_at: string;
 	completed_at: string;
 	duration_ms: number;

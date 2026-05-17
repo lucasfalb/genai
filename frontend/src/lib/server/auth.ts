@@ -92,12 +92,7 @@ export async function requireAuthSession(
 	let accessToken = cookies.get(AUTH_ACCESS_COOKIE);
 	const refreshToken = cookies.get(AUTH_REFRESH_COOKIE) ?? null;
 
-	console.log('[requireAuthSession] accessToken:', accessToken?.slice(0, 10) + '...');
-	console.log('[requireAuthSession] refreshToken:', refreshToken?.slice(0, 10) + '...');
-	console.log('[requireAuthSession] genai_tenant_id cookie:', cookies.get(ACTIVE_TENANT_COOKIE));
-
 	if (!accessToken) {
-		console.log('[requireAuthSession] no access token, redirecting to /login');
 		throw redirect(303, '/login');
 	}
 
@@ -106,24 +101,19 @@ export async function requireAuthSession(
 			backendFetch<AuthMeResponse>(fetcher, '/auth/me', accessToken),
 			backendFetch<TenantAccessResponse[]>(fetcher, '/auth/me/tenants', accessToken)
 		]);
-		console.log('[requireAuthSession] backend fetch success, memberships:', memberships.length);
 		return buildSession(accessToken, refreshToken, cookies, user, memberships);
 	} catch {
-		console.log('[requireAuthSession] backend fetch failed, trying refresh');
 		const refreshed = await refreshSessionToken(fetcher, cookies, refreshToken);
 		if (!refreshed) {
-			console.log('[requireAuthSession] refresh failed');
 			clearAuthCookies(cookies);
 			throw redirect(303, '/login?expired=1');
 		}
 
 		if (!refreshed.access_token) {
-			console.log('[requireAuthSession] refresh returned no access_token');
 			clearAuthCookies(cookies);
 			throw redirect(303, '/login?expired=1');
 		}
 
-		console.log('[requireAuthSession] refresh succeeded');
 		accessToken = refreshed.access_token;
 		const [user, memberships] = await Promise.all([
 			backendFetch<AuthMeResponse>(fetcher, '/auth/me', accessToken),
@@ -141,17 +131,14 @@ function buildSession(
 	memberships: TenantAccessResponse[]
 ): ServerAuthSession {
 	const activeTenantId = cookies.get(ACTIVE_TENANT_COOKIE);
-	console.log('[buildSession] activeTenantId from cookie:', activeTenantId);
 	let activeTenant: TenantAccessResponse | null = null;
 	if (activeTenantId) {
 		activeTenant = memberships.find((m) => m.tenant_id === activeTenantId) ?? null;
 	}
-	console.log('[buildSession] matched activeTenant:', activeTenant?.tenant_id, activeTenant?.tenant_slug);
 
 	// Only delete cookie when memberships exist and none matches.
 	// Superadmins have empty memberships here — their tenant list is fetched later.
 	if (activeTenantId && !activeTenant && memberships.length > 0) {
-		console.log('[buildSession] activeTenantId from cookie not found in memberships, deleting cookie');
 		try {
 			cookies.delete(ACTIVE_TENANT_COOKIE, COOKIE_OPTIONS);
 		} catch {

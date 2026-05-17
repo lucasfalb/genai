@@ -27,13 +27,15 @@ Run from `backend/`:
 uvicorn app.main:app --reload
 ```
 
-## RAG Worker
+## RAG Indexing
 
-Run from `backend/` after PostgreSQL, Redis, Qdrant and MinIO are up:
+RAG indexing is managed by the FastAPI backend process. Keep Redis, Qdrant and MinIO available, then run the API normally:
 
 ```bash
-python -m rag.indexing_worker
+uvicorn app.main:app --reload
 ```
+
+The backend starts the Redis queue consumer when `RAG_INDEXING_CONSUMER_ENABLED=true` (default).
 
 Useful endpoints:
 

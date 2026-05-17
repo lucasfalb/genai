@@ -15,19 +15,16 @@ export const load = async ({ fetch, parent }) => {
 		tenantBackendRequest<CollectionResponse[]>(fetch, '/tenant/collections', session)
 	]);
 
-	const documents: DocumentResponse[] = [];
-	for (const col of collections) {
-		try {
-			const docs = await tenantBackendRequest<DocumentResponse[]>(
+	const docResults = await Promise.all(
+		collections.map((col) =>
+			tenantBackendRequest<DocumentResponse[]>(
 				fetch,
 				`/tenant/collections/${col.id}/documents`,
 				session
-			);
-			documents.push(...docs);
-		} catch {
-			// ignore if collection docs can't be loaded
-		}
-	}
+			).catch(() => [] as DocumentResponse[])
+		)
+	);
+	const documents = docResults.flat();
 
 	return { logs, instances, collections, documents };
 };

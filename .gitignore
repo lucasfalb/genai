@@ -12,4 +12,6 @@ qdrant_data/
 data/
 .env
 .codegraph/
+coolify-docker-compose.yml
 backend/build/
+docker.env

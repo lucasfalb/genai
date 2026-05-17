@@ -17,7 +17,7 @@ class QdrantRagClient:
         collection_name: str | None = None,
         vector_size: int | None = None,
     ) -> None:
-        self.client = AsyncQdrantClient(url=url or settings.qdrant_url)
+        self.client = AsyncQdrantClient(url=url or settings.qdrant_url, api_key=settings.qdrant_api_key, check_compatibility=False)
         self.collection_name = collection_name or settings.qdrant_collection_name
         self.vector_size = vector_size or settings.embedding_dimension
 

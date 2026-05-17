@@ -21,6 +21,10 @@ _otel_initialized = False
 
 def setup_otel(app) -> None:
     global _otel_initialized
+    if not settings.otel_enabled:
+        logger.info("OTel SDK disabled")
+        return
+
     if _otel_initialized:
         logger.debug("OTel SDK already initialized")
         return

@@ -1,9 +1,13 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from redis.exceptions import RedisError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from datetime import UTC, datetime, timedelta
 
+from app.cache import redis_client
 from app.config import settings
 from app.email_sender import dispatch_email
 from app.responses import api_success
@@ -45,18 +49,29 @@ async def get_me(
     current_user: CurrentUser = Depends(get_current_user),
     connection: AsyncConnection = Depends(get_connection),
 ) -> ApiResponse[AuthMeResponse]:
+    cache_key = f"auth:me:{current_user.id}"
+    try:
+        cached = await redis_client.get(cache_key)
+        if cached:
+            return api_success(AuthMeResponse.model_validate_json(cached))
+    except (RedisError, RuntimeError):
+        pass
+
     user = await UserRepository(connection).get_by_id(current_user.id)
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
-    return api_success(
-        AuthMeResponse(
-            id=user.id,
-            email=user.email,
-            name=user.name,
-            status=user.status,
-            is_superadmin=user.is_superadmin,
-        )
+    response = AuthMeResponse(
+        id=user.id,
+        email=user.email,
+        name=user.name,
+        status=user.status,
+        is_superadmin=user.is_superadmin,
     )
+    try:
+        await redis_client.setex(cache_key, 60, response.model_dump_json())
+    except (RedisError, RuntimeError):
+        pass
+    return api_success(response)
 
 
 @router.get(
@@ -69,23 +84,34 @@ async def get_my_tenants(
     current_user: CurrentUser = Depends(get_current_user),
     connection: AsyncConnection = Depends(get_connection),
 ) -> ApiResponse[list[TenantAccessResponse]]:
+    cache_key = f"auth:tenants:{current_user.id}"
+    try:
+        cached = await redis_client.get(cache_key)
+        if cached:
+            return api_success([TenantAccessResponse(**m) for m in json.loads(cached)])
+    except (RedisError, RuntimeError):
+        pass
+
     repository = UserRepository(connection)
     user = await repository.get_by_id(current_user.id)
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
     memberships = await repository.list_tenant_access(user.id)
-    return api_success(
-        [
-            TenantAccessResponse(
-                tenant_id=item.tenant_id,
-                tenant_slug=item.tenant_slug,
-                tenant_name=item.tenant_name,
-                role=item.role,
-                status=item.status,
-            )
-            for item in memberships
-        ]
-    )
+    result = [
+        TenantAccessResponse(
+            tenant_id=item.tenant_id,
+            tenant_slug=item.tenant_slug,
+            tenant_name=item.tenant_name,
+            role=item.role,
+            status=item.status,
+        )
+        for item in memberships
+    ]
+    try:
+        await redis_client.setex(cache_key, 60, json.dumps([m.model_dump(mode="json") for m in result]))
+    except (RedisError, RuntimeError):
+        pass
+    return api_success(result)
 
 
 @router.post(

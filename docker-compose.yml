@@ -38,29 +38,6 @@ services:
     volumes:
       - minio_data:/data
 
-  indexing-worker:
-    image: python:3.12-slim
-    container_name: genai-indexing-worker
-    restart: unless-stopped
-    depends_on:
-      redis:
-        condition: service_started
-      qdrant:
-        condition: service_started
-      minio:
-        condition: service_started
-    env_file:
-      - ./backend/.env
-    environment:
-      REDIS_URL: redis://redis:6379/0
-      QDRANT_URL: http://qdrant:6333
-      S3_ENDPOINT_URL: http://minio:9000
-    working_dir: /app
-    volumes:
-      - ./backend:/app
-    command: >
-      sh -c "cd /app && pip install --no-cache-dir . && python -m rag.indexing_worker"
-
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.119.0
     container_name: genai-otel-collector

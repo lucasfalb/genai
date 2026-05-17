@@ -1,8 +1,6 @@
-import asyncio
 import contextvars
 import json
 import re
-import time
 from typing import Any, Callable
 
 import httpx
@@ -12,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from engine.llm_client import complete_chat
 from engine.nodes.rag_node import create_rag_node
 from engine.state import AgentState
-from engine.tracer import tracer
 
 
 delta_sink_var: contextvars.ContextVar[Callable[[str], None] | None] = contextvars.ContextVar(
@@ -42,26 +39,15 @@ async def llm_node(state: AgentState) -> AgentState:
     on_delta = delta_sink_var.get()
 
     openai_messages = [{"role": "system", "content": system_prompt}] + list(messages)
-    with tracer.start_as_current_span(
-        "llm.call",
-        attributes={
-            "gen_ai.request.model": model,
-            "gen_ai.system": provider,
-            "temperature": temperature,
-        },
-    ) as span:
-        completion = await complete_chat(
-            provider=provider,
-            api_key=api_key,
-            model=model,
-            temperature=temperature,
-            messages=openai_messages,
-            tool_schemas=[] if force_finalize else tool_schemas,
-            on_delta=on_delta,
-        )
-        span.set_attribute("gen_ai.usage.input_tokens", completion.usage.prompt_tokens)
-        span.set_attribute("gen_ai.usage.output_tokens", completion.usage.completion_tokens)
-        span.set_attribute("gen_ai.usage.total_tokens", completion.usage.total_tokens)
+    completion = await complete_chat(
+        provider=provider,
+        api_key=api_key,
+        model=model,
+        temperature=temperature,
+        messages=openai_messages,
+        tool_schemas=[] if force_finalize else tool_schemas,
+        on_delta=on_delta,
+    )
 
     current_usage = state.get("token_usage") or {
         "prompt_tokens": 0,
@@ -77,6 +63,8 @@ async def llm_node(state: AgentState) -> AgentState:
         "model": model,
         "phase": "tool_call" if completion.pending_tool_calls else "final",
         "iteration": iterations,
+        "output_text": completion.final_response,
+        "tool_calls": completion.pending_tool_calls or [],
     }
     next_usage = {
         "prompt_tokens": current_usage["prompt_tokens"] + completion.usage.prompt_tokens,
@@ -207,14 +195,8 @@ async def dispatch_node(state: AgentState) -> AgentState:
         executor_key = tool_config.get("executor") or name
         executor = TOOL_EXECUTORS.get(executor_key) or TOOL_EXECUTORS.get("web_fetch")
         if executor:
-            with tracer.start_as_current_span(
-                "tool.execute",
-                attributes={"tool_name": name, "executor": executor_key},
-            ) as span:
-                result = await executor(call, tool_config)
-                success = not bool(result.get("error")) if isinstance(result, dict) else True
-                span.set_attribute("success", success)
-                results.append(result)
+            result = await executor(call, tool_config)
+            results.append(result)
         else:
             results.append({
                 "name": name,
@@ -276,14 +258,10 @@ def handoff_node(state: AgentState) -> AgentState:
     for call in calls:
         if call.get("name") in linked_tools:
             target = linked_tools[call["name"]]["target_instance_id"]
-            with tracer.start_as_current_span(
-                "handoff.resolve",
-                attributes={"target_instance_id": target},
-            ):
-                return {
-                    "handoff_target": target,
-                    "handoff_summary": call.get("arguments", {}).get("reason"),
-                }
+            return {
+                "handoff_target": target,
+                "handoff_summary": call.get("arguments", {}).get("reason"),
+            }
     return {}
 
 
@@ -301,43 +279,13 @@ def route_after_llm(state: AgentState) -> str:
     return "tool_call"
 
 
-def _instrument(name: str, fn: Callable, timings: list[dict] | None):
-    if timings is None:
-        return fn
-
-    if asyncio.iscoroutinefunction(fn):
-        async def inner_async(state):
-            t0 = time.perf_counter()
-            try:
-                return await fn(state)
-            finally:
-                timings.append(
-                    {"name": name, "duration_ms": int((time.perf_counter() - t0) * 1000)}
-                )
-        return inner_async
-
-    def inner_sync(state):
-        t0 = time.perf_counter()
-        try:
-            return fn(state)
-        finally:
-            timings.append(
-                {"name": name, "duration_ms": int((time.perf_counter() - t0) * 1000)}
-            )
-    return inner_sync
-
-
-def create_base_graph(
-    *,
-    connection: AsyncConnection | None = None,
-    node_timings: list[dict] | None = None,
-):
+def create_base_graph(*, connection: AsyncConnection | None = None):
     graph = StateGraph(AgentState)
     rag_node = create_rag_node(connection) if connection else _noop_rag_node
-    graph.add_node("rag", _instrument("rag", rag_node, node_timings))
-    graph.add_node("llm", _instrument("llm", llm_node, node_timings))
-    graph.add_node("dispatch", _instrument("dispatch", dispatch_node, node_timings))
-    graph.add_node("handoff", _instrument("handoff", handoff_node, node_timings))
+    graph.add_node("rag", rag_node)
+    graph.add_node("llm", llm_node)
+    graph.add_node("dispatch", dispatch_node)
+    graph.add_node("handoff", handoff_node)
 
     graph.set_entry_point("rag")
     graph.add_edge("rag", "llm")

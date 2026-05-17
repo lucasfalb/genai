@@ -20,7 +20,7 @@ def build_run_trace(
     final_response: str,
     started_at: datetime,
     completed_at: datetime,
-    node_timings: list[dict] | None = None,
+    graph_steps: list[dict] | None = None,
 ) -> dict[str, Any]:
     sections = bootstrap_state.get("system_prompt_sections") or {}
     chunks = result_state.get("retrieved_chunks") or []
@@ -28,6 +28,7 @@ def build_run_trace(
     tool_results = result_state.get("tool_results") or []
     executed = result_state.get("executed_tool_calls") or []
     token_usage = result_state.get("token_usage") or {}
+    messages = result_state.get("messages") or bootstrap_state.get("messages") or []
     duration_ms = max(0, int((completed_at - started_at).total_seconds() * 1000))
 
     return _redact({
@@ -38,6 +39,7 @@ def build_run_trace(
         "channel": channel,
         "user_message": user_message,
         "final_response": final_response,
+        "messages": [_normalize_message(m) for m in messages],
         "model": bootstrap_state.get("model"),
         "temperature": bootstrap_state.get("temperature"),
         "ai_provider": bootstrap_state.get("ai_provider"),
@@ -59,12 +61,14 @@ def build_run_trace(
         "tool_results": [_normalize_tool_result(r) for r in tool_results],
         "executed_tool_calls": [_normalize_executed_call(c) for c in executed],
         "token_usage": _normalize_token_usage(token_usage),
+        "thinking": result_state.get("thinking"),
+        "reasoning": result_state.get("reasoning"),
         "rag_error": result_state.get("rag_error"),
         "run_error": result_state.get("run_error"),
         "handoff_target": result_state.get("handoff_target"),
         "handoff_summary": result_state.get("handoff_summary"),
         "citations": list(result_state.get("citations") or []),
-        "node_timings": list(node_timings or []),
+        "node_timings": list(graph_steps or []),
         "started_at": started_at.isoformat(),
         "completed_at": completed_at.isoformat(),
         "duration_ms": duration_ms,
@@ -93,6 +97,20 @@ def _normalize_tool_call(call: Any) -> dict:
         "name": call.get("name") or call.get("tool"),
         "arguments": call.get("arguments") or call.get("args"),
     }
+
+
+def _normalize_message(message: Any) -> dict:
+    if not isinstance(message, dict):
+        return {"role": "unknown", "content": str(message)}
+    normalized = {
+        "role": message.get("role") or "unknown",
+        "content": message.get("content"),
+    }
+    if message.get("tool_call_id"):
+        normalized["tool_call_id"] = message.get("tool_call_id")
+    if message.get("tool_calls"):
+        normalized["tool_calls"] = message.get("tool_calls")
+    return normalized
 
 
 def _normalize_tool_result(result: Any) -> dict:

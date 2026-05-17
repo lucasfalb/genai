@@ -10,8 +10,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://genai_app:genai_app@localhost:5432/genai"
     sync_database_url: str = "postgresql+psycopg://genai:genai@localhost:5432/genai"
     test_database_url: str = "postgresql://genai_app:genai_app@localhost:5432/genai_test"
+    database_schema: str | None = None
     redis_url: str = "redis://localhost:6379/0"
     qdrant_url: str = "http://localhost:6333"
+    qdrant_api_key: str | None = None
     qdrant_collection_name: str = "genai_rag"
     jwt_secret_key: str = "dev-local-secret-key-change-before-production-32bytes"
     jwt_algorithm: str = "HS256"
@@ -19,6 +21,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
     action_token_expire_minutes: int = 15
     app_public_url: str = "http://localhost:3000"
+    cors_allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_secure: bool = False
@@ -33,6 +36,7 @@ class Settings(BaseSettings):
     rag_chunk_overlap_tokens: int = 64
     rag_top_k: int = 8
     rag_score_threshold: float = 0.35
+    rag_indexing_consumer_enabled: bool = True
     ai_config_encryption_key: str = ""  # Fernet key (base64 32-byte) — required in production
     s3_endpoint_url: str = "http://localhost:9000"
     s3_access_key_id: str = "genai"
@@ -42,6 +46,7 @@ class Settings(BaseSettings):
     upload_max_bytes: int = 50 * 1024 * 1024  # 50 MB
 
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
+    otel_enabled: bool = False
     otel_service_name: str = "genai-platform"
     genai_env: str = "development"
     otel_resource_attributes: str = ""

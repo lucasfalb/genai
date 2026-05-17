@@ -1,4 +1,5 @@
 import warnings
+from contextlib import asynccontextmanager
 
 from langchain_core._api.deprecation import LangChainPendingDeprecationWarning
 
@@ -26,13 +27,30 @@ from api.v1.tenant_members import router as tenant_members_router
 from api.v1.tenant_audit import router as tenant_audit_router
 from app.responses import api_success, http_exception_handler, validation_exception_handler
 from app.schemas import ApiResponse
+from app.config import settings
+from rag.indexing_service import IndexingConsumerHandle
 
 
-app = FastAPI(title="Agent Registry Platform")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    indexing_consumer = IndexingConsumerHandle()
+    if settings.rag_indexing_consumer_enabled:
+        await indexing_consumer.start()
+    try:
+        yield
+    finally:
+        await indexing_consumer.stop()
+
+
+app = FastAPI(title="Agent Registry Platform", lifespan=lifespan)
+
+cors_allowed_origins = [
+    origin.strip() for origin in settings.cors_allowed_origins.split(",") if origin.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=cors_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

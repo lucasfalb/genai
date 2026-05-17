@@ -1,3 +1,5 @@
+import type { LiveNodeStatus } from '$lib/api/types';
+
 const SESSION_KEY = (instanceId: string) => `chat_session_${instanceId}`;
 const RUN_KEY = (instanceId: string) => `chat_last_run_${instanceId}`;
 
@@ -18,6 +20,10 @@ function remove(key: string): void {
 
 class ChatSessionRegistry {
 	private version = $state(0);
+
+	// In-memory live run tracking (not persisted)
+	private _liveSteps: Record<string, LiveNodeStatus[]> = $state({});
+	private _liveRunIds: Record<string, string> = $state({});
 
 	sessionId(instanceId: string): string | null {
 		this.version;
@@ -44,7 +50,59 @@ class ChatSessionRegistry {
 	clear(instanceId: string): void {
 		remove(SESSION_KEY(instanceId));
 		remove(RUN_KEY(instanceId));
+		this.clearLiveRun(instanceId);
 		this.version += 1;
+	}
+
+	// ─── Live run tracking ────────────────────────────────────────────────────
+
+	liveNodeSteps(instanceId: string): LiveNodeStatus[] {
+		return this._liveSteps[instanceId] ?? [];
+	}
+
+	liveRunId(instanceId: string): string | null {
+		return this._liveRunIds[instanceId] ?? null;
+	}
+
+	startLiveRun(instanceId: string, runId: string): void {
+		this._liveRunIds = { ...this._liveRunIds, [instanceId]: runId };
+		this._liveSteps = { ...this._liveSteps, [instanceId]: [] };
+	}
+
+	nodeStarted(
+		instanceId: string,
+		node: { name: string; step: number | null; triggers?: string[] | null }
+	): void {
+		const current = this._liveSteps[instanceId] ?? [];
+		const entry: LiveNodeStatus = { name: node.name, step: node.step, status: 'running', triggers: node.triggers };
+		this._liveSteps = { ...this._liveSteps, [instanceId]: [...current, entry] };
+	}
+
+	nodeCompleted(
+		instanceId: string,
+		info: { name: string; step: number | null; duration_ms?: number; error?: string | null }
+	): void {
+		const current = this._liveSteps[instanceId] ?? [];
+		this._liveSteps = {
+			...this._liveSteps,
+			[instanceId]: current.map((s) =>
+				s.name === info.name && s.step === info.step
+					? {
+							...s,
+							status: (info.error ? 'error' : 'completed') as LiveNodeStatus['status'],
+							duration_ms: info.duration_ms,
+							error: info.error
+						}
+					: s
+			)
+		};
+	}
+
+	clearLiveRun(instanceId: string): void {
+		const { [instanceId]: _s, ...restSteps } = this._liveSteps;
+		const { [instanceId]: _r, ...restIds } = this._liveRunIds;
+		this._liveSteps = restSteps;
+		this._liveRunIds = restIds;
 	}
 }
 

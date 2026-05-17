@@ -8,8 +8,16 @@
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import MessageBubble from '$lib/components/MessageBubble.svelte';
 	import { streamChat, chatSession, tracesApi, type ChatStreamError } from '$lib/api/chat';
+	import { chatSessionStore } from '$lib/stores/chat-session.svelte';
 	import { getErrorMessage } from '$lib/api/client';
-	import type { RunTraceResponse } from '$lib/api/types';
+	import type { GraphNodeEventPayload, RunTraceResponse } from '$lib/api/types';
+
+	const NODE_LABELS: Record<string, string> = {
+		rag: 'Buscando contexto',
+		llm: 'Processando',
+		dispatch: 'Executando ferramenta',
+		handoff: 'Transferindo sessão'
+	};
 
 	type ChatMessage = {
 		id: string;
@@ -35,6 +43,7 @@
 	let messages = $state<ChatMessage[]>([]);
 	let input = $state('');
 	let isStreaming = $state(false);
+	let activeNode = $state<string | null>(null);
 	let sessionId = $state<string | null>(null);
 	let loadingPast = $state(false);
 	let abortController: AbortController | null = null;
@@ -157,6 +166,9 @@
 		const text = input.trim();
 		if (!text || isStreaming) return;
 
+		const tempRunId = `live-${Date.now()}`;
+		chatSessionStore.startLiveRun(instanceId, tempRunId);
+
 		input = '';
 		isStreaming = true;
 		pushMessage({ role: 'user', content: text });
@@ -176,18 +188,30 @@
 				onAssistantDelta: (content) => {
 					updateMessage(assistant.id, { content });
 				},
+				onNodeStarted: (node: GraphNodeEventPayload) => {
+					activeNode = node.name;
+					chatSessionStore.nodeStarted(instanceId, { name: node.name, step: node.step, triggers: node.triggers });
+				},
+				onNodeCompleted: (node: GraphNodeEventPayload) => {
+					chatSessionStore.nodeCompleted(instanceId, { name: node.name, step: node.step, duration_ms: node.duration_ms, error: node.error });
+				},
 				onTrace: (_trace, event) => {
 					const runId = (event.metadata as { run_id?: string } | undefined)?.run_id;
 					if (runId) chatSession.setLastRunId(instanceId, runId);
 				},
 				onCompleted: (event) => {
+					activeNode = null;
 					sessionId = event.session_id;
 					chatSession.set(instanceId, event.session_id);
 					const runId = (event.metadata as { run_id?: string } | undefined)?.run_id;
 					if (runId) chatSession.setLastRunId(instanceId, runId);
 					updateMessage(assistant.id, { isStreaming: false });
+					// Clear live run after a short delay so the panel can show the full trace
+					setTimeout(() => chatSessionStore.clearLiveRun(instanceId), 2000);
 				},
 				onError: (error) => {
+					activeNode = null;
+					chatSessionStore.clearLiveRun(instanceId);
 					updateMessage(assistant.id, {
 						role: 'error',
 						content: errorMessageFor(error),
@@ -207,6 +231,8 @@
 		abortController?.abort();
 		abortController = null;
 		isStreaming = false;
+		activeNode = null;
+		chatSessionStore.clearLiveRun(instanceId);
 		messages = messages.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m));
 	}
 
@@ -214,6 +240,7 @@
 		abortController?.abort();
 		abortController = null;
 		isStreaming = false;
+		activeNode = null;
 		chatSession.clear(instanceId);
 		sessionId = null;
 		messages = [];
@@ -287,10 +314,21 @@
 					hint={message.hint}
 				/>
 			{/each}
-			{#if isStreaming && messages[messages.length - 1]?.role === 'assistant' && !messages[messages.length - 1]?.content}
+			{#if isStreaming && activeNode && !messages[messages.length - 1]?.content}
 				<div class="flex items-center gap-2 pl-11 text-xs text-muted-foreground">
 					<Spinner class="size-3" />
-					<span>Agente pensando…</span>
+					<span>{NODE_LABELS[activeNode] ?? 'Processando'}…</span>
+				</div>
+			{:else if isStreaming && !activeNode && messages[messages.length - 1]?.role === 'assistant' && !messages[messages.length - 1]?.content}
+				<div class="flex items-center gap-2 pl-11 text-xs text-muted-foreground">
+					<Spinner class="size-3" />
+					<span>Iniciando…</span>
+				</div>
+			{/if}
+			{#if isStreaming && activeNode && messages[messages.length - 1]?.content}
+				<div class="flex items-center gap-1.5 pl-11 text-[10px] text-muted-foreground/60">
+					<Spinner class="size-2.5" />
+					<span class="font-mono">{activeNode}</span>
 				</div>
 			{/if}
 		{/if}

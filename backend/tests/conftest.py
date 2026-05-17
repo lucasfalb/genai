@@ -1,23 +1,16 @@
 from collections.abc import Iterator
 import os
+from pathlib import Path
 
 import psycopg
 import pytest
+from alembic import command
+from alembic.config import Config
 from psycopg import sql
 from sqlalchemy.engine import make_url
 
-os.environ.setdefault(
-    "DATABASE_URL",
-    "postgresql+asyncpg://genai_app:genai_app@localhost:5432/genai_test",
-)
-os.environ.setdefault(
-    "TEST_DATABASE_URL",
-    "postgresql://genai_app:genai_app@localhost:5432/genai_test",
-)
-os.environ.setdefault(
-    "SYNC_DATABASE_URL",
-    "postgresql+psycopg://genai:genai@localhost:5432/genai_test",
-)
+os.environ.setdefault("DATABASE_SCHEMA", "genai_test")
+os.environ.setdefault("RAG_INDEXING_CONSUMER_ENABLED", "false")
 
 from app.config import settings
 
@@ -32,7 +25,7 @@ DEFAULT_EMAIL_TEMPLATE_SLUGS = {
 
 
 def psycopg_url() -> str:
-    _assert_test_database(settings.test_database_url, "TEST_DATABASE_URL")
+    _assert_test_target(settings.test_database_url, "TEST_DATABASE_URL")
     return _as_psycopg_dsn(settings.test_database_url)
 
 
@@ -40,20 +33,53 @@ def admin_psycopg_url() -> str:
     test_url = make_url(settings.test_database_url)
     admin_url = make_url(settings.sync_database_url).set(database=test_url.database)
     dsn = admin_url.render_as_string(hide_password=False)
-    _assert_test_database(dsn, "SYNC_DATABASE_URL/TEST_DATABASE_URL")
+    _assert_test_target(dsn, "SYNC_DATABASE_URL/TEST_DATABASE_URL")
     return _as_psycopg_dsn(dsn)
 
 
-@pytest.fixture(autouse=True)
-def clean_database() -> Iterator[None]:
-    _cleanup_test_database()
+@pytest.fixture(scope="session", autouse=True)
+def prepare_test_schema() -> Iterator[None]:
+    _assert_test_target(settings.test_database_url, "TEST_DATABASE_URL")
+    schema = _test_schema()
+    with psycopg.connect(admin_psycopg_url(), autocommit=True, connect_timeout=10) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(schema)))
+            cursor.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
+
+    alembic_cfg = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    alembic_cfg.set_main_option(
+        "script_location",
+        str(Path(__file__).resolve().parents[1] / "database" / "migrations"),
+    )
+    command.upgrade(alembic_cfg, "head")
     yield
-    _cleanup_test_database()
+
+
+@pytest.fixture(scope="session")
+def admin_connection(prepare_test_schema: None) -> Iterator[psycopg.Connection]:
+    with psycopg.connect(
+        admin_psycopg_url(),
+        autocommit=True,
+        connect_timeout=10,
+    ) as connection:
+        yield connection
+
+
+@pytest.fixture(autouse=True)
+def clean_database(admin_connection: psycopg.Connection) -> Iterator[None]:
+    _cleanup_test_database(admin_connection)
+    yield
+    _cleanup_test_database(admin_connection)
 
 
 @pytest.fixture()
 def db_connection() -> Iterator[psycopg.Connection]:
-    with psycopg.connect(psycopg_url(), autocommit=False) as connection:
+    with psycopg.connect(
+        psycopg_url(),
+        autocommit=False,
+        options=f"-csearch_path={_test_schema()}",
+        connect_timeout=10,
+    ) as connection:
         yield connection
         connection.rollback()
 
@@ -70,26 +96,40 @@ def api_error(response):
     return body["error"]
 
 
-def _cleanup_test_database() -> None:
-    _assert_test_database(settings.test_database_url, "TEST_DATABASE_URL")
-    with psycopg.connect(admin_psycopg_url(), autocommit=True) as connection:
-        with connection.cursor() as cursor:
+def _cleanup_test_database(connection: psycopg.Connection) -> None:
+    _assert_test_target(settings.test_database_url, "TEST_DATABASE_URL")
+    schema = _test_schema()
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT tablename
+            FROM pg_tables
+            WHERE schemaname = %s
+            """,
+            (schema,),
+        )
+        tables = sorted(row[0] for row in cursor.fetchall() if row[0] not in PERSISTENT_TABLES)
+        if tables:
             cursor.execute(
-                """
-                SELECT tablename
-                FROM pg_tables
-                WHERE schemaname = 'public'
-                """
-            )
-            tables = sorted(row[0] for row in cursor.fetchall() if row[0] not in PERSISTENT_TABLES)
-            if tables:
-                cursor.execute(
-                    sql.SQL("TRUNCATE TABLE {} RESTART IDENTITY CASCADE").format(
-                        sql.SQL(", ").join(sql.Identifier(table) for table in tables)
-                    )
+                sql.SQL("TRUNCATE TABLE {} RESTART IDENTITY CASCADE").format(
+                    sql.SQL(", ").join(sql.Identifier(schema, table) for table in tables)
                 )
+            )
+        cursor.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = %s AND table_name = 'email_templates'
+            )
+            """,
+            (schema,),
+        )
+        if cursor.fetchone()[0]:
             cursor.execute(
-                "DELETE FROM email_templates WHERE slug <> ALL(%s)",
+                sql.SQL("DELETE FROM {} WHERE slug <> ALL(%s)").format(
+                    sql.Identifier(schema, "email_templates")
+                ),
                 (list(DEFAULT_EMAIL_TEMPLATE_SLUGS),),
             )
 
@@ -100,11 +140,20 @@ def _as_psycopg_dsn(url: str) -> str:
     return parsed.set(drivername=drivername).render_as_string(hide_password=False)
 
 
-def _assert_test_database(url: str, label: str) -> None:
+def _test_schema() -> str:
+    schema = settings.database_schema or ""
+    if not schema:
+        raise RuntimeError("DATABASE_SCHEMA must be set for tests.")
+    return schema
+
+
+def _assert_test_target(url: str, label: str) -> None:
     database = make_url(url).database or ""
-    if "test" not in database.lower():
+    schema = os.environ.get("DATABASE_SCHEMA", "")
+    if "test" not in database.lower() and "test" not in schema.lower():
         raise RuntimeError(
-            f"Refusing to clean database '{database}' from {label}; test database name must contain 'test'."
+            f"Refusing to clean database '{database}' schema '{schema}' from {label}; "
+            "database or schema name must contain 'test'."
         )
 
 

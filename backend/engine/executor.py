@@ -36,7 +36,7 @@ class AgentRunStream:
     user_message: str
     bootstrap_state: dict
     graph_task: asyncio.Task
-    delta_queue: asyncio.Queue
+    event_queue: asyncio.Queue
     trace_repository: RunTraceRepository
     started_at: datetime
     _closed: bool = field(default=False, init=False)
@@ -45,21 +45,50 @@ class AgentRunStream:
         try:
             yield self.user_event
             buffer = ""
+            graph_steps: list[dict] = []
+
             while True:
-                if self.graph_task.done() and self.delta_queue.empty():
+                if self.graph_task.done() and self.event_queue.empty():
                     break
                 try:
-                    item = await asyncio.wait_for(self.delta_queue.get(), timeout=0.25)
+                    item = await asyncio.wait_for(self.event_queue.get(), timeout=0.25)
                 except asyncio.TimeoutError:
                     continue
                 if item is _STREAM_SENTINEL:
                     break
-                buffer += str(item)
-                yield ChatEvent(
-                    event="assistant.delta",
-                    session_id=self.session_id,
-                    content=buffer,
-                )
+
+                if isinstance(item, str):
+                    buffer += item
+                    yield ChatEvent(
+                        event="assistant.delta",
+                        session_id=self.session_id,
+                        content=buffer,
+                    )
+                elif isinstance(item, dict):
+                    _type = item.get("_type")
+                    if _type == "node.started":
+                        yield ChatEvent(
+                            event="graph.node.started",
+                            session_id=self.session_id,
+                            metadata={
+                                "name": item["name"],
+                                "step": item["step"],
+                                "triggers": item.get("triggers"),
+                            },
+                        )
+                    elif _type == "node.completed":
+                        step_record = {k: v for k, v in item.items() if k != "_type"}
+                        graph_steps.append(step_record)
+                        yield ChatEvent(
+                            event="graph.node.completed",
+                            session_id=self.session_id,
+                            metadata={
+                                "name": item["name"],
+                                "step": item["step"],
+                                "duration_ms": item["duration_ms"],
+                                "error": item.get("error"),
+                            },
+                        )
 
             run_error: str | None = None
             result_state: dict = {}
@@ -110,7 +139,7 @@ class AgentRunStream:
                 final_response=response,
                 started_at=self.started_at,
                 completed_at=completed_at,
-                node_timings=self.bootstrap_state.get("_node_timings") or [],
+                graph_steps=graph_steps,
             )
             await self.trace_repository.create(
                 run_id=UUID(self.run_id),
@@ -220,14 +249,12 @@ class AgentExecutor:
             )
             state["messages"].append({"role": "user", "content": message})
 
-            node_timings: list[dict] = []
-            state["_node_timings"] = node_timings
-            delta_queue: asyncio.Queue = asyncio.Queue()
+            event_queue: asyncio.Queue = asyncio.Queue()
 
             def delta_sink(chunk: str) -> None:
-                delta_queue.put_nowait(chunk)
+                event_queue.put_nowait(chunk)
 
-            graph = create_base_graph(connection=self.connection, node_timings=node_timings)
+            graph = create_base_graph(connection=self.connection)
 
             async def run_graph():
                 token = delta_sink_var.set(delta_sink)
@@ -240,14 +267,70 @@ class AgentExecutor:
                     },
                 ) as span:
                     try:
-                        result = await graph.ainvoke(state)
+                        pending_tasks: dict[str, dict] = {}
+                        final_state: dict = {}
+
+                        async for mode, payload in graph.astream(state, stream_mode=["values", "debug"]):
+                            if mode == "debug":
+                                event_type = payload.get("type")
+                                if event_type == "task":
+                                    task_payload = payload.get("payload") or {}
+                                    task_id = task_payload.get("id")
+                                    started_at_ts = payload.get("timestamp")
+                                    entry = {
+                                        "task_id": task_id,
+                                        "name": task_payload.get("name"),
+                                        "step": payload.get("step"),
+                                        "started_at": started_at_ts,
+                                        "triggers": task_payload.get("triggers"),
+                                    }
+                                    if task_id:
+                                        pending_tasks[task_id] = entry
+                                    event_queue.put_nowait({
+                                        "_type": "node.started",
+                                        "name": entry["name"],
+                                        "step": entry["step"],
+                                        "started_at": started_at_ts,
+                                        "triggers": entry["triggers"],
+                                    })
+                                elif event_type == "task_result":
+                                    task_payload = payload.get("payload") or {}
+                                    task_id = task_payload.get("id")
+                                    pending = pending_tasks.pop(task_id, None)
+                                    ended_at_ts = payload.get("timestamp")
+                                    duration_ms = 0
+                                    if pending:
+                                        try:
+                                            s = datetime.fromisoformat(
+                                                (pending["started_at"] or "").replace("Z", "+00:00")
+                                            )
+                                            e = datetime.fromisoformat(
+                                                (ended_at_ts or "").replace("Z", "+00:00")
+                                            )
+                                            duration_ms = max(0, int((e - s).total_seconds() * 1000))
+                                        except Exception:
+                                            duration_ms = 0
+                                    event_queue.put_nowait({
+                                        "_type": "node.completed",
+                                        "name": (pending or {}).get("name") or task_payload.get("name"),
+                                        "step": (pending or {}).get("step"),
+                                        "started_at": (pending or {}).get("started_at"),
+                                        "ended_at": ended_at_ts,
+                                        "duration_ms": duration_ms,
+                                        "triggers": (pending or {}).get("triggers"),
+                                        "error": task_payload.get("error"),
+                                    })
+                            elif mode == "values":
+                                final_state = payload
+
                         span_context = span.get_span_context()
                         if span_context.is_valid:
-                            result["_otel_trace_id"] = otel_trace.format_trace_id(span_context.trace_id)
-                        return result
+                            final_state["_otel_trace_id"] = otel_trace.format_trace_id(span_context.trace_id)
+
+                        return final_state
                     finally:
                         delta_sink_var.reset(token)
-                        delta_queue.put_nowait(_STREAM_SENTINEL)
+                        event_queue.put_nowait(_STREAM_SENTINEL)
 
             graph_task = asyncio.create_task(run_graph())
 
@@ -267,7 +350,7 @@ class AgentExecutor:
                 user_message=message,
                 bootstrap_state=state,
                 graph_task=graph_task,
-                delta_queue=delta_queue,
+                event_queue=event_queue,
                 trace_repository=RunTraceRepository(self.connection),
                 started_at=started_at,
             )

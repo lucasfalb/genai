@@ -31,7 +31,7 @@ A auto-instrumentacao (TASK-080) cobre spans de infraestrutura (HTTP request, DB
 
 - Instrumentacao de cada no individual do LangGraph (graph nao expoe hooks finos).
 - Cobertura de canais (webhook, telegram, etc.) - limitado ao engine core.
-- Cobertura de indexing-worker (processamento batch de documentos).
+- Cobertura do consumer de indexacao RAG gerenciado pelo backend.
 
 ## Stage Boundaries
 

@@ -9,6 +9,7 @@
 | TASK-045 | [TenantRetriever com RBAC e rag_scope](task_045_tenant_retriever_rbac_rag_scope.md) | COMPLETED | CRITICAL | TASK-041, TASK-015 |
 | TASK-046 | [RAG Node Integration no LangGraph](task_046_rag_node_langgraph_integration.md) | COMPLETED | HIGH | TASK-045, TASK-039 |
 | TASK-047 | [Verificacao Stage 06 RAG](task_047_stage_06_rag_verification.md) | COMPLETED | HIGH | TASK-041, TASK-042, TASK-043, TASK-044, TASK-045, TASK-046 |
+| TASK-084 | [Migrar Indexacao RAG para Backend Gerenciado](task_084_migrar_indexacao_rag_backend_gerenciado.md) | IN_PROGRESS | HIGH | TASK-043, TASK-044, TASK-047 |
 
 ## Scope
 

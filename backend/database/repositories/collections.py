@@ -60,6 +60,7 @@ class CollectionRepository:
                        last_indexed_at, created_at, updated_at
                 FROM collections
                 WHERE tenant_id = :tenant_id
+                  AND tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
                 ORDER BY created_at DESC
                 """
             ),
@@ -76,7 +77,9 @@ class CollectionRepository:
                        document_count, indexed_count, failed_count,
                        last_indexed_at, created_at, updated_at
                 FROM collections
-                WHERE tenant_id = :tenant_id AND id = :collection_id
+                WHERE tenant_id = :tenant_id
+                  AND tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
+                  AND id = :collection_id
                 """
             ),
             {"tenant_id": tenant_id, "collection_id": collection_id},
@@ -107,7 +110,9 @@ class CollectionRepository:
                     failed_count      = COALESCE(:failed_count, failed_count),
                     last_indexed_at   = COALESCE(:last_indexed_at, last_indexed_at),
                     updated_at        = now()
-                WHERE tenant_id = :tenant_id AND id = :collection_id
+                WHERE tenant_id = :tenant_id
+                  AND tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
+                  AND id = :collection_id
                 RETURNING id, tenant_id, name, description,
                           indexing_status, indexing_progress,
                           document_count, indexed_count, failed_count,
@@ -143,7 +148,9 @@ class CollectionRepository:
                 SET name        = COALESCE(:name, name),
                     description = COALESCE(:description, description),
                     updated_at  = now()
-                WHERE tenant_id = :tenant_id AND id = :collection_id
+                WHERE tenant_id = :tenant_id
+                  AND tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
+                  AND id = :collection_id
                 RETURNING id, tenant_id, name, description,
                           indexing_status, indexing_progress,
                           document_count, indexed_count, failed_count,
@@ -174,6 +181,7 @@ class CollectionRepository:
                 """
                 SELECT id FROM collections
                 WHERE tenant_id = :tenant_id
+                  AND tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
                   AND id = ANY(:collection_ids)
                   AND indexing_status = ANY(:allowed_statuses)
                 """
@@ -188,11 +196,25 @@ class CollectionRepository:
 
     async def delete(self, *, tenant_id: UUID, collection_id: UUID) -> bool:
         await self.connection.execute(
-            text("DELETE FROM documents WHERE tenant_id = :tenant_id AND collection_id = :collection_id"),
+            text(
+                """
+                DELETE FROM documents
+                WHERE tenant_id = :tenant_id
+                  AND tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
+                  AND collection_id = :collection_id
+                """
+            ),
             {"tenant_id": tenant_id, "collection_id": collection_id},
         )
         result = await self.connection.execute(
-            text("DELETE FROM collections WHERE tenant_id = :tenant_id AND id = :collection_id"),
+            text(
+                """
+                DELETE FROM collections
+                WHERE tenant_id = :tenant_id
+                  AND tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
+                  AND id = :collection_id
+                """
+            ),
             {"tenant_id": tenant_id, "collection_id": collection_id},
         )
         return result.rowcount > 0
