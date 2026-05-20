@@ -19,6 +19,7 @@
 	import Bell from '@lucide/svelte/icons/bell';
 	import Search from '@lucide/svelte/icons/search';
 	import History from '@lucide/svelte/icons/history';
+import MessagesSquare from '@lucide/svelte/icons/messages-square';
 	import type { Component } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { authApi } from '$lib/api/auth';
@@ -77,6 +78,12 @@
 					label: 'Observability',
 					icon: Activity,
 					description: 'Logs, traces and execution health'
+				},
+				{
+					href: '/sessions',
+					label: 'Sessions',
+					icon: MessagesSquare,
+					description: 'Chat session history and transcripts'
 				},
 				{
 					href: '/logs',

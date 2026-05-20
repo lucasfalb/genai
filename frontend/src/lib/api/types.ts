@@ -165,6 +165,53 @@ export interface AgentInstanceUpdateRequest {
 	rag_scope?: string[];
 }
 
+// ─── Agent links / handoff tools ─────────────────────────────────────────────
+
+export type AgentLinkTransferMode = 'llm_decision' | 'router_classifier';
+
+export interface AgentLinkContextPolicy {
+	include_recent_messages?: boolean;
+	max_messages?: number;
+	include_handoff_summary?: boolean;
+	include_source_agent_name?: boolean;
+}
+
+export interface AgentLinkResponse {
+	id: string;
+	tenant_id: string;
+	source_instance_id: string;
+	target_instance_id: string;
+	target_name: string;
+	target_description: string | null;
+	transfer_tool_name: string;
+	trigger_description: string;
+	handoff_instructions: string | null;
+	context_policy: AgentLinkContextPolicy;
+	transfer_mode: AgentLinkTransferMode;
+	is_enabled: boolean;
+	created_at: string;
+	updated_at: string | null;
+}
+
+export interface AgentLinkCreateRequest {
+	target_instance_id: string;
+	transfer_tool_name: string;
+	trigger_description: string;
+	handoff_instructions?: string | null;
+	context_policy?: AgentLinkContextPolicy;
+	transfer_mode?: AgentLinkTransferMode;
+	is_enabled?: boolean;
+}
+
+export interface AgentLinkUpdateRequest {
+	transfer_tool_name?: string | null;
+	trigger_description?: string | null;
+	handoff_instructions?: string | null;
+	context_policy?: AgentLinkContextPolicy | null;
+	transfer_mode?: AgentLinkTransferMode | null;
+	is_enabled?: boolean | null;
+}
+
 // ─── Prompt config ────────────────────────────────────────────────────────────
 
 export interface AgentInstructionBlock {
@@ -757,7 +804,23 @@ export interface RunTracePayload {
 	rag_error?: string | null;
 	run_error?: string | null;
 	handoff_target?: string | null;
+	handoff_target_name?: string | null;
 	handoff_summary?: string | null;
+	handoff_context?: {
+		reason: string;
+		source_instance_id: string;
+		target_instance_id: string;
+		summary: {
+			user_goal?: string;
+			reason?: string;
+			known_facts?: string[];
+			actions_already_taken?: string[];
+			safety_notes?: string[];
+			custom_instructions?: string | null;
+		};
+		sanitized_messages: Array<{ role: string; content: string }>;
+		handoff_messages: Array<{ role: string; content: string }>;
+	} | null;
 	citations: unknown[];
 	node_timings: NodeTiming[];
 	started_at: string;
@@ -791,4 +854,116 @@ export interface RunTraceListItem {
 	completion_tokens?: number | null;
 	embedding_tokens?: number | null;
 	embedding_calls?: number | null;
+}
+
+// ─── Sessions ─────────────────────────────────────────────────────────────────
+
+export interface SessionListItem {
+	id: string;
+	instance_id: string;
+	channel: string;
+	user_ref: string | null;
+	started_at: string;
+	last_message_at: string | null;
+	message_count: number;
+	is_live: boolean;
+	environment?: Record<string, unknown> | null;
+}
+
+export interface SessionMessageItem {
+	id: string;
+	session_id: string;
+	sequence_no: number;
+	role: string;
+	content: string;
+}
+
+// --- Channel Config ---
+
+export interface WebWidgetConfig {
+	title: string;
+	subtitle: string;
+	bot_name: string;
+	avatar_mode: 'initials' | 'icon' | 'image';
+	avatar_icon: string;
+	avatar_image_url: string | null;
+	primary_color: string;
+	bg_color: string;
+	border_radius: 'sharp' | 'rounded' | 'full';
+	position: 'bottom-right' | 'bottom-left';
+	font_family: string;
+	locale: string;
+	launcher_mode: 'icon' | 'image';
+	launcher_icon: string;
+	launcher_image_url: string | null;
+	auto_open_delay: number | null;
+	show_unread_badge: boolean;
+	opening_message: string | null;
+	quick_replies: string[];
+	sound_enabled: boolean;
+	typing_indicator: boolean;
+	mobile_fullscreen: boolean;
+	ui_messages: Record<string, string | Record<string, string>>;
+}
+
+export const defaultWebWidgetConfig = (): WebWidgetConfig => ({
+	title: 'Chat with us',
+	subtitle: '',
+	bot_name: 'Assistant',
+	avatar_mode: 'initials',
+	avatar_icon: 'bot',
+	avatar_image_url: null,
+	primary_color: '#3b82f6',
+	bg_color: '#ffffff',
+	border_radius: 'rounded',
+	position: 'bottom-right',
+	font_family: 'system',
+	locale: 'en-US',
+	launcher_mode: 'icon',
+	launcher_icon: 'message-circle',
+	launcher_image_url: null,
+	auto_open_delay: null,
+	show_unread_badge: true,
+	opening_message: null,
+	quick_replies: [],
+	sound_enabled: false,
+	typing_indicator: true,
+	mobile_fullscreen: true,
+	ui_messages: {
+		default_opening_message: "Hi, I'm Assistant. How can I help?",
+		input_placeholder: 'Type a message...',
+		waiting_placeholder: 'Waiting for response...',
+		chat_opened: 'Chat opened.',
+		chat_closed: 'Chat closed.',
+		message_sent: 'Message sent.',
+		response_received: 'Assistant response received.',
+		no_response: 'I did not receive a response. Please try again.',
+		response_stopped: 'Response stopped.',
+		message_failed: 'Sorry, something went wrong. Please try again.',
+		retry_message: 'Retry message',
+		typing_label: 'Assistant is typing',
+		use_microphone: 'Use microphone',
+		stop_microphone: 'Stop microphone',
+		accessibility_controls: 'Accessibility controls',
+		accessibility_opened: 'Accessibility controls opened.',
+		accessibility_closed: 'Accessibility controls closed.',
+		listening: 'Listening...',
+		listening_started: 'Listening for voice input.',
+		voice_captured: 'Voice captured.',
+		voice_ready: 'Voice captured. Review or send your message.',
+		voice_stopped: 'Voice input stopped.',
+		voice_unsupported: 'Voice input is not supported in this browser.',
+		voice_permission_blocked: 'Microphone permission was blocked.',
+		voice_start_failed: 'Voice input could not start.',
+		voice_try_again: 'Voice input stopped. Try again.'
+	},
+});
+
+export interface ChannelConfigResponse {
+	id: string;
+	channel: string;
+	is_active: boolean;
+	config: Partial<WebWidgetConfig>;
+	allowed_origins: string[];
+	created_at: string;
 }
