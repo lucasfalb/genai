@@ -95,10 +95,13 @@
 						</div>
 					{/if}
 					<div
-						class="max-w-[min(780px,82%)] border px-4 py-3 text-sm leading-relaxed"
+						class="max-w-[min(780px,82%)] border px-4 py-3 text-sm leading-relaxed {msg.role ===
+						'user'
+							? 'bg-sidebar-accent text-foreground'
+							: 'bg-card text-card-foreground'}"
 						style={msg.role === 'user'
-							? 'background:var(--text-main);border-color:var(--text-main);color:var(--canvas)'
-							: 'background:color-mix(in srgb,var(--text-main) 6%,transparent);border-color:var(--ds-border-hover);color:var(--text-main)'}
+							? 'border-color:var(--ds-border-hover)'
+							: 'border-color:var(--ds-border)'}
 					>
 						<div class="session-rich-message">
 							{@html renderFormattedMessage(msg.content)}
@@ -106,8 +109,8 @@
 					</div>
 					{#if msg.role === 'user'}
 						<div
-							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-xs font-semibold"
-							style="background:var(--text-main);border-color:var(--text-main);color:var(--canvas)"
+							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-sidebar-accent text-foreground text-xs font-semibold"
+							style="border-color:var(--ds-border-hover)"
 						>
 							<User class="h-4 w-4" />
 						</div>

@@ -30,6 +30,7 @@
 	let sentinel = $state<HTMLDivElement | null>(null);
 	let conversationEl = $state<HTMLDivElement | null>(null);
 
+
 	let searchTerm = $state('');
 	let agentFilter = $state('all');
 	let channelFilter = $state('all');

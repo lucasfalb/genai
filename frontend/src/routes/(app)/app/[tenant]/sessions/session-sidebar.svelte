@@ -47,7 +47,7 @@
 </script>
 
 <aside
-	class="flex min-h-0 w-full shrink-0 flex-col border-b glass-panel lg:w-[360px] lg:border-r lg:border-b-0"
+	class="glass-panel flex min-h-0 w-full shrink-0 flex-col border-b lg:w-[360px] lg:border-r lg:border-b-0"
 	style="border-color:var(--ds-border)"
 >
 	<div class="space-y-3 border-b bg-transparent p-3.5" style="border-color:var(--ds-border)">
@@ -114,7 +114,10 @@
 				{#each sessions as session (session.id)}
 					<button
 						type="button"
-						class="w-full border border-transparent p-3 text-left transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none {selectedSessionId === session.id ? 'bg-sidebar-accent text-sidebar-accent-foreground active:text-sidebar-accent-foreground' : ''}"
+						class="w-full border border-transparent p-3 text-left transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none {selectedSessionId ===
+						session.id
+							? 'bg-sidebar-accent text-sidebar-accent-foreground active:text-sidebar-accent-foreground'
+							: ''}"
 						style={selectedSessionId === session.id
 							? 'border-color:var(--ds-border-hover)'
 							: 'background:transparent'}
@@ -144,7 +147,7 @@
 								<div class="mt-2 flex flex-wrap items-center gap-1.5">
 									{#if isLiveSession(session)}
 										<Badge
-											class="border-emerald-500/20 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/10"
+											class="border-emerald-500/20 bg-emerald-500/10 text-foreground hover:bg-emerald-500/10"
 										>
 											Live
 										</Badge>

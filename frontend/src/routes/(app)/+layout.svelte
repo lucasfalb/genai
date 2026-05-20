@@ -19,7 +19,7 @@
 	import Bell from '@lucide/svelte/icons/bell';
 	import Search from '@lucide/svelte/icons/search';
 	import History from '@lucide/svelte/icons/history';
-import MessagesSquare from '@lucide/svelte/icons/messages-square';
+	import MessagesSquare from '@lucide/svelte/icons/messages-square';
 	import type { Component } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { authApi } from '$lib/api/auth';
@@ -119,7 +119,8 @@ import MessagesSquare from '@lucide/svelte/icons/messages-square';
 			.sort((a, b) => b.href.length - a.href.length)
 			.find(
 				(item) =>
-					appPath === item.href || (item.href !== '/dashboard' && appPath.startsWith(`${item.href}/`))
+					appPath === item.href ||
+					(item.href !== '/dashboard' && appPath.startsWith(`${item.href}/`))
 			) ?? allNavItems[0]
 	);
 
@@ -167,7 +168,12 @@ import MessagesSquare from '@lucide/svelte/icons/messages-square';
 ></div>
 
 <!-- Command palette -->
-<Command.Dialog bind:open={commandOpen} title="Search" description="Search pages and actions">
+<Command.Dialog
+	bind:open={commandOpen}
+	class="max-w-120"
+	title="Search"
+	description="Search pages and actions"
+>
 	<Command.Input placeholder="Search pages, instances, agents..." />
 	<Command.List>
 		<Command.Empty>No results found.</Command.Empty>
@@ -181,7 +187,7 @@ import MessagesSquare from '@lucide/svelte/icons/messages-square';
 				>
 					<IconComp />
 					<div class="flex flex-col">
-						<span>{item.label}</span>
+						<span class="text-foreground">{item.label}</span>
 						<span class="text-xs text-muted-foreground">{item.description}</span>
 					</div>
 					<Command.Shortcut>↵</Command.Shortcut>
@@ -192,7 +198,7 @@ import MessagesSquare from '@lucide/svelte/icons/messages-square';
 		<Command.Group heading="Quick Actions">
 			<Command.Item onSelect={() => (commandOpen = false)}>
 				<Plus />
-				<span>New Agent</span>
+				<span class="text-foreground">New Agent</span>
 				<Command.Shortcut>↵</Command.Shortcut>
 			</Command.Item>
 		</Command.Group>
