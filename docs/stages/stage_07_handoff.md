@@ -207,4 +207,12 @@ class IntentRouter:
         )
 ```
 
+## Current Backend Inspection Notes
+
+- `backend/engine/bootstrap.py` already reads enabled `agent_links`, converts each link into a ghost tool schema, and includes linked agent metadata in `AgentState.linked_agents`.
+- `backend/engine/base_graph.py` currently routes pending ghost tool calls to `handoff_node`, but that node only sets `handoff_target` and copies the tool-call `reason` into `handoff_summary`; it does not execute the destination agent.
+- `backend/engine/handoff.py` contains helper contracts for `HandoffSummary`, `HandoffSanitizer`, and a basic `HandoffSummarizer`, but `base_graph.handoff_node` does not call them yet. Destination-agent context is therefore not sanitized or summarized during graph execution.
+- The current summarizer helper is deterministic/heuristic and does not yet use an LLM or configurable timeout as described in TASK-051.
+- No `IntentRouter`/router classifier integration exists yet for `transfer_mode = router_classifier`; those links are persisted and exposed to bootstrap, but proactive routing remains a TASK-052 gap.
+
 ---

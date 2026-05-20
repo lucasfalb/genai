@@ -5,10 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.geoip import merge_environment
 from app.rbac import Permission
 from app.responses import api_success
 from app.schemas import ApiResponse, ChatRequest, RunTraceListItem, RunTraceResponse
 from database.connection import TenantContext, tenant_connection
+from database.repositories.sessions import SessionRepository
 from database.repositories.run_traces import RunTraceRecord, RunTraceRepository
 from dependencies.auth import get_connection, require_permission
 from engine.ai_provider import AIProviderNotConfigured
@@ -42,6 +44,7 @@ async def chat(
     connection = await connection_context.__aenter__()
     try:
         executor = AgentExecutor(connection)
+        metadata = merge_environment(body.metadata if isinstance(body.metadata, dict) else {}, request)
         run = await executor.start_stream(
             tenant_id=context.tenant_id,
             instance_id=instance_id,
@@ -49,7 +52,12 @@ async def chat(
             session_id=body.session_id,
             channel=body.channel,
             user_ref=str(context.user_id) if context.user_id else None,
-            metadata=body.metadata,
+            metadata=metadata,
+        )
+        await SessionRepository(connection).merge_session_metadata(
+            tenant_id=context.tenant_id,
+            session_id=run.session_id,
+            metadata=metadata,
         )
     except AgentInstanceNotFound as exc:
         await connection_context.__aexit__(type(exc), exc, exc.__traceback__)

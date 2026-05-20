@@ -17,6 +17,9 @@ PUBLIC_ENDPOINTS = {
     ("POST", "/api/v1/invitations/validate"),
     ("POST", "/api/v1/invitations/accept"),
     ("GET", "/api/v1/system-settings/public"),
+    ("GET", "/api/v1/public/widget/{instance_id}/config"),
+    ("POST", "/api/v1/public/widget/{instance_id}/session"),
+    ("POST", "/api/v1/public/widget/{instance_id}/chat"),
 }
 
 

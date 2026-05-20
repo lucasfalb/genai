@@ -15,6 +15,7 @@ from database.repositories.run_traces import RunTraceRepository
 from database.repositories.sessions import SessionRepository
 from engine.base_graph import create_base_graph, delta_sink_var
 from engine.bootstrap import RunBootstrap
+from engine.handoff import HandoffSanitizer, HandoffSummarizer, build_handoff_messages
 from engine.run_trace import build_run_trace
 from engine.session_lock import SessionLock
 from engine.tracer import tracer
@@ -87,6 +88,17 @@ class AgentRunStream:
                                 "step": item["step"],
                                 "duration_ms": item["duration_ms"],
                                 "error": item.get("error"),
+                            },
+                        )
+                    elif _type == "handoff":
+                        yield ChatEvent(
+                            event="graph.handoff",
+                            session_id=self.session_id,
+                            metadata={
+                                "source_instance_id": item["source_instance_id"],
+                                "target_instance_id": item["target_instance_id"],
+                                "target_name": item["target_name"],
+                                "reason": item["reason"],
                             },
                         )
 
@@ -268,60 +280,120 @@ class AgentExecutor:
                 ) as span:
                     try:
                         pending_tasks: dict[str, dict] = {}
-                        final_state: dict = {}
 
-                        async for mode, payload in graph.astream(state, stream_mode=["values", "debug"]):
-                            if mode == "debug":
-                                event_type = payload.get("type")
-                                if event_type == "task":
-                                    task_payload = payload.get("payload") or {}
-                                    task_id = task_payload.get("id")
-                                    started_at_ts = payload.get("timestamp")
-                                    entry = {
-                                        "task_id": task_id,
-                                        "name": task_payload.get("name"),
-                                        "step": payload.get("step"),
-                                        "started_at": started_at_ts,
-                                        "triggers": task_payload.get("triggers"),
-                                    }
-                                    if task_id:
-                                        pending_tasks[task_id] = entry
-                                    event_queue.put_nowait({
-                                        "_type": "node.started",
-                                        "name": entry["name"],
-                                        "step": entry["step"],
-                                        "started_at": started_at_ts,
-                                        "triggers": entry["triggers"],
-                                    })
-                                elif event_type == "task_result":
-                                    task_payload = payload.get("payload") or {}
-                                    task_id = task_payload.get("id")
-                                    pending = pending_tasks.pop(task_id, None)
-                                    ended_at_ts = payload.get("timestamp")
-                                    duration_ms = 0
-                                    if pending:
-                                        try:
-                                            s = datetime.fromisoformat(
-                                                (pending["started_at"] or "").replace("Z", "+00:00")
-                                            )
-                                            e = datetime.fromisoformat(
-                                                (ended_at_ts or "").replace("Z", "+00:00")
-                                            )
-                                            duration_ms = max(0, int((e - s).total_seconds() * 1000))
-                                        except Exception:
-                                            duration_ms = 0
-                                    event_queue.put_nowait({
-                                        "_type": "node.completed",
-                                        "name": (pending or {}).get("name") or task_payload.get("name"),
-                                        "step": (pending or {}).get("step"),
-                                        "started_at": (pending or {}).get("started_at"),
-                                        "ended_at": ended_at_ts,
-                                        "duration_ms": duration_ms,
-                                        "triggers": (pending or {}).get("triggers"),
-                                        "error": task_payload.get("error"),
-                                    })
-                            elif mode == "values":
-                                final_state = payload
+                        async def _stream_graph(g, s) -> dict:
+                            local_final: dict = {}
+                            async for mode, payload in g.astream(s, stream_mode=["values", "debug"]):
+                                if mode == "debug":
+                                    event_type = payload.get("type")
+                                    if event_type == "task":
+                                        task_payload = payload.get("payload") or {}
+                                        task_id = task_payload.get("id")
+                                        started_at_ts = payload.get("timestamp")
+                                        entry = {
+                                            "task_id": task_id,
+                                            "name": task_payload.get("name"),
+                                            "step": payload.get("step"),
+                                            "started_at": started_at_ts,
+                                            "triggers": task_payload.get("triggers"),
+                                        }
+                                        if task_id:
+                                            pending_tasks[task_id] = entry
+                                        event_queue.put_nowait({
+                                            "_type": "node.started",
+                                            "name": entry["name"],
+                                            "step": entry["step"],
+                                            "started_at": started_at_ts,
+                                            "triggers": entry["triggers"],
+                                        })
+                                    elif event_type == "task_result":
+                                        task_payload = payload.get("payload") or {}
+                                        task_id = task_payload.get("id")
+                                        pending = pending_tasks.pop(task_id, None)
+                                        ended_at_ts = payload.get("timestamp")
+                                        duration_ms = 0
+                                        if pending:
+                                            try:
+                                                t_s = datetime.fromisoformat(
+                                                    (pending["started_at"] or "").replace("Z", "+00:00")
+                                                )
+                                                t_e = datetime.fromisoformat(
+                                                    (ended_at_ts or "").replace("Z", "+00:00")
+                                                )
+                                                duration_ms = max(0, int((t_e - t_s).total_seconds() * 1000))
+                                            except Exception:
+                                                duration_ms = 0
+                                        event_queue.put_nowait({
+                                            "_type": "node.completed",
+                                            "name": (pending or {}).get("name") or task_payload.get("name"),
+                                            "step": (pending or {}).get("step"),
+                                            "started_at": (pending or {}).get("started_at"),
+                                            "ended_at": ended_at_ts,
+                                            "duration_ms": duration_ms,
+                                            "triggers": (pending or {}).get("triggers"),
+                                            "error": task_payload.get("error"),
+                                        })
+                                elif mode == "values":
+                                    local_final = payload
+                            return local_final
+
+                        final_state = await _stream_graph(graph, state)
+
+                        # If the source agent decided to hand off, run the target agent
+                        if final_state.get("handoff_target"):
+                            target_id = UUID(str(final_state["handoff_target"]))
+                            source_links = state.get("linked_agents") or []
+                            link_cfg = next(
+                                (l for l in source_links if l["target_instance_id"] == str(target_id)),
+                                {},
+                            )
+                            context_policy = link_cfg.get("context_policy") or {}
+                            reason = str(final_state.get("handoff_summary") or "Conversation transferred to specialist.")
+
+                            summary = await HandoffSummarizer().summarize(
+                                messages=state["messages"],
+                                reason=reason,
+                                source_instance_id=str(instance_id),
+                                target_instance_id=str(target_id),
+                                custom_instructions=link_cfg.get("handoff_instructions"),
+                            )
+                            sanitized = HandoffSanitizer.keep_recent_conversation(
+                                state["messages"],
+                                max_messages=int(context_policy.get("max_messages") or 8),
+                            )
+                            handoff_msgs = build_handoff_messages(
+                                summary=summary,
+                                sanitized_messages=sanitized,
+                                context_policy=context_policy,
+                            )
+
+                            event_queue.put_nowait({
+                                "_type": "handoff",
+                                "source_instance_id": str(instance_id),
+                                "target_instance_id": str(target_id),
+                                "target_name": link_cfg.get("target_name", ""),
+                                "reason": reason,
+                            })
+
+                            target_state = await RunBootstrap(self.connection).prepare(
+                                tenant_id=tenant_id,
+                                instance_id=target_id,
+                                session_id=UUID(str(state["session_id"])),
+                                channel=channel,
+                            )
+                            target_state["messages"] = handoff_msgs
+                            target_graph = create_base_graph(connection=self.connection)
+                            final_state = await _stream_graph(target_graph, target_state)
+                            final_state["_handoff_target"] = str(target_id)
+                            final_state["_handoff_target_name"] = link_cfg.get("target_name", "")
+                            final_state["_handoff_context"] = {
+                                "reason": reason,
+                                "source_instance_id": str(instance_id),
+                                "target_instance_id": str(target_id),
+                                "summary": summary.model_dump(mode="json"),
+                                "sanitized_messages": sanitized,
+                                "handoff_messages": handoff_msgs,
+                            }
 
                         span_context = span.get_span_context()
                         if span_context.is_valid:

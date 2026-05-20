@@ -1,0 +1,23 @@
+meta {
+  name: Delete Link
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{base_url}}/api/v1/tenant/instances/{{instance_id}}/links/{{link_id}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  X-Tenant-ID: {{tenant_id}}
+}
+
+settings {
+  encodeUrl: false
+}

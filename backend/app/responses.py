@@ -70,11 +70,16 @@ def _error_code(*, message: str, status_code: int) -> str:
 def _validation_details(errors: list[dict[str, Any]]) -> list[dict[str, Any]]:
     sanitized: list[dict[str, Any]] = []
     for error in errors:
-        item: dict[str, Any] = {}
-        for key, value in error.items():
-            if key == "ctx" and isinstance(value, dict):
-                item[key] = {ctx_key: str(ctx_value) for ctx_key, ctx_value in value.items()}
-            else:
-                item[key] = value
-        sanitized.append(item)
+        loc = error.get("loc")
+        loc_parts = [str(part) for part in loc] if isinstance(loc, (list, tuple)) else []
+        source = loc_parts[0] if loc_parts else None
+        field = ".".join(loc_parts[1:] if source in {"body", "query", "path", "header"} else loc_parts)
+        item: dict[str, Any] = {
+            "field": field or None,
+            "message": str(error.get("msg") or "Invalid value"),
+            "type": str(error.get("type") or "validation_error"),
+        }
+        if source:
+            item["source"] = source
+        sanitized.append({key: value for key, value in item.items() if value is not None})
     return sanitized

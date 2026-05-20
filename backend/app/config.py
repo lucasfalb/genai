@@ -42,8 +42,11 @@ class Settings(BaseSettings):
     s3_access_key_id: str = "genai"
     s3_secret_access_key: str = "genai-local-secret"
     s3_bucket_name: str = "genai-rag-documents"
+    s3_public_bucket_name: str = "genai-widget-assets"
     s3_region: str = "us-east-1"
     upload_max_bytes: int = 50 * 1024 * 1024  # 50 MB
+    geoip_db_path: str | None = None
+    geoip_ip_header_names: str = "cf-connecting-ip,x-real-ip,x-forwarded-for"
 
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
     otel_enabled: bool = False

@@ -387,6 +387,64 @@ class ToolMetadataResponse(BaseModel):
     tools: list[RegistryToolMetadata]
 
 
+class AgentLinkContextPolicy(BaseModel):
+    include_recent_messages: bool = True
+    max_messages: int = Field(default=8, ge=0, le=50)
+    include_handoff_summary: bool = True
+    include_source_agent_name: bool = True
+
+
+class AgentLinkCreateRequest(BaseModel):
+    target_instance_id: UUID
+    transfer_tool_name: str = Field(pattern=r"^[a-zA-Z_][a-zA-Z0-9_]{1,79}$", max_length=80)
+    trigger_description: str = Field(min_length=1, max_length=1200)
+    handoff_instructions: str | None = Field(default=None, max_length=4000)
+    context_policy: AgentLinkContextPolicy = Field(default_factory=AgentLinkContextPolicy)
+    transfer_mode: Literal["llm_decision", "router_classifier"] = "llm_decision"
+    is_enabled: bool = True
+
+    @model_validator(mode="after")
+    def reject_sensitive_text(self):
+        _reject_prompt_config_secrets(self.trigger_description)
+        if self.handoff_instructions:
+            _reject_prompt_config_secrets(self.handoff_instructions)
+        return self
+
+
+class AgentLinkUpdateRequest(BaseModel):
+    transfer_tool_name: str | None = Field(default=None, pattern=r"^[a-zA-Z_][a-zA-Z0-9_]{1,79}$", max_length=80)
+    trigger_description: str | None = Field(default=None, min_length=1, max_length=1200)
+    handoff_instructions: str | None = Field(default=None, max_length=4000)
+    context_policy: AgentLinkContextPolicy | None = None
+    transfer_mode: Literal["llm_decision", "router_classifier"] | None = None
+    is_enabled: bool | None = None
+
+    @model_validator(mode="after")
+    def reject_sensitive_text(self):
+        if self.trigger_description:
+            _reject_prompt_config_secrets(self.trigger_description)
+        if self.handoff_instructions:
+            _reject_prompt_config_secrets(self.handoff_instructions)
+        return self
+
+
+class AgentLinkResponse(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    source_instance_id: UUID
+    target_instance_id: UUID
+    target_name: str
+    target_description: str | None = None
+    transfer_tool_name: str
+    trigger_description: str
+    handoff_instructions: str | None = None
+    context_policy: AgentLinkContextPolicy
+    transfer_mode: Literal["llm_decision", "router_classifier"]
+    is_enabled: bool
+    created_at: datetime
+    updated_at: datetime | None = None
+
+
 class DocumentResponse(BaseModel):
     id: UUID
     tenant_id: UUID
@@ -450,6 +508,26 @@ class ChatEvent(BaseModel):
     sequence_no: int | None = None
     content: str | None = None
     metadata: dict = Field(default_factory=dict)
+
+
+class SessionListItem(BaseModel):
+    id: UUID
+    instance_id: UUID
+    channel: str
+    user_ref: str | None = None
+    started_at: datetime
+    last_message_at: datetime | None = None
+    message_count: int
+    is_live: bool = False
+    environment: dict[str, Any] | None = None
+
+
+class SessionMessageItem(BaseModel):
+    id: UUID
+    session_id: UUID
+    sequence_no: int
+    role: str
+    content: str
 
 
 class RunTraceSection(BaseModel):
@@ -719,6 +797,49 @@ class CollectionResponse(BaseModel):
     failed_count: int
     last_indexed_at: datetime | None
     created_at: datetime
+
+
+# --- Channel Config ---
+
+class WebWidgetConfig(BaseModel):
+    title: str = "Chat with us"
+    subtitle: str = ""
+    bot_name: str = "Assistant"
+    avatar_mode: Literal["initials", "icon", "image"] = "initials"
+    avatar_icon: str = Field(default="bot", max_length=80)
+    avatar_image_url: str | None = None
+    primary_color: str = "#3b82f6"
+    bg_color: str = "#ffffff"
+    border_radius: Literal["sharp", "rounded", "full"] = "rounded"
+    position: Literal["bottom-right", "bottom-left"] = "bottom-right"
+    font_family: str = Field(default="system", max_length=120)
+    locale: str = Field(default="en-US", max_length=20)
+    launcher_mode: Literal["icon", "image"] = "icon"
+    launcher_icon: str = Field(default="message-circle", max_length=80)
+    launcher_image_url: str | None = None
+    auto_open_delay: int | None = None
+    show_unread_badge: bool = True
+    opening_message: str | None = None
+    quick_replies: list[str] = Field(default_factory=list)
+    sound_enabled: bool = False
+    typing_indicator: bool = True
+    mobile_fullscreen: bool = True
+    ui_messages: dict[str, Any] = Field(default_factory=dict)
+
+
+class ChannelConfigResponse(BaseModel):
+    id: str
+    channel: str
+    is_active: bool
+    config: dict
+    allowed_origins: list[str]
+    created_at: str
+
+
+class ChannelConfigUpdateRequest(BaseModel):
+    config: WebWidgetConfig = Field(default_factory=WebWidgetConfig)
+    allowed_origins: list[str] = Field(default_factory=list)
+    is_active: bool | None = None
 
 
 _PROMPT_CONFIG_SECRET_MARKERS = (

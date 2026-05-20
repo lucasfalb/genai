@@ -1,0 +1,15 @@
+meta {
+  name: Get Config
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/api/v1/public/widget/{{instance_id}}/config
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: false
+}

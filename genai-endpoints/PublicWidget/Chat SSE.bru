@@ -1,0 +1,30 @@
+meta {
+  name: Chat SSE
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{base_url}}/api/v1/public/widget/{{instance_id}}/chat
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Accept: text/event-stream
+}
+
+body:json {
+  {
+    "message": "Hello",
+    "session_id": "{{session_id}}",
+    "metadata": {
+      "visitor_id": "{{widget_visitor_id}}"
+    }
+  }
+}
+
+settings {
+  encodeUrl: false
+}

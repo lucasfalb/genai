@@ -1,0 +1,25 @@
+meta {
+  name: Get Session
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/api/v1/public/widget/{{instance_id}}/session
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "visitor_id": "{{widget_visitor_id}}"
+  }
+}
+
+settings {
+  encodeUrl: false
+}

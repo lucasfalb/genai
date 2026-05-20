@@ -29,12 +29,15 @@ class S3ObjectStorage:
         secret_access_key: str,
         bucket_name: str,
         region: str,
+        public: bool = False,
     ) -> None:
         self.endpoint_url = endpoint_url.rstrip("/")
         self.access_key_id = access_key_id
         self.secret_access_key = secret_access_key
         self.bucket_name = bucket_name
         self.region = region
+        self.public = public
+        self._policy_applied = False
         parsed = urlparse(self.endpoint_url)
         self._host = parsed.netloc
 
@@ -132,13 +135,37 @@ class S3ObjectStorage:
 
     async def _ensure_bucket(self) -> None:
         head = await self._request("HEAD", f"/{self.bucket_name}", body=b"")
-        if head.status_code in (200, 204):
-            return
-        if head.status_code != 404:
-            raise ObjectStorageError(f"Bucket check failed with status {head.status_code}")
-        create = await self._request("PUT", f"/{self.bucket_name}", body=b"")
-        if create.status_code not in (200, 201):
-            raise ObjectStorageError(f"Bucket create failed with status {create.status_code}")
+        if head.status_code not in (200, 204):
+            if head.status_code != 404:
+                raise ObjectStorageError(f"Bucket check failed with status {head.status_code}")
+            create = await self._request("PUT", f"/{self.bucket_name}", body=b"")
+            if create.status_code not in (200, 201):
+                raise ObjectStorageError(f"Bucket create failed with status {create.status_code}")
+        if self.public and not self._policy_applied:
+            await self._set_public_read_policy()
+
+    async def _set_public_read_policy(self) -> None:
+        import json
+        policy = json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Principal": {"AWS": ["*"]},
+                "Action": ["s3:GetObject"],
+                "Resource": [f"arn:aws:s3:::{self.bucket_name}/*"],
+            }],
+        })
+        body = policy.encode("utf-8")
+        response = await self._request(
+            "PUT",
+            f"/{self.bucket_name}",
+            body=body,
+            content_type="application/json",
+            query_string="policy=",
+        )
+        if response.status_code not in (200, 201, 204):
+            raise ObjectStorageError(f"Set bucket policy failed with status {response.status_code}")
+        self._policy_applied = True
 
     async def _request(
         self,
@@ -148,9 +175,12 @@ class S3ObjectStorage:
         body: bytes,
         content_type: str | None = None,
         metadata: dict[str, str] | None = None,
+        query_string: str = "",
     ) -> httpx.Response:
         safe_path = "/" + "/".join(quote(part, safe="") for part in path.strip("/").split("/"))
         url = f"{self.endpoint_url}{safe_path}"
+        if query_string:
+            url = f"{url}?{query_string}"
         now = datetime.now(timezone.utc)
         amz_date = now.strftime("%Y%m%dT%H%M%SZ")
         date_stamp = now.strftime("%Y%m%d")
@@ -169,7 +199,7 @@ class S3ObjectStorage:
         signed_headers = ";".join(sorted(headers))
         canonical_headers = "".join(f"{name}:{headers[name]}\n" for name in sorted(headers))
         canonical_request = "\n".join(
-            [method, safe_path, "", canonical_headers, signed_headers, payload_hash]
+            [method, safe_path, query_string, canonical_headers, signed_headers, payload_hash]
         )
         credential_scope = f"{date_stamp}/{self.region}/s3/aws4_request"
         string_to_sign = "\n".join(
@@ -211,4 +241,13 @@ object_storage = S3ObjectStorage(
     secret_access_key=settings.s3_secret_access_key,
     bucket_name=settings.s3_bucket_name,
     region=settings.s3_region,
+)
+
+public_object_storage = S3ObjectStorage(
+    endpoint_url=settings.s3_endpoint_url,
+    access_key_id=settings.s3_access_key_id,
+    secret_access_key=settings.s3_secret_access_key,
+    bucket_name=settings.s3_public_bucket_name,
+    region=settings.s3_region,
+    public=True,
 )

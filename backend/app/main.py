@@ -20,11 +20,15 @@ from api.v1.superadmin.system_settings import router as superadmin_system_settin
 from api.v1.tenant_invitations import public_router as tenant_invitations_public_router
 from api.v1.tenant_invitations import tenant_router as tenant_invitations_router
 from api.v1.tenant_agent_instances import router as tenant_agent_instances_router
+from api.v1.tenant_agent_links import router as tenant_agent_links_router
+from api.v1.tenant_channels import router as tenant_channels_router
+from api.v1.public_widget import router as public_widget_router
 from api.v1.tenant_ai_config import router as tenant_ai_config_router
 from api.v1.tenant_settings import router as tenant_settings_router
 from api.v1.tenant_collections import router as tenant_collections_router
 from api.v1.tenant_members import router as tenant_members_router
 from api.v1.tenant_audit import router as tenant_audit_router
+from api.v1.tenant_sessions import router as tenant_sessions_router
 from app.responses import api_success, http_exception_handler, validation_exception_handler
 from app.schemas import ApiResponse
 from app.config import settings
@@ -56,6 +60,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def public_widget_cors(request, call_next):
+    if request.url.path.startswith("/api/v1/public/widget/"):
+        origin = request.headers.get("origin")
+        if request.method == "OPTIONS":
+            from starlette.responses import Response
+
+            response = Response(status_code=204)
+        else:
+            response = await call_next(request)
+        if origin:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Vary"] = "Origin"
+            response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = request.headers.get(
+                "access-control-request-headers",
+                "content-type,accept",
+            )
+        return response
+    return await call_next(request)
+
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.include_router(agent_router, prefix="/api/v1")
@@ -68,11 +94,15 @@ app.include_router(registry_router, prefix="/api/v1")
 app.include_router(tenant_invitations_router, prefix="/api/v1")
 app.include_router(tenant_invitations_public_router, prefix="/api/v1")
 app.include_router(tenant_agent_instances_router, prefix="/api/v1")
+app.include_router(tenant_agent_links_router, prefix="/api/v1")
+app.include_router(tenant_channels_router, prefix="/api/v1")
+app.include_router(public_widget_router, prefix="/api/v1")
 app.include_router(tenant_ai_config_router, prefix="/api/v1")
 app.include_router(tenant_settings_router, prefix="/api/v1")
 app.include_router(tenant_collections_router, prefix="/api/v1")
 app.include_router(tenant_members_router, prefix="/api/v1")
 app.include_router(tenant_audit_router, prefix="/api/v1")
+app.include_router(tenant_sessions_router, prefix="/api/v1")
 app.include_router(superadmin_system_settings_router, prefix="/api/v1")
 
 

@@ -31,6 +31,8 @@ class LinkedAgentRecord:
     target_name: str
     transfer_tool_name: str
     trigger_description: str
+    handoff_instructions: str | None
+    context_policy: dict
     transfer_mode: str
 
 
@@ -135,6 +137,8 @@ class RunBootstrap:
                        target.name AS target_name,
                        al.transfer_tool_name,
                        al.trigger_description,
+                       al.handoff_instructions,
+                       al.context_policy,
                        al.transfer_mode
                 FROM agent_links al
                 JOIN agent_instances source
@@ -158,6 +162,8 @@ class RunBootstrap:
                 target_name=row.target_name,
                 transfer_tool_name=row.transfer_tool_name,
                 trigger_description=row.trigger_description,
+                handoff_instructions=row.handoff_instructions,
+                context_policy=row.context_policy or {},
                 transfer_mode=row.transfer_mode,
             )
             for row in result.fetchall()
@@ -180,9 +186,12 @@ class RunBootstrap:
 
     @staticmethod
     def _build_handoff_schema(link: LinkedAgentRecord) -> dict:
+        description = link.trigger_description
+        if link.handoff_instructions:
+            description = f"{description}\n\nHandoff instructions: {link.handoff_instructions}"
         return {
             "name": link.transfer_tool_name,
-            "description": link.trigger_description,
+            "description": description,
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -203,5 +212,7 @@ class RunBootstrap:
             "target_name": link.target_name,
             "transfer_tool_name": link.transfer_tool_name,
             "trigger_description": link.trigger_description,
+            "handoff_instructions": link.handoff_instructions,
+            "context_policy": link.context_policy,
             "transfer_mode": link.transfer_mode,
         }
