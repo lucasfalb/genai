@@ -14,6 +14,7 @@ description: Standardize commit planning, commit messages, and commit descriptio
 5. Reference tasks/stages when the change implements documented work.
 6. Keep the message factual and implementation-focused.
 7. If actually committing, run relevant validation first unless the user explicitly says to skip tests.
+8. **Never add `Co-Authored-By`, `Co-authored-by`, or any AI/tool attribution to commit messages.** Commits are authored solely by the developer.
 
 ## Subject Format
 
