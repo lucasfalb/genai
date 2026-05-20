@@ -6,6 +6,7 @@
 	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import type { RunTraceListItem } from '$lib/api/types';
+	import { renderFormattedMessage } from '$lib/utils/rich-message';
 
 	type PreviewProps = {
 		run: RunTraceListItem;
@@ -89,13 +90,13 @@
 
 	<div class="space-y-1 text-xs">
 		{#if run.user_message}
-			<div class="line-clamp-2 rounded bg-muted/50 p-2 leading-relaxed text-muted-foreground">
-				{run.user_message}
+			<div class="rich-trace-preview line-clamp-2 rounded bg-muted/50 p-2 leading-relaxed text-muted-foreground">
+				{@html renderFormattedMessage(run.user_message)}
 			</div>
 		{/if}
 		{#if run.final_response_preview}
-			<div class="line-clamp-3 rounded bg-muted/30 p-2 leading-relaxed text-muted-foreground">
-				{run.final_response_preview}
+			<div class="rich-trace-preview line-clamp-3 rounded bg-muted/30 p-2 leading-relaxed text-muted-foreground">
+				{@html renderFormattedMessage(run.final_response_preview)}
 			</div>
 		{/if}
 	</div>
@@ -112,3 +113,33 @@
 		</a>
 	</div>
 </div>
+
+<style>
+	.rich-trace-preview {
+		white-space: normal;
+	}
+	.rich-trace-preview :global(p) {
+		margin: 0 0 0.5em;
+	}
+	.rich-trace-preview :global(p:last-child),
+	.rich-trace-preview :global(ul:last-child) {
+		margin-bottom: 0;
+	}
+	.rich-trace-preview :global(ul) {
+		margin: 0.25em 0 0.55em;
+		padding-left: 1.1em;
+	}
+	.rich-trace-preview :global(li) {
+		margin: 0.15em 0;
+	}
+	.rich-trace-preview :global(strong) {
+		font-weight: 750;
+	}
+	.rich-trace-preview :global(code) {
+		border-radius: 5px;
+		background: rgba(148, 163, 184, 0.14);
+		padding: 0.05em 0.28em;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+		font-size: 0.9em;
+	}
+</style>

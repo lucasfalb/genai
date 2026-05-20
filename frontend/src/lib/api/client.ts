@@ -18,9 +18,27 @@ export class ApiError extends Error {
 }
 
 export function getErrorMessage(error: unknown, fallback = 'Request failed. Please try again.'): string {
-	if (error instanceof ApiError) return error.message;
+	if (error instanceof ApiError) {
+		const details = formatErrorDetails(error.details);
+		return details ? `${error.message}: ${details}` : error.message;
+	}
 	if (error instanceof Error && error.message) return error.message;
 	return fallback;
+}
+
+function formatErrorDetails(details: unknown): string | null {
+	if (!Array.isArray(details)) return null;
+	const messages = details
+		.map((item) => {
+			if (!item || typeof item !== 'object') return null;
+			const record = item as Record<string, unknown>;
+			const message = typeof record.message === 'string' ? record.message : null;
+			if (!message) return null;
+			const field = typeof record.field === 'string' && record.field ? record.field : null;
+			return field ? `${field}: ${message}` : message;
+		})
+		.filter(Boolean);
+	return messages.length > 0 ? messages.join('; ') : null;
 }
 
 // ─── Token refresh (single-flight) ────────────────────────────────────────────

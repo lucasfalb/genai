@@ -48,13 +48,25 @@ export async function streamChat(
 	};
 	if (authStore.accessToken) headers['Authorization'] = `Bearer ${authStore.accessToken}`;
 	if (tenantStore.activeTenantId) headers['X-Tenant-ID'] = tenantStore.activeTenantId;
+	const existingEnvironment = body.metadata?.environment;
 
 	let response: Response;
 	try {
 		response = await fetch(`${PUBLIC_API_BASE_URL}/agent/instances/${instanceId}/chat`, {
 			method: 'POST',
 			headers,
-			body: JSON.stringify(body),
+			body: JSON.stringify({
+				...body,
+				metadata: {
+					...(body.metadata ?? {}),
+					environment: {
+						...(existingEnvironment && typeof existingEnvironment === 'object'
+							? (existingEnvironment as Record<string, unknown>)
+							: {}),
+						...collectEnvironment()
+					}
+				}
+			}),
 			signal
 		});
 	} catch (err) {
@@ -113,6 +125,69 @@ export async function streamChat(
 			/* ignore */
 		}
 	}
+}
+
+function collectEnvironment() {
+	if (typeof window === 'undefined' || typeof navigator === 'undefined') return {};
+	const ua = navigator.userAgent || '';
+	return {
+		page: {
+			url: window.location.href,
+			referrer: document.referrer || null
+		},
+		device: {
+			type: getDeviceType(ua),
+			language: navigator.language || null,
+			languages: Array.from(navigator.languages || []),
+			timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+			viewport: { width: window.innerWidth, height: window.innerHeight },
+			screen: {
+				width: window.screen?.width ?? null,
+				height: window.screen?.height ?? null,
+				pixel_ratio: window.devicePixelRatio || 1
+			}
+		},
+		browser: {
+			...parseBrowser(ua),
+			user_agent: ua
+		},
+		os: parseOs(ua)
+	};
+}
+
+function getDeviceType(ua: string) {
+	if (/ipad|tablet/i.test(ua)) return 'tablet';
+	if (/mobi|android|iphone|ipod/i.test(ua)) return 'mobile';
+	return 'desktop';
+}
+
+function parseBrowser(ua: string) {
+	const rules: Array<[string, RegExp]> = [
+		['Edge', /Edg\/([\d.]+)/],
+		['Chrome', /Chrome\/([\d.]+)/],
+		['Firefox', /Firefox\/([\d.]+)/],
+		['Safari', /Version\/([\d.]+).*Safari/]
+	];
+	for (const [name, pattern] of rules) {
+		const match = ua.match(pattern);
+		if (match) return { name, version: match[1] ?? null };
+	}
+	return { name: 'Unknown', version: null };
+}
+
+function parseOs(ua: string) {
+	const rules: Array<[string, RegExp]> = [
+		['iOS', /(?:iPhone|iPad|iPod).*OS ([\d_]+)/],
+		['Android', /Android ([\d.]+)/],
+		['macOS', /Mac OS X ([\d_]+)/],
+		['Windows', /Windows NT ([\d.]+)/],
+		['Linux', /Linux/]
+	];
+	for (const [name, pattern] of rules) {
+		const match = ua.match(pattern);
+		if (match) return { name, version: match[1]?.replace(/_/g, '.') ?? null };
+	}
+	return { name: 'Unknown', version: null };
 }
 
 function dispatchSseBlock(block: string, callbacks: ChatStreamCallbacks): void {

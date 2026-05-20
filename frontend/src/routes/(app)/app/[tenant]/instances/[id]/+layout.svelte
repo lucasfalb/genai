@@ -16,7 +16,9 @@
 	import * as Resizable from '$lib/components/ui/resizable/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import TestAgentChat from '$lib/components/instance/test-agent-chat.svelte';
+	import WidgetPreview from '$lib/components/instance/widget-preview.svelte';
 	import { collectionsApi } from '$lib/api/collections';
+	import type { WebWidgetConfig } from '$lib/api/types';
 	import { instancesApi } from '$lib/api/instances';
 	import { ApiError } from '$lib/api/client';
 	import { tenantBaseFromPath } from '$lib/routes/tenant';
@@ -31,6 +33,24 @@
 	const evaluationSessionId = $derived(page.params.sessionId ?? null);
 
 	let error = $state('');
+
+	// Right panel override — allows child pages (e.g. Channels) to show custom content
+	let rightPanelMode = $state<'test-chat' | 'widget-preview'>('test-chat');
+	let rightPanelWidgetConfig = $state<WebWidgetConfig | null>(null);
+
+	setContext('right-panel', {
+		setWidgetPreview: (cfg: WebWidgetConfig) => {
+			rightPanelMode = 'widget-preview';
+			rightPanelWidgetConfig = cfg;
+		},
+		updateWidgetConfig: (cfg: WebWidgetConfig) => {
+			rightPanelWidgetConfig = cfg;
+		},
+		resetToChat: () => {
+			rightPanelMode = 'test-chat';
+			rightPanelWidgetConfig = null;
+		},
+	});
 
 	let saveHandler: (() => Promise<void>) | null = $state(null);
 	let saveLabel = $state('');
@@ -219,12 +239,16 @@
 		<Resizable.Handle withHandle />
 		{#if agentUi.test_panel_enabled}
 			<Resizable.Pane defaultSize={35} minSize={20}>
-			<TestAgentChat
-				instanceId={data.instance.id}
-				instanceName={data.instance.name}
-				collectionsHref={`${appBase}/collections`}
-				sessionId={evaluationSessionId}
-			/>
+			{#if rightPanelMode === 'widget-preview' && rightPanelWidgetConfig}
+				<WidgetPreview config={rightPanelWidgetConfig} />
+			{:else}
+				<TestAgentChat
+					instanceId={data.instance.id}
+					instanceName={data.instance.name}
+					collectionsHref={`${appBase}/collections`}
+					sessionId={evaluationSessionId}
+				/>
+			{/if}
 			</Resizable.Pane>
 		{/if}
 	</Resizable.PaneGroup>

@@ -517,14 +517,13 @@
 			<div class="min-h-0 flex-1 bg-card">
 				<Table.Root
 					containerClass="scrollbar-none h-full overflow-auto bg-card"
-					class="min-w-[1120px] table-fixed text-sm"
+					class="min-w-[1008px] table-fixed text-sm"
 				>
 					<colgroup>
 						<col class="w-[112px]" />
 						<col class="w-[180px]" />
 						<col class="w-[300px]" />
 						<col class="w-[96px]" />
-						<col class="w-[112px]" />
 						<col class="w-[112px]" />
 						<col class="w-[128px]" />
 						<col class="w-[96px]" />
@@ -546,9 +545,6 @@
 								>Completion</Table.Head
 							>
 							<Table.Head class="bg-background px-4 py-2 text-right font-bold tracking-wider"
-								>Embeddings</Table.Head
-							>
-							<Table.Head class="bg-background px-4 py-2 text-right font-bold tracking-wider"
 								>Total</Table.Head
 							>
 							<Table.Head class="bg-background px-4 py-2 text-right font-bold tracking-wider"
@@ -560,14 +556,14 @@
 						{#if loading && filteredRuns.length === 0}
 							{#each Array.from({ length: 6 }) as _, index (index)}
 								<Table.Row class="bg-card">
-									<Table.Cell class="px-4 py-4" colspan={8}>
+									<Table.Cell class="px-4 py-4" colspan={7}>
 										<div class="h-4 animate-pulse bg-muted"></div>
 									</Table.Cell>
 								</Table.Row>
 							{/each}
 						{:else if !loading && filteredRuns.length === 0}
 							<Table.Row class="bg-card hover:bg-card">
-								<Table.Cell class="px-4 py-10 text-center text-muted-foreground" colspan={8}>
+								<Table.Cell class="px-4 py-10 text-center text-muted-foreground" colspan={7}>
 									{hasActiveFilters
 										? 'No runs match the current filters.'
 										: 'No run traces have been captured yet.'}
@@ -611,9 +607,6 @@
 									<Table.Cell class="px-4 py-3 text-right font-mono text-emerald-400"
 										>{fmtInt(run.completion_tokens)}</Table.Cell
 									>
-									<Table.Cell class="px-4 py-3 text-right font-mono text-amber-400"
-										>{fmtInt(run.embedding_tokens)}</Table.Cell
-									>
 									<Table.Cell class="px-4 py-3 text-right">
 										<div class="font-mono font-semibold text-purple-400">
 											{fmtInt(runTotalTokens(run))}
@@ -632,7 +625,7 @@
 							{/each}
 							{#if !loading && filteredRuns.length > 0}
 								<Table.Row class="bg-card hover:bg-card">
-									<Table.Cell colspan={8}>
+									<Table.Cell colspan={7}>
 										<div bind:this={sentinel} class="flex items-center justify-center py-4">
 											{#if loadingMore}
 												<div class="flex items-center gap-2 text-xs text-muted-foreground">

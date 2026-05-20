@@ -4,6 +4,7 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Database from '@lucide/svelte/icons/database';
 	import Puzzle from '@lucide/svelte/icons/puzzle';
+	import Network from '@lucide/svelte/icons/network';
 	import Eye from '@lucide/svelte/icons/eye';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import ClipboardPaste from '@lucide/svelte/icons/clipboard-paste';
@@ -13,6 +14,7 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import * as Select from '$lib/components/ui/select/index.js';
+	import { Switch } from '$lib/components/ui/switch/index.js';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
@@ -20,8 +22,12 @@
 	import KeyValueJsonEditor from '$lib/components/registry/KeyValueJsonEditor.svelte';
 	import VariableValuesEditor from '$lib/components/registry/VariableValuesEditor.svelte';
 	import { registryApi } from '$lib/api/registry';
+	import { instancesApi } from '$lib/api/instances';
 	import { getErrorMessage } from '$lib/api/client';
 	import type {
+		AgentInstanceResponse,
+		AgentLinkResponse,
+		AgentLinkTransferMode,
 		ToolMetadataResponse,
 		SkillActivationResponse,
 		ToolActivationResponse,
@@ -40,9 +46,11 @@
 	let registryMetadata = $state<ToolMetadataResponse>(data.registryMetadata);
 	let credentials = $state<CredentialResponse[]>([]);
 	let registryBusy = $state('');
+	let linkBusy = $state('');
 	let expandedConfig = $state('');
 	let addSkillOpen = $state(false);
 	let addToolOpen = $state(false);
+	let addLinkOpen = $state(false);
 	let credentialInputs = $state<Record<string, string>>({});
 	let credentialVisible = $state<Record<string, boolean>>({});
 	type HttpOverride = {
@@ -57,12 +65,30 @@
 		http: HttpOverride;
 	};
 	type SkillDraft = { prompt_block_override: string };
+	type LinkDraft = {
+		target_instance_id: string;
+		trigger_description: string;
+		transfer_mode: AgentLinkTransferMode;
+		is_enabled: boolean;
+	};
 	type DeleteTarget =
 		| { kind: 'skill'; slug: string }
 		| { kind: 'tool'; slug: string }
-		| { kind: 'credential'; slug: string };
+		| { kind: 'credential'; slug: string }
+		| { kind: 'link'; id: string };
 	let toolDrafts = $state<Record<string, ToolDraft>>({});
 	let skillDrafts = $state<Record<string, SkillDraft>>({});
+	let linkDrafts = $state<Record<string, LinkDraft>>({});
+	let linkedAgents = $state<AgentLinkResponse[]>([]);
+	let agentInstances = $state<AgentInstanceResponse[]>([]);
+	let linksLoaded = $state(false);
+	let linksLoadError = $state('');
+	let newLinkDraft = $state<LinkDraft>({
+		target_instance_id: '',
+		trigger_description: '',
+		transfer_mode: 'llm_decision',
+		is_enabled: true
+	});
 	let deleteTarget = $state<DeleteTarget | null>(null);
 	let curlDialogTool = $state<ToolActivationResponse | null>(null);
 	let curlCommand = $state('');
@@ -116,6 +142,89 @@
 		]);
 		registryMetadata = meta;
 		credentials = creds;
+	}
+
+	async function refreshLinkedAgents() {
+		linksLoadError = '';
+		try {
+			const [instances, links] = await Promise.all([
+				instancesApi.list(),
+				instancesApi.listLinks(data.instance.id)
+			]);
+			agentInstances = instances;
+			linkedAgents = links;
+			linksLoaded = true;
+			const linkIds = new Set(links.map((link) => link.id));
+			const nextDrafts: Record<string, LinkDraft> = {};
+			for (const link of links) {
+				if (linkDrafts[link.id] && linkIds.has(link.id)) nextDrafts[link.id] = linkDrafts[link.id];
+			}
+			linkDrafts = nextDrafts;
+		} catch (err) {
+			linksLoadError = getErrorMessage(err, 'Linked agents could not be loaded.');
+			linksLoaded = true;
+		}
+	}
+
+	function availableLinkTargets(): AgentInstanceResponse[] {
+		const linkedTargetIds = new Set(linkedAgents.map((link) => link.target_instance_id));
+		return agentInstances.filter(
+			(instance) => instance.id !== data.instance.id && !linkedTargetIds.has(instance.id)
+		);
+	}
+
+	function targetAgent(link: AgentLinkResponse): AgentInstanceResponse | undefined {
+		return agentInstances.find((instance) => instance.id === link.target_instance_id);
+	}
+
+	function linkToDraft(link: AgentLinkResponse): LinkDraft {
+		return {
+			target_instance_id: link.target_instance_id,
+			trigger_description: link.trigger_description,
+			transfer_mode: link.transfer_mode,
+			is_enabled: link.is_enabled
+		};
+	}
+
+	function initLinkDraft(link: AgentLinkResponse) {
+		if (linkDrafts[link.id]) return;
+		linkDrafts[link.id] = linkToDraft(link);
+		linkDrafts = { ...linkDrafts };
+	}
+
+	function resetNewLinkDraft(targetId = '') {
+		const target = agentInstances.find((instance) => instance.id === targetId);
+		newLinkDraft = {
+			target_instance_id: targetId,
+			trigger_description: target
+				? `Use when the conversation should be transferred to ${target.name}.`
+				: '',
+			transfer_mode: 'llm_decision',
+			is_enabled: true
+		};
+	}
+
+	function defaultTransferToolName(name: string): string {
+		const slug = name
+			.toLowerCase()
+			.normalize('NFKD')
+			.replace(/[\u0300-\u036f]/g, '')
+			.replace(/[^a-z0-9]+/g, '_')
+			.replace(/^_+|_+$/g, '')
+			.slice(0, 48);
+		return `transfer_to_${slug || 'agent'}`;
+	}
+
+	function validateLinkDraft(draft: LinkDraft): boolean {
+		if (!draft.target_instance_id) {
+			toast.error('Choose a target agent.');
+			return false;
+		}
+		if (!draft.trigger_description.trim()) {
+			toast.error('Trigger instructions are required.');
+			return false;
+		}
+		return true;
 	}
 
 	function getCredential(slug: string): CredentialResponse | undefined {
@@ -248,6 +357,47 @@
 		}
 	}
 
+	async function createLink() {
+		const draft = newLinkDraft;
+		if (!validateLinkDraft(draft)) return;
+		linkBusy = 'link:new';
+		try {
+			const targetAgent = agentInstances.find((i) => i.id === draft.target_instance_id);
+			await instancesApi.createLink(data.instance.id, {
+				target_instance_id: draft.target_instance_id,
+				transfer_tool_name: defaultTransferToolName(targetAgent?.name ?? draft.target_instance_id),
+				trigger_description: draft.trigger_description.trim(),
+				transfer_mode: draft.transfer_mode,
+				is_enabled: draft.is_enabled
+			});
+			await Promise.all([refreshLinkedAgents(), refreshRegistryMetadata()]);
+			addLinkOpen = false;
+			resetNewLinkDraft();
+			toast.success('Linked agent added.');
+		} catch (err) {
+			toast.error(getErrorMessage(err, 'Add linked agent failed.'));
+		} finally {
+			linkBusy = '';
+		}
+	}
+
+	function requestRemoveLink(id: string) {
+		deleteTarget = { kind: 'link', id };
+	}
+
+	async function removeLink(id: string) {
+		linkBusy = `link:${id}`;
+		try {
+			await instancesApi.deleteLink(data.instance.id, id);
+			await Promise.all([refreshLinkedAgents(), refreshRegistryMetadata()]);
+			toast.success('Linked agent removed.');
+		} catch (err) {
+			toast.error(getErrorMessage(err, 'Remove linked agent failed.'));
+		} finally {
+			linkBusy = '';
+		}
+	}
+
 	async function addSkill(slug: string) {
 		try {
 			await registryApi.activateSkill(data.instance.id, slug, { is_enabled: true, config: {} });
@@ -319,17 +469,27 @@
 			await removeTool(target.slug);
 			return;
 		}
+		if (target.kind === 'link') {
+			await removeLink(target.id);
+			return;
+		}
 		await deleteCredential(target.slug);
 	}
 
 	function deleteTitle(target: DeleteTarget | null): string {
 		if (target?.kind === 'tool') return 'Delete Tool';
 		if (target?.kind === 'skill') return 'Delete Skill';
+		if (target?.kind === 'link') return 'Delete Linked Agent';
 		return 'Delete Credential';
 	}
 
 	function deleteDescription(target: DeleteTarget | null): string {
 		if (!target) return '';
+		if (target.kind === 'link') {
+			const link = linkedAgents.find((item) => item.id === target.id);
+			const targetName = link ? (link.target_name ?? link.target_instance_id) : 'this agent';
+			return `Remove the handoff tool for "${targetName}" from this instance?`;
+		}
 		if (target.kind === 'credential') {
 			return `Delete credential for "${target.slug}"? Requests using this credential may stop working until a new value is saved.`;
 		}
@@ -567,6 +727,30 @@
 		}
 	}
 
+	async function saveLinkDraft(link: AgentLinkResponse) {
+		const draft = linkDrafts[link.id];
+		if (!draft) {
+			toast.info('Open the linked agent config before saving changes.');
+			return;
+		}
+		if (!validateLinkDraft(draft)) return;
+
+		linkBusy = `link:${link.id}`;
+		try {
+			await instancesApi.updateLink(data.instance.id, link.id, {
+				trigger_description: draft.trigger_description.trim(),
+				transfer_mode: draft.transfer_mode,
+				is_enabled: draft.is_enabled
+			});
+			await Promise.all([refreshLinkedAgents(), refreshRegistryMetadata()]);
+			toast.success('Linked agent saved.');
+		} catch (err) {
+			toast.error(getErrorMessage(err, 'Linked agent update failed.'));
+		} finally {
+			linkBusy = '';
+		}
+	}
+
 	async function saveAllDrafts() {
 		setSaving(true);
 		try {
@@ -588,6 +772,12 @@
 					saved += 1;
 				}
 			}
+			for (const link of linkedAgents) {
+				if (linkDrafts[link.id]) {
+					await saveLinkDraft(link);
+					saved += 1;
+				}
+			}
 			if (saved === 0) toast.info('No tool changes to save.');
 		} finally {
 			setSaving(false);
@@ -595,6 +785,7 @@
 	}
 
 	onMount(() => {
+		refreshLinkedAgents();
 		register(saveAllDrafts, 'Save changes');
 		return () => unregister();
 	});
@@ -1047,6 +1238,197 @@
 			</div>
 		{/if}
 	</section>
+
+	<!-- Linked agents -->
+	<section class="p-6" style="background:var(--surface);border:1px solid var(--ds-border)">
+		<div class="mb-4 flex items-center justify-between">
+			<div>
+				<h3 class="font-display text-sm font-semibold" style="color:var(--text-main)">
+					Linked agents
+				</h3>
+				<p class="mt-0.5 text-xs text-muted-foreground">
+					Handoff tools this agent can call to transfer conversations
+				</p>
+			</div>
+			<Button
+				variant="outline"
+				size="sm"
+				onclick={() => {
+					resetNewLinkDraft(availableLinkTargets()[0]?.id ?? '');
+					addLinkOpen = true;
+				}}
+				disabled={!linksLoaded || availableLinkTargets().length === 0}
+			>
+				<Plus data-icon="inline-start" />
+				Add Agent
+			</Button>
+		</div>
+
+		{#if linksLoadError}
+			<p class="py-6 text-center text-sm text-red-400">{linksLoadError}</p>
+		{:else if !linksLoaded}
+			<div class="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+				<Spinner class="size-4" />
+				Loading linked agents...
+			</div>
+		{:else if linkedAgents.length === 0}
+			<p class="py-6 text-center text-sm text-muted-foreground">
+				No linked agents yet. Add an agent to expose it as a handoff tool.
+			</p>
+		{:else}
+			<div class="space-y-3">
+				{#each linkedAgents as link (link.id)}
+					{@const key = `link:${link.id}`}
+					{@const busy = linkBusy === key}
+					{@const expanded = expandedConfig === key}
+					{@const target = targetAgent(link)}
+					{@const draft = linkDrafts[link.id] ?? linkToDraft(link)}
+					<div
+						class="rounded-lg p-4"
+						style="background:var(--surface-hover);border:1px solid var(--ds-border)"
+					>
+						<div class="flex flex-wrap items-start justify-between gap-3">
+							<div class="min-w-0 flex-1">
+								<div class="flex items-center gap-2">
+									<div
+										class="flex size-8 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-400"
+									>
+										<Network class="size-4" />
+									</div>
+									<div>
+										<p class="text-sm font-semibold" style="color:var(--text-main)">
+											{link.target_name}
+										</p>
+										<p class="font-mono text-xs text-muted-foreground/70">
+											{link.transfer_tool_name}
+										</p>
+									</div>
+								</div>
+								<p class="mt-2 text-xs text-muted-foreground">{link.trigger_description}</p>
+								<div class="mt-2 flex flex-wrap gap-2">
+									<Badge variant="outline" class="font-mono text-[10px]">{link.transfer_mode}</Badge
+									>
+									<Badge
+										variant="outline"
+										class={link.is_enabled
+											? 'border-emerald-400/30 text-[10px] text-emerald-400'
+											: 'border-muted-foreground/30 text-[10px] text-muted-foreground'}
+									>
+										{link.is_enabled ? 'enabled' : 'disabled'}
+									</Badge>
+									{#if target?.status}
+										<Badge variant="outline" class="text-[10px]">{target.status}</Badge>
+									{/if}
+								</div>
+							</div>
+							<div class="flex shrink-0 items-center gap-2">
+								<Button
+									variant="ghost"
+									size="sm"
+									onclick={() => {
+										initLinkDraft(link);
+										openConfig(key);
+									}}
+								>
+									Config
+								</Button>
+								<Button
+									variant="destructive"
+									size="sm"
+									disabled={busy}
+									onclick={() => requestRemoveLink(link.id)}
+									title="Remove linked agent"
+								>
+									{#if busy}<Spinner data-icon="inline-start" />{/if}
+									<Trash2 class="size-3.5" />
+								</Button>
+							</div>
+						</div>
+						{#if expanded}
+							<div
+								class="mt-4 space-y-4 rounded-lg border bg-[var(--canvas)] p-4 text-sm text-muted-foreground"
+								style="border-color:var(--ds-border)"
+							>
+								<div>
+									<label class="mb-1 block text-xs font-medium text-foreground/80">Mode</label>
+									<Select.Root
+										type="single"
+										value={draft.transfer_mode}
+										onValueChange={(value) => {
+											initLinkDraft(link);
+											linkDrafts[link.id].transfer_mode = value as AgentLinkTransferMode;
+											linkDrafts = { ...linkDrafts };
+										}}
+									>
+										<Select.Trigger class="h-10 w-45 bg-background font-mono text-xs">
+											{draft.transfer_mode}
+										</Select.Trigger>
+										<Select.Content>
+											<Select.Item value="llm_decision" label="llm_decision"
+												>llm_decision</Select.Item
+											>
+											<Select.Item value="router_classifier" label="router_classifier"
+												>router_classifier</Select.Item
+											>
+										</Select.Content>
+									</Select.Root>
+								</div>
+								<div>
+									<label class="mb-1 block text-xs font-medium text-foreground/80">
+										{draft.transfer_mode === 'router_classifier'
+											? 'Classification topic'
+											: 'Trigger instructions'}
+										<span class="text-red-400">*</span>
+									</label>
+									<Textarea
+										rows={4}
+										placeholder={draft.transfer_mode === 'router_classifier'
+											? 'e.g. billing and payment questions, subscription management'
+											: 'e.g. Use this agent when the user asks about billing or payments.'}
+										value={draft.trigger_description}
+										oninput={(e) => {
+											initLinkDraft(link);
+											linkDrafts[link.id].trigger_description = e.currentTarget.value;
+											linkDrafts = { ...linkDrafts };
+										}}
+										class="text-sm"
+									/>
+									{#if draft.transfer_mode === 'router_classifier'}
+										<p class="mt-1 text-[11px] text-muted-foreground">
+											Describe the topic or intent that routes to this agent. Keep it concise —
+											the classifier matches user messages against this condition.
+										</p>
+									{/if}
+								</div>
+								<div class="flex flex-wrap items-center justify-between gap-3">
+									<label class="flex items-center gap-2 text-xs text-foreground/80">
+										<Switch
+											checked={draft.is_enabled}
+											onCheckedChange={(checked) => {
+												initLinkDraft(link);
+												linkDrafts[link.id].is_enabled = checked;
+												linkDrafts = { ...linkDrafts };
+											}}
+										/>
+										Enabled as handoff tool
+									</label>
+									<Button
+										variant="default"
+										size="sm"
+										disabled={busy}
+										onclick={() => saveLinkDraft(link)}
+									>
+										{#if busy}<Spinner data-icon="inline-start" />{/if}
+										Save linked agent
+									</Button>
+								</div>
+							</div>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		{/if}
+	</section>
 </div>
 
 <RegistryAddDialog
@@ -1062,6 +1444,92 @@
 	excludeSlugs={registryMetadata.tools.map((t) => t.slug)}
 	onPick={addTool}
 />
+
+<Dialog.Root bind:open={addLinkOpen}>
+	<Dialog.Content class="sm:max-w-2xl">
+		<Dialog.Header>
+			<Dialog.Title>Add linked agent</Dialog.Title>
+			<Dialog.Description>
+				Expose another tenant agent as a handoff tool for this instance.
+			</Dialog.Description>
+		</Dialog.Header>
+		<div class="space-y-4">
+			<div>
+				<label class="mb-1 block text-xs font-medium text-foreground/80"
+					>Target agent <span class="text-red-400">*</span></label
+				>
+				<Select.Root
+					type="single"
+					value={newLinkDraft.target_instance_id}
+					onValueChange={(value) => resetNewLinkDraft(value)}
+				>
+					<Select.Trigger class="h-10 w-full bg-background text-sm">
+						{agentInstances.find((instance) => instance.id === newLinkDraft.target_instance_id)
+							?.name ?? 'Choose an agent'}
+					</Select.Trigger>
+					<Select.Content>
+						{#each availableLinkTargets() as instance (instance.id)}
+							<Select.Item value={instance.id} label={instance.name}>{instance.name}</Select.Item>
+						{/each}
+					</Select.Content>
+				</Select.Root>
+			</div>
+			<div>
+				<label class="mb-1 block text-xs font-medium text-foreground/80">Mode</label>
+				<Select.Root
+					type="single"
+					value={newLinkDraft.transfer_mode}
+					onValueChange={(value) => {
+						newLinkDraft.transfer_mode = value as AgentLinkTransferMode;
+					}}
+				>
+					<Select.Trigger class="h-10 w-45 bg-background font-mono text-xs">
+						{newLinkDraft.transfer_mode}
+					</Select.Trigger>
+					<Select.Content>
+						<Select.Item value="llm_decision" label="llm_decision">llm_decision</Select.Item>
+						<Select.Item value="router_classifier" label="router_classifier"
+							>router_classifier</Select.Item
+						>
+					</Select.Content>
+				</Select.Root>
+			</div>
+			<div>
+				<label class="mb-1 block text-xs font-medium text-foreground/80">
+					{newLinkDraft.transfer_mode === 'router_classifier'
+						? 'Classification topic'
+						: 'Trigger instructions'}
+					<span class="text-red-400">*</span>
+				</label>
+				<Textarea
+					bind:value={newLinkDraft.trigger_description}
+					rows={4}
+					placeholder={newLinkDraft.transfer_mode === 'router_classifier'
+						? 'e.g. billing and payment questions, subscription management'
+						: 'e.g. Use this agent when the user asks about billing or payments.'}
+					class="text-sm"
+				/>
+				{#if newLinkDraft.transfer_mode === 'router_classifier'}
+					<p class="mt-1 text-[11px] text-muted-foreground">
+						Describe the topic or intent that routes to this agent. Keep it concise — the
+						classifier matches user messages against this condition.
+					</p>
+				{/if}
+			</div>
+			<label class="flex items-center gap-2 text-xs text-foreground/80">
+				<Switch bind:checked={newLinkDraft.is_enabled} />
+				Enabled as handoff tool
+			</label>
+		</div>
+		<Dialog.Footer>
+			<Button variant="outline" onclick={() => (addLinkOpen = false)}>Cancel</Button>
+			<Button disabled={linkBusy === 'link:new'} onclick={createLink}>
+				{#if linkBusy === 'link:new'}<Spinner data-icon="inline-start" />{/if}
+				Add linked agent
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
 
 <Dialog.Root
 	open={!!curlDialogTool}

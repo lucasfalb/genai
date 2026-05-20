@@ -16,6 +16,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { tenantStore } from '$lib/stores/tenant.svelte';
 	import { ApiError, getErrorMessage } from '$lib/api/client';
+	import { renderFormattedMessage } from '$lib/utils/rich-message';
 	import type {
 		RunTracePayload,
 		RunTraceResponse,
@@ -158,6 +159,11 @@
 		} catch {
 			return String(value);
 		}
+	}
+
+	function renderTraceMessage(value: unknown): string {
+		if (value == null) return renderFormattedMessage('—');
+		return renderFormattedMessage(typeof value === 'string' ? value : fmtJson(value));
 	}
 
 	function parseMaybeJson(value: unknown): unknown {
@@ -303,32 +309,6 @@
 		return colors[name] ?? '#d4d4d8';
 	}
 
-	function nodeFillColor(name: string, status: FlowStep['status'], selected: boolean): string {
-		if (selected) return 'color-mix(in srgb,#3b82f6 26%,var(--surface))';
-		if (status === 'running') return 'color-mix(in srgb,#10b981 18%,var(--surface))';
-		if (status === 'error') return 'color-mix(in srgb,#ef4444 16%,var(--surface))';
-		const fills: Record<string, string> = {
-			rag: 'color-mix(in srgb,#3b82f6 12%,var(--surface))',
-			llm: 'color-mix(in srgb,#22c55e 12%,var(--surface))',
-			dispatch: 'color-mix(in srgb,#f59e0b 12%,var(--surface))',
-			handoff: 'color-mix(in srgb,#f97316 12%,var(--surface))',
-			__input__: 'color-mix(in srgb,#a8a29e 10%,var(--surface))',
-			__output__: 'color-mix(in srgb,#22c55e 14%,var(--surface))'
-		};
-		return fills[name] ?? 'var(--surface)';
-	}
-
-	function nodeBorderColor(name: string, status: FlowStep['status'], selected: boolean): string {
-		if (selected) return '#60a5fa';
-		if (status === 'running') return '#34d399';
-		if (status === 'error') return '#f87171';
-		return nodeTextColor(name);
-	}
-
-	function shouldShowRagStep(t: RunTracePayload): boolean {
-		return Boolean(t.rag_error || t.rag_scope.length > 0 || t.retrieved_chunks.length > 0);
-	}
-
 	function tokenHotspots(t: RunTracePayload): {
 		key: string | null;
 		title: string;
@@ -388,9 +368,8 @@
 			{ key: '__input__', name: '__input__', step: null, status: 'completed' }
 		];
 		for (const [idx, n] of (t.node_timings ?? []).entries()) {
-			if (n.name === 'rag' && !shouldShowRagStep(t)) continue;
 			steps.push({
-				key: `${n.name}-${n.step ?? idx}`,
+				key: `step-${idx}`,
 				name: n.name,
 				step: n.step,
 				status: n.error ? 'error' : 'completed',
@@ -466,6 +445,53 @@
 		</button>
 	</div>
 {/snippet}
+
+<style>
+	.rich-trace-message {
+		white-space: normal;
+	}
+	.rich-trace-message :global(p) {
+		margin: 0 0 0.72em;
+	}
+	.rich-trace-message :global(p:last-child),
+	.rich-trace-message :global(ul:last-child),
+	.rich-trace-message :global(h3:last-child),
+	.rich-trace-message :global(h4:last-child) {
+		margin-bottom: 0;
+	}
+	.rich-trace-message :global(ul) {
+		margin: 0.35em 0 0.8em;
+		padding-left: 1.2em;
+	}
+	.rich-trace-message :global(li) {
+		margin: 0.22em 0;
+		padding-left: 0.1em;
+	}
+	.rich-trace-message :global(strong) {
+		font-weight: 750;
+		color: color-mix(in srgb, currentColor 88%, #fff 12%);
+	}
+	.rich-trace-message :global(code) {
+		border-radius: 6px;
+		background: rgba(148, 163, 184, 0.14);
+		padding: 0.1em 0.34em;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+		font-size: 0.92em;
+	}
+	.rich-trace-message :global(a) {
+		color: inherit;
+		font-weight: 700;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+	.rich-trace-message :global(h3),
+	.rich-trace-message :global(h4) {
+		margin: 0.1em 0 0.45em;
+		font-size: 1em;
+		line-height: 1.35;
+		font-weight: 800;
+	}
+</style>
 
 {#snippet toolCallList(calls: RunTraceExecutedCall[])}
 	<ol class="space-y-3">
@@ -653,13 +679,18 @@
 										tool_call_id: {message.tool_call_id}
 									</p>
 								{/if}
-								<pre
-									class="max-h-72 overflow-auto rounded bg-black/10 p-2 font-mono text-[11px] leading-relaxed break-words whitespace-pre-wrap text-foreground/80">{message.content ==
-									null
-										? '—'
-										: typeof message.content === 'string'
-											? message.content
-											: fmtJson(message.content)}</pre>
+								{#if typeof message.content === 'string' || message.content == null}
+									<div
+										class="rich-trace-message max-h-72 overflow-auto rounded bg-black/10 p-2 text-[12px] leading-relaxed break-words text-foreground/85"
+									>
+										{@html renderTraceMessage(message.content)}
+									</div>
+								{:else}
+									<pre
+										class="max-h-72 overflow-auto rounded bg-black/10 p-2 font-mono text-[11px] leading-relaxed break-words whitespace-pre-wrap text-foreground/80">{fmtJson(
+											message.content
+										)}</pre>
+								{/if}
 							</li>
 						{/each}
 					</ol>
@@ -746,7 +777,7 @@
 						{trace.model ?? '?'} · {trace.ai_provider ?? '?'}
 					</h3>
 					<p class="mt-1 text-xs text-muted-foreground">
-						Select a node in the flow to inspect step details.
+						Select a step from the timeline to inspect details.
 					</p>
 				</div>
 				<span class="shrink-0 font-mono text-xs text-muted-foreground"
@@ -866,7 +897,7 @@
 					Execution in progress
 				</h3>
 				<p class="mt-1 text-xs text-muted-foreground">
-					Select a running node in the flow to inspect its live status.
+					Select a running step from the timeline to inspect its live status.
 				</p>
 			</div>
 			<div class="rounded-xl border bg-[var(--canvas)] p-3" style="border-color:var(--ds-border)">
@@ -889,16 +920,89 @@
 {/snippet}
 
 {#snippet executionTimeline()}
-	{#if trace && (trace.node_timings ?? []).length > 0}
-		<div class="space-y-1.5">
+	{#if isLiveRunActive}
+		<div class="space-y-2 p-4">
+			<p class="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+				Live Execution
+			</p>
+			{#if liveSteps.length === 0}
+				<div class="flex items-center gap-2 text-xs text-muted-foreground">
+					<Spinner class="size-3" />
+					<span>Starting execution…</span>
+				</div>
+			{:else}
+				{#each liveSteps as step}
+					<div
+						class="flex items-center gap-2 rounded-xl border px-3 py-2"
+						style="border-color:var(--ds-border);background:var(--canvas)"
+					>
+						<span
+							class="font-mono text-[11px] font-semibold"
+							style="color:{nodeTextColor(step.name)}">{step.name}</span
+						>
+						{#if step.step != null}
+							<span class="font-mono text-[10px] text-muted-foreground/50">step {step.step}</span>
+						{/if}
+						<span class="ml-auto">
+							{#if step.status === 'running'}
+								<span class="flex items-center gap-1 text-[10px] text-amber-400">
+									<Spinner class="size-2.5" />
+									running…
+								</span>
+							{:else if step.status === 'error'}
+								<span class="text-[10px] text-red-400">error</span>
+							{:else}
+								<span class="font-mono text-[10px] text-emerald-400">
+									{step.duration_ms != null ? fmtMs(step.duration_ms) : 'done'}
+								</span>
+							{/if}
+						</span>
+					</div>
+				{/each}
+			{/if}
+		</div>
+	{:else if trace && (trace.user_message || (trace.node_timings ?? []).length > 0)}
+		<div class="space-y-1.5 p-4">
 			<div class="mb-3 flex items-center justify-between">
 				<p class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-					Execution Timeline · {trace.node_timings.length} step{trace.node_timings.length !== 1
-						? 's'
-						: ''}
+					Execution Timeline · {(trace.node_timings ?? []).length +
+						(trace.user_message ? 1 : 0) +
+						(trace.final_response ? 1 : 0)} steps
 				</p>
 				<span class="font-mono text-[11px] text-muted-foreground">{fmtMs(trace.duration_ms)}</span>
 			</div>
+
+			{#if trace.user_message}
+				<button
+					type="button"
+					onclick={() => (selectedNodeId = selectedNodeId === '__input__' ? null : '__input__')}
+					class="w-full overflow-hidden rounded-xl border text-left transition-colors hover:border-blue-500/30 {selectedNodeId ===
+					'__input__'
+						? 'border-blue-500/40'
+						: ''}"
+					style="border-color:{selectedNodeId === '__input__' ? '' : 'var(--ds-border)'}"
+				>
+					<div
+						class="flex items-center gap-2 px-3 py-2.5"
+						style="background:{selectedNodeId === '__input__'
+							? 'color-mix(in srgb,#3b82f6 8%,transparent)'
+							: 'var(--canvas)'}"
+					>
+						<span class="w-5 shrink-0 text-center font-mono text-[10px] text-muted-foreground/50"
+							>↗</span
+						>
+						<span
+							class="font-mono text-[11px] font-semibold"
+							style="color:{nodeTextColor('__input__')}">user</span
+						>
+						<span class="ml-2 min-w-0 flex-1 truncate text-[10px] text-muted-foreground/60 italic">
+							{trace.user_message.length > 28
+								? trace.user_message.slice(0, 28) + '…'
+								: trace.user_message}
+						</span>
+					</div>
+				</button>
+			{/if}
 
 			{#each trace.node_timings as step, idx (idx)}
 				{@const llmIter = step.name === 'llm' ? llmIterationForStep(step.step) : -1}
@@ -908,7 +1012,7 @@
 						: null}
 				{@const decisions = step.name === 'llm' ? toolDecisionsForLlmStep(step.step) : []}
 				{@const dispatchCalls = step.name === 'dispatch' ? toolCallsForDispatchStep(step.step) : []}
-				{@const stepKey = `${step.name}-${step.step ?? idx}`}
+				{@const stepKey = `step-${idx}`}
 
 				<button
 					type="button"
@@ -927,7 +1031,7 @@
 							: 'var(--canvas)'}"
 					>
 						<span class="w-5 shrink-0 text-center font-mono text-[10px] text-muted-foreground/50"
-							>{step.step ?? idx}</span
+							>{idx + 1}</span
 						>
 						<span
 							class="font-mono text-[11px] font-semibold"
@@ -1026,6 +1130,42 @@
 				</button>
 			{/each}
 
+			{#if trace.final_response}
+				<button
+					type="button"
+					onclick={() => (selectedNodeId = selectedNodeId === '__output__' ? null : '__output__')}
+					class="w-full overflow-hidden rounded-xl border text-left transition-colors hover:border-blue-500/30 {selectedNodeId ===
+					'__output__'
+						? 'border-blue-500/40'
+						: ''}"
+					style="border-color:{selectedNodeId === '__output__' ? '' : 'var(--ds-border)'}"
+				>
+					<div
+						class="flex items-center gap-2 px-3 py-2.5"
+						style="background:{selectedNodeId === '__output__'
+							? 'color-mix(in srgb,#3b82f6 8%,transparent)'
+							: 'var(--canvas)'}"
+					>
+						<span class="w-5 shrink-0 text-center font-mono text-[10px] text-muted-foreground/50"
+							>✓</span
+						>
+						<span
+							class="font-mono text-[11px] font-semibold"
+							style="color:{nodeTextColor('__output__')}">response</span
+						>
+						{#if trace.token_usage}
+							<span class="ml-auto shrink-0 font-mono text-[10px] text-purple-400/80"
+								>{fmtTokens(trace.token_usage.total_tokens)} tok</span
+							>
+						{:else}
+							<span class="ml-auto shrink-0 font-mono text-[10px] text-emerald-400/60"
+								>{fmtMs(trace.duration_ms)}</span
+							>
+						{/if}
+					</div>
+				</button>
+			{/if}
+
 			<!-- Guardrails/constraints summary (if configured) -->
 			{#if trace.system_prompt_sections.some((s) => s.label === 'guardrails' && s.content) || trace.system_prompt_sections.some((s) => s.label === 'constraints' && s.content)}
 				<div
@@ -1049,49 +1189,6 @@
 						{/each}
 					</div>
 				</div>
-			{/if}
-
-			{@render promptContextPanel()}
-		</div>
-	{:else if isLiveRunActive}
-		<div class="space-y-2">
-			<p class="mb-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-				Live Execution
-			</p>
-			{#if liveSteps.length === 0}
-				<div class="flex items-center gap-2 text-xs text-muted-foreground">
-					<Spinner class="size-3" />
-					<span>Starting execution…</span>
-				</div>
-			{:else}
-				{#each liveSteps as step}
-					<div
-						class="flex items-center gap-2 rounded-xl border px-3 py-2"
-						style="border-color:var(--ds-border);background:var(--canvas)"
-					>
-						<span
-							class="font-mono text-[11px] font-semibold"
-							style="color:{nodeTextColor(step.name)}">{step.name}</span
-						>
-						{#if step.step != null}
-							<span class="font-mono text-[10px] text-muted-foreground/50">step {step.step}</span>
-						{/if}
-						<span class="ml-auto">
-							{#if step.status === 'running'}
-								<span class="flex items-center gap-1 text-[10px] text-amber-400">
-									<Spinner class="size-2.5" />
-									running…
-								</span>
-							{:else if step.status === 'error'}
-								<span class="text-[10px] text-red-400">error</span>
-							{:else}
-								<span class="font-mono text-[10px] text-emerald-400">
-									{step.duration_ms != null ? fmtMs(step.duration_ms) : 'done'}
-								</span>
-							{/if}
-						</span>
-					</div>
-				{/each}
 			{/if}
 		</div>
 	{:else}
@@ -1182,17 +1279,31 @@
 		<div class="flex min-h-0 flex-1 flex-col">
 			<div class="flex min-h-0 flex-1">
 				<!-- Message history sidebar -->
-				{#if runs.length > 0}
+				{#if runs.length > 0 || isLiveRunActive}
 					<aside
 						class="w-[200px] shrink-0 overflow-y-auto border-r"
 						style="border-color:var(--ds-border);background:var(--surface)"
 					>
 						<div
-							class="sticky top-0 border-b bg-[var(--surface)] px-3 py-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
+							class="sticky top-0 border-b bg-[var(--surface)] px-3 py-2 text-[10px] font-semibold tracking-wider text-primary uppercase"
 							style="border-color:var(--ds-border)"
 						>
 							Messages
 						</div>
+						{#if isLiveRunActive}
+							<div
+								class="w-full border-b bg-[var(--surface-hover)] px-3 py-2.5"
+								style="border-color:var(--ds-border)"
+							>
+								<div class="flex items-center gap-2">
+									<Spinner class="size-2.5 shrink-0 text-emerald-400" />
+									<span class="text-[11px] font-semibold text-emerald-400">Running…</span>
+								</div>
+								<p class="mt-1 truncate text-[11px] leading-tight text-foreground/60 italic">
+									{liveSteps.find((s) => s.status === 'running')?.name ?? 'in progress'}
+								</p>
+							</div>
+						{/if}
 						{#each runs as run, idx (run.run_id)}
 							<button
 								type="button"
@@ -1249,103 +1360,25 @@
 						</div>
 					{:else if isLiveRunActive || (trace && metadata)}
 						<div class="flex min-h-0 flex-1">
-							<!-- Step rail -->
+							<!-- Execution timeline -->
 							<div
-								class="trace-rail relative h-full w-[280px] shrink-0 overflow-y-auto border-r px-4 py-5"
+								class="w-[280px] shrink-0 overflow-y-auto border-r"
 								style="border-color:var(--ds-border);background:var(--canvas)"
 							>
-								{#if activeFlowSteps.length > 0}
-									<div class="trace-rail-list relative mx-auto flex max-w-[230px] flex-col gap-0">
-										{#each activeFlowSteps as step, idx (step.key)}
-											{@const selected = selectedNodeId === step.key}
-											{@const isEndpoint = step.name === '__input__' || step.name === '__output__'}
-											<button
-												type="button"
-												class="trace-rail-node relative z-10 text-center"
-												class:selected
-												class:trace-rail-node-running={step.status === 'running'}
-												style="--node-bg:{nodeFillColor(
-													step.name,
-													step.status,
-													selected
-												)};--node-border:{nodeBorderColor(
-													step.name,
-													step.status,
-													selected
-												)};--node-color:{nodeTextColor(step.name)};width:{isEndpoint
-													? '82%'
-													: '100%'};margin-inline:auto"
-												aria-pressed={selected}
-												onclick={() => {
-													selectedNodeId = selected ? null : step.key;
-												}}
-											>
-												<span
-													class="block truncate font-mono text-[12px] font-semibold"
-													style="color:var(--node-color)"
-												>
-													{step.name}
-												</span>
-												<span
-													class="mt-0.5 block font-mono text-[11px] font-bold"
-													style="color:var(--node-color)"
-												>
-													#{step.step ?? idx} · {step.status === 'running'
-														? 'running'
-														: step.status === 'error'
-															? 'error'
-															: step.duration_ms != null
-																? fmtMs(step.duration_ms)
-																: step.status}
-												</span>
-											</button>
-											{#if idx < activeFlowSteps.length - 1}
-												<span
-													class="trace-rail-connector"
-													aria-hidden="true"
-													style="--connector-color:{nodeBorderColor(
-														activeFlowSteps[idx + 1].name,
-														activeFlowSteps[idx + 1].status,
-														selectedNodeId === activeFlowSteps[idx + 1].key
-													)}"
-												>
-													<span class="trace-rail-arrow"></span>
-												</span>
-											{/if}
-										{/each}
-									</div>
-									{#if isLiveRunActive}
-										<div
-											class="pointer-events-none absolute top-3 left-3 flex items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-semibold text-emerald-400"
-											style="background:color-mix(in srgb,var(--canvas) 84%,#052e16);border-color:color-mix(in srgb,#22c55e 32%,transparent);backdrop-filter:blur(6px)"
-										>
-											<Spinner class="size-2.5" />
-											{liveSteps.filter((s) => s.status === 'running').length > 0
-												? `step ${liveSteps.findLast((s) => s.status === 'running')?.step ?? '?'} running`
-												: `${liveSteps.length} completed`}
-										</div>
-									{/if}
-								{:else if isLiveRunActive}
-									<div class="flex h-full items-center justify-center">
-										<div class="text-center">
-											<Spinner class="mx-auto mb-2 size-5 text-muted-foreground" />
-											<p class="text-xs text-muted-foreground">Iniciando…</p>
-										</div>
-									</div>
-								{/if}
+								{@render executionTimeline()}
 							</div>
 
-							<!-- Right panel: timeline or detail -->
+							<!-- Detail panel -->
 							<div class="flex-1 overflow-y-auto p-5 pb-8">
 								{#if !selectedStep}
 									{@render runOverview()}
 								{:else if selectedStep.name === '__input__'}
 									{@render detailHeader('User message', 'Run input', User)}
 									<div
-										class="rounded-xl border bg-[var(--canvas)] p-4 text-sm leading-relaxed"
+										class="rich-trace-message rounded-xl border bg-[var(--canvas)] p-4 text-sm leading-relaxed"
 										style="border-color:var(--ds-border)"
 									>
-										{trace?.user_message || '—'}
+										{@html renderTraceMessage(trace?.user_message)}
 									</div>
 								{:else if selectedStep.name === 'rag'}
 									{@render detailHeader(
@@ -1538,9 +1571,9 @@
 														Generated response
 													</p>
 													<div
-														class="max-h-96 overflow-auto rounded-md bg-zinc-500/5 p-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90"
+														class="rich-trace-message max-h-96 overflow-auto rounded-md bg-zinc-500/5 p-3 text-sm leading-relaxed text-foreground/90"
 													>
-														{perCall.output_text || trace.final_response || '—'}
+														{@html renderTraceMessage(perCall.output_text || trace.final_response)}
 													</div>
 												</div>
 											{/if}
@@ -1656,51 +1689,253 @@
 										{@render toolCallList(dispatchCalls)}
 									{/if}
 								{:else if selectedStep.name === 'handoff'}
+									{@const targetName =
+										trace?.handoff_target_name ||
+										(trace?.handoff_target ? `#${trace.handoff_target.slice(0, 8)}` : null)}
 									{@render detailHeader(
 										'Handoff',
-										trace?.handoff_target
-											? `Target: #${trace.handoff_target.slice(0, 8)}`
-											: selectedStep.status,
+										targetName ? `→ ${targetName}` : selectedStep.status,
 										GitBranch
 									)}
 									{#if !trace}
 										{@render liveStepInfo(selectedStep)}
 									{:else if trace.handoff_target}
 										<div class="space-y-3">
-											{#if trace.handoff_summary}
-												<p
-													class="rounded-xl border bg-amber-500/5 p-4 text-xs text-amber-300"
-													style="border-color:color-mix(in srgb, var(--ds-border) 50%, #f59e0b 50%)"
-												>
-													{trace.handoff_summary}
-												</p>
-											{/if}
 											<div
-												class="rounded-xl border bg-[var(--canvas)] p-3"
-												style="border-color:var(--ds-border)"
+												class="rounded-xl border p-3"
+												style="border-color:color-mix(in srgb,#f97316 30%,var(--ds-border));background:color-mix(in srgb,#f97316 6%,transparent)"
 											>
 												<p
-													class="mb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
+													class="mb-0.5 text-[10px] font-semibold tracking-wider text-orange-400/70 uppercase"
 												>
-													Target instance
+													Transferred to
 												</p>
-												<p class="font-mono text-xs text-amber-400">{trace.handoff_target}</p>
+												<p class="text-sm font-semibold text-orange-300">
+													{targetName ?? trace.handoff_target}
+												</p>
+												<p class="mt-0.5 font-mono text-[10px] text-muted-foreground/60">
+													{trace.handoff_target}
+												</p>
 											</div>
-											{#if trace.linked_agents.length > 0}
-												<details
-													class="rounded-xl border bg-[var(--canvas)]"
+											{#if trace.handoff_summary}
+												<div
+													class="rounded-xl border bg-canvas p-3"
 													style="border-color:var(--ds-border)"
 												>
-													<summary
-														class="cursor-pointer px-3 py-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
-														>Linked agents ({trace.linked_agents.length})</summary
+													<p
+														class="mb-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
 													>
-													<pre
-														class="border-t px-3 py-2 font-mono text-[11px] leading-relaxed"
-														style="border-color:var(--ds-border)">{fmtJson(
-															trace.linked_agents
-														)}</pre>
-												</details>
+														Transfer reason
+													</p>
+													<p class="text-xs leading-relaxed text-foreground/80">
+														{trace.handoff_summary}
+													</p>
+												</div>
+											{/if}
+											{#if trace.linked_agents.length > 0}
+												{@const linkedAgents = trace.linked_agents as Array<
+													Record<string, unknown>
+												>}
+												{@const matchedLink = linkedAgents.find(
+													(l) => l['target_instance_id'] === trace!.handoff_target
+												)}
+												{#if matchedLink}
+													<div
+														class="rounded-xl border bg-canvas p-3"
+														style="border-color:var(--ds-border)"
+													>
+														<p
+															class="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
+														>
+															Link configuration
+														</p>
+														<dl class="space-y-1.5 text-xs">
+															<div class="flex justify-between gap-3">
+																<dt class="text-muted-foreground">Tool name</dt>
+																<dd class="font-mono text-amber-300">
+																	{String(matchedLink['transfer_tool_name'] ?? '—')}
+																</dd>
+															</div>
+															<div class="flex justify-between gap-3">
+																<dt class="text-muted-foreground">Mode</dt>
+																<dd class="font-mono text-blue-400">
+																	{String(matchedLink['transfer_mode'] ?? '—')}
+																</dd>
+															</div>
+															{#if matchedLink['context_policy']}
+																{@const policy = matchedLink['context_policy'] as Record<
+																	string,
+																	unknown
+																>}
+																<div class="flex justify-between gap-3">
+																	<dt class="text-muted-foreground">Context policy</dt>
+																	<dd class="font-mono text-purple-400">
+																		{Object.entries(policy)
+																			.filter(([, v]) => v)
+																			.map(([k]) => k.replace(/_/g, ' '))
+																			.join(', ') || 'default'}
+																	</dd>
+																</div>
+															{/if}
+														</dl>
+													</div>
+												{/if}
+											{/if}
+
+											{#if trace.handoff_context}
+												{@const hctx = trace.handoff_context}
+												{#if hctx.summary}
+													<div
+														class="rounded-xl border bg-canvas p-3"
+														style="border-color:var(--ds-border)"
+													>
+														<p
+															class="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
+														>
+															Transfer summary
+														</p>
+														<dl class="space-y-2 text-xs">
+															{#if hctx.summary.user_goal}
+																<div>
+																	<dt
+																		class="mb-0.5 text-[10px] tracking-wider text-muted-foreground uppercase"
+																	>
+																		User goal
+																	</dt>
+																	<dd class="leading-relaxed text-foreground/80">
+																		{hctx.summary.user_goal}
+																	</dd>
+																</div>
+															{/if}
+															{#if hctx.summary.known_facts?.length}
+																<div>
+																	<dt
+																		class="mb-0.5 text-[10px] tracking-wider text-muted-foreground uppercase"
+																	>
+																		Known facts
+																	</dt>
+																	<dd class="space-y-0.5">
+																		{#each hctx.summary.known_facts as fact}
+																			<p class="leading-relaxed text-foreground/80">– {fact}</p>
+																		{/each}
+																	</dd>
+																</div>
+															{/if}
+															{#if hctx.summary.actions_already_taken?.length}
+																<div>
+																	<dt
+																		class="mb-0.5 text-[10px] tracking-wider text-muted-foreground uppercase"
+																	>
+																		Actions taken
+																	</dt>
+																	<dd class="space-y-0.5">
+																		{#each hctx.summary.actions_already_taken as action}
+																			<p class="leading-relaxed text-foreground/80">– {action}</p>
+																		{/each}
+																	</dd>
+																</div>
+															{/if}
+															{#if hctx.summary.custom_instructions}
+																<div>
+																	<dt
+																		class="mb-0.5 text-[10px] tracking-wider text-muted-foreground uppercase"
+																	>
+																		Custom instructions
+																	</dt>
+																	<dd class="leading-relaxed text-foreground/80">
+																		{hctx.summary.custom_instructions}
+																	</dd>
+																</div>
+															{/if}
+														</dl>
+													</div>
+												{/if}
+
+												{#if hctx.handoff_messages?.length}
+													<details
+														class="rounded-xl border bg-canvas"
+														style="border-color:var(--ds-border)"
+													>
+														<summary
+															class="cursor-pointer px-3 py-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+														>
+															Context sent to target
+															<span class="ml-1.5 text-[10px] text-muted-foreground/60 normal-case"
+																>({hctx.handoff_messages.length} message{hctx.handoff_messages
+																	.length !== 1
+																	? 's'
+																	: ''})</span
+															>
+														</summary>
+														<ol
+															class="space-y-2 border-t p-3"
+															style="border-color:var(--ds-border)"
+														>
+															{#each hctx.handoff_messages as msg, i (i)}
+																<li
+																	class="rounded-lg border bg-zinc-500/5 p-2.5"
+																	style="border-color:var(--ds-border)"
+																>
+																	<div class="mb-1.5 flex items-center justify-between">
+																		<span
+																			class="rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold {msg.role ===
+																			'user'
+																				? 'bg-blue-500/10 text-blue-400'
+																				: 'bg-emerald-500/10 text-emerald-400'}">{msg.role}</span
+																		>
+																		<span class="font-mono text-[10px] text-muted-foreground/50"
+																			>#{i + 1}</span
+																		>
+																	</div>
+																	<div
+																		class="rich-trace-message max-h-48 overflow-auto rounded bg-black/10 p-2 text-[11px] leading-relaxed break-words text-foreground/80"
+																	>
+																		{@html renderTraceMessage(msg.content)}
+																	</div>
+																</li>
+															{/each}
+														</ol>
+													</details>
+												{/if}
+
+												{#if hctx.sanitized_messages?.length}
+													<details
+														class="rounded-xl border bg-canvas"
+														style="border-color:var(--ds-border)"
+													>
+														<summary
+															class="cursor-pointer px-3 py-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+														>
+															Sanitized source conversation
+															<span class="ml-1.5 text-[10px] text-muted-foreground/60 normal-case"
+																>({hctx.sanitized_messages.length} msg)</span
+															>
+														</summary>
+														<ol
+															class="space-y-2 border-t p-3"
+															style="border-color:var(--ds-border)"
+														>
+															{#each hctx.sanitized_messages as msg, i (i)}
+																<li
+																	class="rounded-lg border bg-zinc-500/5 p-2.5"
+																	style="border-color:var(--ds-border)"
+																>
+																	<span
+																		class="rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold {msg.role ===
+																		'user'
+																			? 'bg-blue-500/10 text-blue-400'
+																			: 'bg-emerald-500/10 text-emerald-400'}">{msg.role}</span
+																	>
+																	<div
+																		class="rich-trace-message mt-1.5 max-h-32 overflow-auto rounded bg-black/10 p-2 text-[11px] leading-relaxed break-words text-foreground/70"
+																	>
+																		{@html renderTraceMessage(msg.content)}
+																	</div>
+																</li>
+															{/each}
+														</ol>
+													</details>
+												{/if}
 											{/if}
 										</div>
 									{:else}
@@ -1715,10 +1950,10 @@
 									{#if trace}
 										<div class="space-y-3">
 											<div
-												class="rounded-xl border bg-[var(--canvas)] p-4 text-sm leading-relaxed whitespace-pre-wrap"
+												class="rich-trace-message rounded-xl border bg-[var(--canvas)] p-4 text-sm leading-relaxed"
 												style="border-color:var(--ds-border)"
 											>
-												{trace.final_response || '—'}
+												{@html renderTraceMessage(trace.final_response)}
 											</div>
 											{#if trace.token_usage}
 												<div
@@ -1950,95 +2185,3 @@
 		{/if}
 	</div>
 {/snippet}
-
-<style>
-	.trace-rail {
-		background-image: radial-gradient(
-			circle at 1px 1px,
-			color-mix(in srgb, var(--ds-border) 52%, transparent) 1px,
-			transparent 0
-		);
-		background-size: 18px 18px;
-	}
-
-	.trace-rail-connector {
-		position: relative;
-		display: flex;
-		height: 30px;
-		align-items: center;
-		justify-content: center;
-		color: var(--connector-color);
-	}
-
-	.trace-rail-connector {
-		background-image: linear-gradient(
-			to bottom,
-			transparent 0,
-			transparent 3px,
-			color-mix(in srgb, currentColor 62%, transparent) 3px,
-			color-mix(in srgb, currentColor 62%, transparent) 21px,
-			transparent 21px
-		);
-		background-position: center;
-		background-repeat: no-repeat;
-		background-size: 2px 100%;
-	}
-
-	.trace-rail-arrow {
-		position: absolute;
-		bottom: 4px;
-		left: 50%;
-		width: 9px;
-		height: 9px;
-		border-right: 2px solid currentColor;
-		border-bottom: 2px solid currentColor;
-		filter: drop-shadow(0 0 6px color-mix(in srgb, currentColor 45%, transparent));
-		transform: translateX(-50%) rotate(45deg);
-	}
-
-	.trace-rail-node {
-		font-family: inherit;
-		cursor: pointer;
-		background: var(--node-bg);
-		border: 1.5px solid var(--node-border);
-		border-radius: 12px;
-		padding: 10px 12px;
-		line-height: 1.35;
-		box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
-		backdrop-filter: blur(3px);
-		transition:
-			border-color 160ms ease,
-			box-shadow 160ms ease,
-			transform 160ms ease,
-			background-color 160ms ease;
-	}
-
-	.trace-rail-node:hover {
-		transform: translateY(-1px);
-		box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
-	}
-
-	.trace-rail-node.selected {
-		box-shadow:
-			0 0 0 2px color-mix(in srgb, var(--node-border) 36%, transparent),
-			0 16px 36px rgba(0, 0, 0, 0.26);
-	}
-
-	.trace-rail-node-running {
-		animation: traceNodePulse 1.4s ease-in-out infinite;
-	}
-
-	@keyframes traceNodePulse {
-		0%,
-		100% {
-			box-shadow:
-				0 0 0 0 rgba(52, 211, 153, 0),
-				0 12px 30px rgba(0, 0, 0, 0.18);
-		}
-		50% {
-			box-shadow:
-				0 0 0 5px rgba(52, 211, 153, 0.22),
-				0 12px 30px rgba(0, 0, 0, 0.18);
-		}
-	}
-</style>

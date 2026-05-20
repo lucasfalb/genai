@@ -2,6 +2,7 @@
 	import Bot from '@lucide/svelte/icons/bot';
 	import User from '@lucide/svelte/icons/user';
 	import AlertCircle from '@lucide/svelte/icons/alert-circle';
+	import { renderFormattedMessage } from '$lib/utils/rich-message';
 
 	type Role = 'user' | 'assistant' | 'system' | 'error';
 
@@ -22,19 +23,7 @@
 	const isUser = $derived(role === 'user');
 	const isError = $derived(role === 'error');
 
-	function renderInline(text: string): string {
-		const escaped = text
-			.replace(/&/g, '&amp;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;');
-		return escaped
-			.replace(/`([^`]+)`/g, '<code class="rounded bg-black/20 px-1 py-0.5 font-mono text-[11px]">$1</code>')
-			.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-			.replace(/\*([^*]+)\*/g, '<em>$1</em>')
-			.replace(/\n/g, '<br />');
-	}
-
-	const html = $derived(renderInline(content));
+	const html = $derived(renderFormattedMessage(content));
 </script>
 
 <div
@@ -73,7 +62,7 @@
 			].join(' ')}
 			style="border-color:var(--ds-border)"
 		>
-			<div class="whitespace-pre-wrap break-words text-left">
+			<div class="rich-message break-words text-left">
 				{@html html}{#if isStreaming}<span
 						class="ml-0.5 inline-block h-3.5 w-1 translate-y-0.5 animate-pulse bg-current align-middle"
 						aria-hidden="true"
@@ -90,3 +79,49 @@
 		{/if}
 	</div>
 </div>
+
+<style>
+	.rich-message {
+		white-space: normal;
+	}
+	.rich-message :global(p) {
+		margin: 0 0 0.72em;
+	}
+	.rich-message :global(p:last-child),
+	.rich-message :global(ul:last-child),
+	.rich-message :global(h3:last-child),
+	.rich-message :global(h4:last-child) {
+		margin-bottom: 0;
+	}
+	.rich-message :global(ul) {
+		margin: 0.35em 0 0.8em;
+		padding-left: 1.2em;
+	}
+	.rich-message :global(li) {
+		margin: 0.22em 0;
+		padding-left: 0.1em;
+	}
+	.rich-message :global(strong) {
+		font-weight: 750;
+	}
+	.rich-message :global(code) {
+		border-radius: 6px;
+		background: rgba(15, 23, 42, 0.12);
+		padding: 0.1em 0.34em;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+		font-size: 0.92em;
+	}
+	.rich-message :global(a) {
+		color: inherit;
+		font-weight: 700;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+	.rich-message :global(h3),
+	.rich-message :global(h4) {
+		margin: 0.1em 0 0.45em;
+		font-size: 1em;
+		line-height: 1.35;
+		font-weight: 800;
+	}
+</style>
