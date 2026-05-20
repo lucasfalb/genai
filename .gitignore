@@ -1,17 +1,35 @@
-.venv/
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-*.egg-info/
+# Secrets / local env
+docker.env
+*.env
+.env*
+!.env.example
+
+# Backend — separate git repo; ignore all generated artifacts if accidentally visible
+backend/.venv/
+backend/__pycache__/
+backend/*.egg-info/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/.coverage
+backend/htmlcov/
+backend/build/
+backend/postgres_data/
+backend/qdrant_data/
+backend/data/
+
+# Frontend — separate git repo; ignore generated artifacts
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
+frontend/dist/
+
+# Infra / local data
+coolify-docker-compose.yml
 postgres_data/
 qdrant_data/
 data/
-.env
-.codegraph/
-coolify-docker-compose.yml
-backend/build/
-docker.env
+
+# OS
+.DS_Store
+Thumbs.db
