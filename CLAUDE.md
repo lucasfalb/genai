@@ -4,36 +4,6 @@ Leia este arquivo antes de qualquer acao. Evita re-exploracao desnecessaria do c
 
 ---
 
-## CodeGraph — Regras de Uso (OBRIGATORIO)
-
-`.codegraph/` existe neste projeto. Seguir estas regras em TODA sessao:
-
-### Nunca na sessao principal
-**NUNCA chamar `codegraph_explore` ou `codegraph_context` diretamente.** Retornam codigo demais e saturam o contexto.
-
-### Para exploracao — sempre spawn Explore agent
-Para qualquer pergunta "como funciona X?", "onde esta Y?", "explique Z", spawnar Agent com subagent_type=Explore incluindo este prompt:
-
-> This project has CodeGraph initialized (.codegraph/ exists). Use `codegraph_explore` as your PRIMARY tool.
-> Rules:
-> 1. Follow the explore call budget in the codegraph_explore tool description.
-> 2. Do NOT re-read files that codegraph_explore already returned source code for.
-> 3. Only fall back to grep/glob/read for files under "Additional relevant files" if needed.
-
-### Ferramentas leves permitidas na sessao principal
-Apenas para lookups pontuais antes de editar — nao para exploracao:
-
-| Ferramenta | Uso |
-|------------|-----|
-| `codegraph_search` | Encontrar simbolos por nome |
-| `codegraph_callers` / `codegraph_callees` | Rastrear fluxo de chamadas |
-| `codegraph_impact` | Verificar impacto antes de editar |
-| `codegraph_node` | Detalhes de um simbolo especifico |
-
----
-
----
-
 ## O Projeto
 
 SaaS multi-tenant de **Agent Registry**: plataforma unica de agentes configuráveis por tenant via dashboard.
@@ -190,6 +160,13 @@ Use ao criar/mudar endpoints. Regras:
 - Nunca expor secrets, hashes, credentials
 - Criar/atualizar Bruno request em `genai-endpoints/`
 - Validar: `backend\.venv\Scripts\python scripts\validate_openapi.py`
+
+### /pr-workflow
+Use ao iniciar tasks, criar branches, abrir PRs ou promover releases. Regras:
+- Model: `task/TASK-XXX-slug` → `dev` → `prod`
+- Nunca commitar direto em `dev` ou `prod`
+- PRs sempre targeting `dev`; promoção para `prod` via merge `--no-ff`
+- Um branch por task, deletar após merge
 
 ---
 
